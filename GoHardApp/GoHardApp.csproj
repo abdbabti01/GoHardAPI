@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net8.0-android34.0;net8.0-ios17.2;net8.0-maccatalyst17.2</TargetFrameworks>
+		<TargetFrameworks>net8.0-android;net8.0-ios;net8.0-maccatalyst</TargetFrameworks>
 		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net8.0-windows10.0.19041.0</TargetFrameworks>
 		<WindowsSdkPackageVersion>10.0.19041.53</WindowsSdkPackageVersion>
 		<!-- Uncomment to also build the tizen app. You will need to install tizen by following this: https://github.com/Samsung/Tizen.NET -->
@@ -9,6 +9,10 @@
 
 		<!-- Suppress EOL warning for .NET 8.0 in CI/CD -->
 		<NoWarn>$(NoWarn);NETSDK1202</NoWarn>
+
+		<!-- Explicitly set iOS platform version -->
+		<TargetPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">17.2</TargetPlatformVersion>
+		<TargetPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">17.2</TargetPlatformVersion>
 
 		<!-- Note for MacCatalyst:
 		The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
@@ -18,11 +22,11 @@
 		<!-- For example: <RuntimeIdentifiers>maccatalyst-x64;maccatalyst-arm64</RuntimeIdentifiers> -->
 
 		<!-- Android Runtime Identifiers for Release builds -->
-		<RuntimeIdentifiers Condition="$(TargetFramework.Contains('android')) and '$(Configuration)' == 'Release'">android-arm64</RuntimeIdentifiers>
+		<RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net8.0-android' and '$(Configuration)' == 'Release'">android-arm64</RuntimeIdentifiers>
 
 		<!-- Disable IL trimming and AOT to avoid permission issues with C:\Program Files\dotnet\packs -->
-		<PublishTrimmed Condition="$(TargetFramework.Contains('android'))">false</PublishTrimmed>
-		<RunAOTCompilation Condition="$(TargetFramework.Contains('android'))">false</RunAOTCompilation>
+		<PublishTrimmed Condition="'$(TargetFramework)' == 'net8.0-android'">false</PublishTrimmed>
+		<RunAOTCompilation Condition="'$(TargetFramework)' == 'net8.0-android'">false</RunAOTCompilation>
 
 		<OutputType>Exe</OutputType>
 		<RootNamespace>GoHardApp</RootNamespace>
