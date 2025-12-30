@@ -10,10 +10,6 @@
 		<!-- Suppress EOL warning for .NET 8.0 in CI/CD -->
 		<NoWarn>$(NoWarn);NETSDK1202</NoWarn>
 
-		<!-- Explicitly set iOS platform version -->
-		<TargetPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">17.2</TargetPlatformVersion>
-		<TargetPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">17.2</TargetPlatformVersion>
-
 		<!-- Note for MacCatalyst:
 		The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
 		When specifying both architectures, use the plural <RuntimeIdentifiers> instead of the singular <RuntimeIdentifier>.
@@ -45,12 +41,29 @@
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">11.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">13.1</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
-		<TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
-		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'tizen'">6.5</SupportedOSPlatformVersion>
+	</PropertyGroup>
+
+	<!-- iOS-specific settings -->
+	<PropertyGroup Condition="$(TargetFramework.Contains('-ios'))">
+		<SupportedOSPlatformVersion>11.0</SupportedOSPlatformVersion>
+		<TargetPlatformVersion>17.2</TargetPlatformVersion>
+	</PropertyGroup>
+
+	<!-- MacCatalyst-specific settings -->
+	<PropertyGroup Condition="$(TargetFramework.Contains('-maccatalyst'))">
+		<SupportedOSPlatformVersion>13.1</SupportedOSPlatformVersion>
+		<TargetPlatformVersion>17.2</TargetPlatformVersion>
+	</PropertyGroup>
+
+	<!-- Android-specific settings -->
+	<PropertyGroup Condition="$(TargetFramework.Contains('-android'))">
+		<SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+	</PropertyGroup>
+
+	<!-- Windows-specific settings -->
+	<PropertyGroup Condition="$(TargetFramework.Contains('-windows'))">
+		<SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+		<TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
