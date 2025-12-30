@@ -1,11 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>net8.0-android;net8.0-ios;net8.0-maccatalyst</TargetFrameworks>
-		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net8.0-windows10.0.19041.0</TargetFrameworks>
+		<TargetFrameworks>net9.0-android;net9.0-ios;net9.0-maccatalyst</TargetFrameworks>
+		<TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net9.0-windows10.0.19041.0</TargetFrameworks>
 		<WindowsSdkPackageVersion>10.0.19041.53</WindowsSdkPackageVersion>
 		<!-- Uncomment to also build the tizen app. You will need to install tizen by following this: https://github.com/Samsung/Tizen.NET -->
-		<!-- <TargetFrameworks>$(TargetFrameworks);net8.0-tizen</TargetFrameworks> -->
+		<!-- <TargetFrameworks>$(TargetFrameworks);net9.0-tizen</TargetFrameworks> -->
 
 		<!-- Note for MacCatalyst:
 		The default runtime is maccatalyst-x64, except in Release config, in which case the default is maccatalyst-x64;maccatalyst-arm64.
@@ -15,11 +15,11 @@
 		<!-- For example: <RuntimeIdentifiers>maccatalyst-x64;maccatalyst-arm64</RuntimeIdentifiers> -->
 
 		<!-- Android Runtime Identifiers for Release builds -->
-		<RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net8.0-android' and '$(Configuration)' == 'Release'">android-arm64</RuntimeIdentifiers>
+		<RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net9.0-android' and '$(Configuration)' == 'Release'">android-arm64</RuntimeIdentifiers>
 
 		<!-- Disable IL trimming and AOT to avoid permission issues with C:\Program Files\dotnet\packs -->
-		<PublishTrimmed Condition="'$(TargetFramework)' == 'net8.0-android'">false</PublishTrimmed>
-		<RunAOTCompilation Condition="'$(TargetFramework)' == 'net8.0-android'">false</RunAOTCompilation>
+		<PublishTrimmed Condition="'$(TargetFramework)' == 'net9.0-android'">false</PublishTrimmed>
+		<RunAOTCompilation Condition="'$(TargetFramework)' == 'net9.0-android'">false</RunAOTCompilation>
 
 		<OutputType>Exe</OutputType>
 		<RootNamespace>GoHardApp</RootNamespace>
