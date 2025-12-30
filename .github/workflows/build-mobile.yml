@@ -2,11 +2,11 @@ name: Build Mobile Apps
 
 on:
   push:
-    branches: [ master, release/* ]
+    branches: [ main, release/* ]
     paths:
       - 'GoHardApp/**'
   pull_request:
-    branches: [ master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
