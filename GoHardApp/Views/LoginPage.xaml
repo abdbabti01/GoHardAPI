@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodel="clr-namespace:GoHardApp.ViewModels"
+             x:Class="GoHardApp.Views.LoginPage"
+             x:DataType="viewmodel:LoginViewModel"
+             Title="Login"
+             Shell.NavBarIsVisible="False">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="30"
+                           Spacing="20"
+                           VerticalOptions="Center">
+
+            <!-- App Logo/Title -->
+            <VerticalStackLayout Spacing="8"
+                               Margin="0,0,0,32">
+                <Label Text="💪"
+                       FontSize="96"
+                       HorizontalOptions="Center"/>
+
+                <Label Text="GoHard"
+                       FontSize="40"
+                       FontAttributes="Bold"
+                       HorizontalOptions="Center"/>
+
+                <Label Text="Track your fitness journey"
+                       FontSize="14"
+                       HorizontalOptions="Center"/>
+            </VerticalStackLayout>
+
+            <!-- Login Form Card -->
+            <Frame Padding="20" CornerRadius="10" HasShadow="True">
+                <VerticalStackLayout Spacing="16">
+                    <!-- Email Field -->
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Email"
+                               FontSize="14"
+                               FontAttributes="Bold"/>
+                        <Entry Text="{Binding Email}"
+                               Placeholder="Enter your email"
+                               Keyboard="Email"
+                               ReturnType="Next"/>
+                    </VerticalStackLayout>
+
+                    <!-- Password Field -->
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="Password"
+                               FontSize="14"
+                               FontAttributes="Bold"/>
+                        <Entry Text="{Binding Password}"
+                               Placeholder="Enter your password"
+                               IsPassword="True"
+                               ReturnType="Done"
+                               ReturnCommand="{Binding LoginCommand}"/>
+                    </VerticalStackLayout>
+
+                    <!-- Error Message -->
+                    <Label Text="{Binding ErrorMessage}"
+                           TextColor="Red"
+                           FontSize="14"
+                           FontAttributes="Bold"
+                           IsVisible="{Binding ErrorMessage, Converter={StaticResource IsNotNullConverter}}"
+                           HorizontalOptions="Center"
+                           Margin="0,8,0,0"/>
+
+                    <!-- Login Button -->
+                    <Button Text="Login"
+                            BackgroundColor="{StaticResource Primary}"
+                            TextColor="White"
+                            FontAttributes="Bold"
+                            FontSize="18"
+                            Padding="0,14"
+                            Command="{Binding LoginCommand}"
+                            IsEnabled="{Binding IsLoading, Converter={StaticResource InvertedBoolConverter}}"
+                            Margin="0,16,0,0"/>
+
+                    <!-- Loading Indicator -->
+                    <ActivityIndicator IsRunning="{Binding IsLoading}"
+                                     IsVisible="{Binding IsLoading}"
+                                     Color="{StaticResource Primary}"
+                                     HeightRequest="40"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Signup Link -->
+            <HorizontalStackLayout HorizontalOptions="Center"
+                                 Spacing="5"
+                                 Margin="0,24,0,0">
+                <Label Text="Don't have an account?"
+                       FontSize="14"/>
+                <Label Text="Sign up"
+                       FontSize="14"
+                       FontAttributes="Bold"
+                       TextColor="{StaticResource Primary}">
+                    <Label.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding NavigateToSignupCommand}"/>
+                    </Label.GestureRecognizers>
+                </Label>
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

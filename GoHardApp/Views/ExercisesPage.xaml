@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodel="clr-namespace:GoHardApp.ViewModels"
+             xmlns:model="clr-namespace:GoHardApp.Models"
+             x:Class="GoHardApp.Views.ExercisesPage"
+             x:DataType="viewmodel:ExercisesViewModel"
+             Title="Exercise Library">
+
+    <Grid RowDefinitions="Auto,*">
+        <!-- Filter Buttons -->
+        <ScrollView Grid.Row="0"
+                    Orientation="Horizontal"
+                    HorizontalScrollBarVisibility="Never">
+            <FlexLayout Padding="15"
+                       Wrap="NoWrap"
+                       JustifyContent="Start"
+                       AlignItems="Center"
+                       Direction="Row">
+                <Button Text="All"
+                        TextColor="Black"
+                        BackgroundColor="#E0E0E0"
+                        FontSize="15"
+                        FontFamily="OpenSansRegular"
+                        CornerRadius="20"
+                        Padding="16,8"
+                        MinimumHeightRequest="36"
+                        Command="{Binding FilterByCategoryCommand}"
+                        CommandParameter="All"
+                        Margin="0,0,8,0" />
+                <Button Text="Strength"
+                        TextColor="Black"
+                        BackgroundColor="#E0E0E0"
+                        FontSize="15"
+                        FontFamily="OpenSansRegular"
+                        CornerRadius="20"
+                        Padding="16,8"
+                        MinimumHeightRequest="36"
+                        Command="{Binding FilterByCategoryCommand}"
+                        CommandParameter="Strength"
+                        Margin="0,0,8,0" />
+                <Button Text="Cardio"
+                        TextColor="Black"
+                        BackgroundColor="#E0E0E0"
+                        FontSize="15"
+                        FontFamily="OpenSansRegular"
+                        CornerRadius="20"
+                        Padding="16,8"
+                        MinimumHeightRequest="36"
+                        Command="{Binding FilterByCategoryCommand}"
+                        CommandParameter="Cardio"
+                        Margin="0,0,8,0" />
+                <Button Text="Core"
+                        TextColor="Black"
+                        BackgroundColor="#E0E0E0"
+                        FontSize="15"
+                        FontFamily="OpenSansRegular"
+                        CornerRadius="20"
+                        Padding="16,8"
+                        MinimumHeightRequest="36"
+                        Command="{Binding FilterByCategoryCommand}"
+                        CommandParameter="Core"
+                        Margin="0,0,8,0" />
+            </FlexLayout>
+        </ScrollView>
+
+        <!-- Exercises List -->
+        <RefreshView Grid.Row="1"
+                     IsRefreshing="{Binding IsLoading}"
+                     Command="{Binding LoadExercisesCommand}">
+            <CollectionView ItemsSource="{Binding Exercises}">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout HorizontalOptions="Center"
+                                       VerticalOptions="Center"
+                                       Padding="20">
+                        <Label Text="No exercises found"
+                               FontSize="20"
+                               FontAttributes="Bold"
+                               TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                               HorizontalTextAlignment="Center"/>
+                        <Label Text="Pull down to refresh"
+                               FontSize="14"
+                               HorizontalTextAlignment="Center"
+                               Margin="0,8,0,0"/>
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:ExerciseTemplate">
+                        <Frame Margin="15" Padding="15" CornerRadius="10" HasShadow="True">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodel:ExercisesViewModel}}, Path=NavigateToDetailCommand}"
+                                                     CommandParameter="{Binding .}" />
+                            </Frame.GestureRecognizers>
+
+                            <Grid RowDefinitions="Auto,Auto,Auto"
+                                  ColumnDefinitions="Auto,*,Auto"
+                                  RowSpacing="8">
+                                <!-- Icon -->
+                                <Label Grid.Row="0"
+                                       Grid.Column="0"
+                                       Text="{Binding Category, Converter={StaticResource CategoryToIconConverter}}"
+                                       FontSize="36"
+                                       VerticalOptions="Center"
+                                       Margin="0,0,16,0"/>
+
+                                <!-- Exercise Name -->
+                                <Label Grid.Row="0"
+                                       Grid.Column="1"
+                                       Text="{Binding Name}"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                       VerticalOptions="Center"/>
+
+                                <!-- Category Badge -->
+                                <Frame Grid.Row="0"
+                                       Grid.Column="2"
+                                       Padding="10,5"
+                                       CornerRadius="10"
+                                       HasShadow="False"
+                                       BorderColor="Transparent"
+                                       BackgroundColor="{Binding Category, Converter={StaticResource CategoryToColorConverter}}"
+                                       VerticalOptions="Center">
+                                    <Label Text="{Binding Category}"
+                                           TextColor="White"
+                                           FontSize="11"
+                                           FontAttributes="Bold"/>
+                                </Frame>
+
+                                <!-- Details Row -->
+                                <HorizontalStackLayout Grid.Row="1"
+                                                      Grid.Column="0"
+                                                      Grid.ColumnSpan="3"
+                                                      Spacing="15">
+                                    <Label>
+                                        <Label.FormattedText>
+                                            <FormattedString>
+                                                <Span Text="💪 " FontSize="13"/>
+                                                <Span Text="{Binding MuscleGroup}"
+                                                      FontSize="13"/>
+                                            </FormattedString>
+                                        </Label.FormattedText>
+                                    </Label>
+                                    <Label>
+                                        <Label.FormattedText>
+                                            <FormattedString>
+                                                <Span Text="⭐ " FontSize="13"/>
+                                                <Span Text="{Binding Difficulty}"
+                                                      FontSize="13"/>
+                                            </FormattedString>
+                                        </Label.FormattedText>
+                                    </Label>
+                                    <Label IsVisible="{Binding Equipment, Converter={StaticResource IsNotNullConverter}}">
+                                        <Label.FormattedText>
+                                            <FormattedString>
+                                                <Span Text="🔧 " FontSize="13"/>
+                                                <Span Text="{Binding Equipment}"
+                                                      FontSize="13"/>
+                                            </FormattedString>
+                                        </Label.FormattedText>
+                                    </Label>
+                                </HorizontalStackLayout>
+
+                                <!-- Description Preview -->
+                                <Label Grid.Row="2"
+                                       Grid.Column="0"
+                                       Grid.ColumnSpan="3"
+                                       Text="{Binding Description}"
+                                       FontSize="12"
+                                       LineBreakMode="TailTruncation"
+                                       MaxLines="2"/>
+                            </Grid>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+    </Grid>
+</ContentPage>

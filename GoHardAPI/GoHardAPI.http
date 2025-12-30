@@ -1,0 +1,6 @@
+@GoHardAPI_HostAddress = http://localhost:5121
+
+GET {{GoHardAPI_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

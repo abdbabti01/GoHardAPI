@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="GoHardApp.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:views="clr-namespace:GoHardApp.Views"
+    Shell.FlyoutBehavior="Disabled">
+
+    <!-- Login Page - Not part of TabBar -->
+    <ShellContent
+        Route="login"
+        ContentTemplate="{DataTemplate views:LoginPage}"
+        Shell.TabBarIsVisible="False" />
+
+    <TabBar Route="main">
+        <ShellContent
+            Route="workouts"
+            Title="Workouts"
+            ContentTemplate="{DataTemplate views:SessionsPage}"
+            Icon="dumbbell.png" />
+
+        <ShellContent
+            Route="exercises"
+            Title="Exercises"
+            ContentTemplate="{DataTemplate views:ExercisesPage}"
+            Icon="list_bulleted.png" />
+
+        <ShellContent
+            Route="profile"
+            Title="Profile"
+            ContentTemplate="{DataTemplate views:ProfilePage}"
+            Icon="person.png" />
+    </TabBar>
+
+</Shell>

@@ -1,0 +1,99 @@
+# .NET MAUI Mobile App Pipeline
+# Builds both iOS and Android apps using Azure's hosted macOS agent
+
+trigger:
+  branches:
+    include:
+    - master
+    - release/*
+  paths:
+    include:
+    - GoHardApp/**
+
+# Use Microsoft-hosted macOS agent (required for iOS builds)
+pool:
+  vmImage: 'macOS-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '8.0.x'
+
+stages:
+- stage: Build
+  displayName: 'Build Mobile Apps'
+  jobs:
+
+  # iOS Build Job
+  - job: BuildiOS
+    displayName: 'Build iOS App'
+    steps:
+
+    - task: UseDotNet@2
+      displayName: 'Install .NET SDK'
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnetVersion)'
+
+    - script: |
+        dotnet workload install maui
+      displayName: 'Install .NET MAUI Workload'
+
+    - script: |
+        cd GoHardApp
+        dotnet restore -f net8.0-ios
+      displayName: 'Restore NuGet Packages'
+
+    - script: |
+        cd GoHardApp
+        dotnet build -f net8.0-ios -c $(buildConfiguration)
+      displayName: 'Build iOS App'
+
+    - script: |
+        cd GoHardApp
+        dotnet publish -f net8.0-ios -c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory)/ios
+      displayName: 'Publish iOS App'
+      # Note: This creates an .app bundle. For actual device deployment, you need code signing.
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish iOS Artifacts'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/ios'
+        artifactName: 'ios-app'
+        publishLocation: 'pipeline'
+
+  # Android Build Job (also on macOS for consistency)
+  - job: BuildAndroid
+    displayName: 'Build Android App'
+    steps:
+
+    - task: UseDotNet@2
+      displayName: 'Install .NET SDK'
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnetVersion)'
+
+    - script: |
+        dotnet workload install maui
+      displayName: 'Install .NET MAUI Workload'
+
+    - script: |
+        cd GoHardApp
+        dotnet restore -f net8.0-android
+      displayName: 'Restore NuGet Packages'
+
+    - script: |
+        cd GoHardApp
+        dotnet build -f net8.0-android -c $(buildConfiguration)
+      displayName: 'Build Android App'
+
+    - script: |
+        cd GoHardApp
+        dotnet publish -f net8.0-android -c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory)/android
+      displayName: 'Publish Android APK'
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Android Artifacts'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/android'
+        artifactName: 'android-app'
+        publishLocation: 'pipeline'

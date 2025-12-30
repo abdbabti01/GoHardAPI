@@ -1,0 +1,111 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<?xaml-comp compile="true" ?>
+<ResourceDictionary 
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- Note: For Android please see also Platforms\Android\Resources\values\colors.xml -->
+
+    <!-- iOS System Colors -->
+    <Color x:Key="iOSSystemBlue">#007AFF</Color>
+    <Color x:Key="iOSSystemBlueLight">#5AC8FA</Color>
+    <Color x:Key="iOSSystemBlueDark">#0051D5</Color>
+
+    <Color x:Key="iOSSystemGreen">#34C759</Color>
+    <Color x:Key="iOSSystemYellow">#FFCC00</Color>
+    <Color x:Key="iOSSystemOrange">#FF9500</Color>
+    <Color x:Key="iOSSystemRed">#FF3B30</Color>
+    <Color x:Key="iOSSystemPurple">#AF52DE</Color>
+
+    <!-- iOS Gray Scale (Light Mode) -->
+    <Color x:Key="iOSGray1">#F2F2F7</Color>     <!-- Background Secondary -->
+    <Color x:Key="iOSGray2">#E5E5EA</Color>     <!-- Separator Light -->
+    <Color x:Key="iOSGray3">#D1D1D6</Color>     <!-- Separator -->
+    <Color x:Key="iOSGray4">#C7C7CC</Color>     <!-- Border -->
+    <Color x:Key="iOSGray5">#AEAEB2</Color>     <!-- Tertiary Label -->
+    <Color x:Key="iOSGray6">#8E8E93</Color>     <!-- Secondary Label -->
+
+    <!-- iOS Label Colors -->
+    <Color x:Key="iOSLabel">#000000</Color>
+    <Color x:Key="iOSSecondaryLabel">#3C3C4399</Color>  <!-- 60% opacity -->
+    <Color x:Key="iOSTertiaryLabel">#3C3C434D</Color>   <!-- 30% opacity -->
+
+    <!-- iOS Backgrounds (Light Mode) -->
+    <Color x:Key="iOSSystemBackground">#FFFFFF</Color>
+    <Color x:Key="iOSSecondarySystemBackground">#F2F2F7</Color>
+    <Color x:Key="iOSGroupedBackground">#F2F2F7</Color>
+
+    <!-- iOS Dark Mode Colors -->
+    <Color x:Key="iOSDarkLabel">#FFFFFF</Color>
+    <Color x:Key="iOSDarkSecondaryLabel">#EBEBF599</Color>
+    <Color x:Key="iOSDarkTertiaryLabel">#EBEBF54D</Color>
+    <Color x:Key="iOSDarkSystemBackground">#000000</Color>
+    <Color x:Key="iOSDarkSecondaryBackground">#1C1C1E</Color>
+    <Color x:Key="iOSDarkGroupedBackground">#000000</Color>
+    <Color x:Key="iOSDarkGray1">#1C1C1E</Color>
+    <Color x:Key="iOSDarkGray2">#2C2C2E</Color>
+    <Color x:Key="iOSDarkGray3">#38383A</Color>
+    <Color x:Key="iOSDarkGray4">#48484A</Color>
+
+    <!-- Old Colors (Kept for backward compatibility, aliased to iOS colors) -->
+    <Color x:Key="Primary">#007AFF</Color>
+    <Color x:Key="PrimaryDark">#ac99ea</Color>
+    <Color x:Key="PrimaryDarkText">#242424</Color>
+    <Color x:Key="Secondary">#F2F2F7</Color>
+    <Color x:Key="SecondaryDarkText">#9880e5</Color>
+    <Color x:Key="Tertiary">#2B0B98</Color>
+
+    <Color x:Key="White">White</Color>
+    <Color x:Key="Black">Black</Color>
+    <Color x:Key="Magenta">#D600AA</Color>
+    <Color x:Key="MidnightBlue">#190649</Color>
+    <Color x:Key="OffBlack">#1f1f1f</Color>
+
+    <!-- Old Gray Scale (kept for compatibility) -->
+    <Color x:Key="Gray100">#E1E1E1</Color>
+    <Color x:Key="Gray200">#C8C8C8</Color>
+    <Color x:Key="Gray300">#ACACAC</Color>
+    <Color x:Key="Gray400">#919191</Color>
+    <Color x:Key="Gray500">#6E6E6E</Color>
+    <Color x:Key="Gray600">#404040</Color>
+    <Color x:Key="Gray900">#212121</Color>
+    <Color x:Key="Gray950">#141414</Color>
+
+    <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource Primary}"/>
+    <SolidColorBrush x:Key="SecondaryBrush" Color="{StaticResource Secondary}"/>
+    <SolidColorBrush x:Key="TertiaryBrush" Color="{StaticResource Tertiary}"/>
+    <SolidColorBrush x:Key="WhiteBrush" Color="{StaticResource White}"/>
+    <SolidColorBrush x:Key="BlackBrush" Color="{StaticResource Black}"/>
+
+    <SolidColorBrush x:Key="Gray100Brush" Color="{StaticResource Gray100}"/>
+    <SolidColorBrush x:Key="Gray200Brush" Color="{StaticResource Gray200}"/>
+    <SolidColorBrush x:Key="Gray300Brush" Color="{StaticResource Gray300}"/>
+    <SolidColorBrush x:Key="Gray400Brush" Color="{StaticResource Gray400}"/>
+    <SolidColorBrush x:Key="Gray500Brush" Color="{StaticResource Gray500}"/>
+    <SolidColorBrush x:Key="Gray600Brush" Color="{StaticResource Gray600}"/>
+    <SolidColorBrush x:Key="Gray900Brush" Color="{StaticResource Gray900}"/>
+    <SolidColorBrush x:Key="Gray950Brush" Color="{StaticResource Gray950}"/>
+
+    <!-- Apple Fitness-Inspired Gradients -->
+    <Color x:Key="FitnessGradientStart">#FA5A7D</Color>
+    <Color x:Key="FitnessGradientEnd">#FF8A5C</Color>
+    <Color x:Key="ActivityGradientStart">#7AFA4D</Color>
+    <Color x:Key="ActivityGradientEnd">#39E66B</Color>
+
+    <!-- Refined Surface Colors -->
+    <Color x:Key="SurfaceLight">#F2F2F7</Color>
+    <Color x:Key="SurfaceDark">#1C1C1E</Color>
+    <Color x:Key="CardBackgroundLight">#FFFFFF</Color>
+    <Color x:Key="CardBackgroundDark">#2C2C2E</Color>
+
+    <!-- Semantic Status Colors -->
+    <Color x:Key="SuccessGreen">#34C759</Color>
+    <Color x:Key="WarningOrange">#FF9F0A</Color>
+    <Color x:Key="ErrorRed">#FF3B30</Color>
+    <Color x:Key="InfoBlue">#007AFF</Color>
+
+    <!-- Gradient Brush Resources - Using solid colors for Android compatibility -->
+    <SolidColorBrush x:Key="PrimaryGradient" Color="{StaticResource FitnessGradientStart}" />
+    <SolidColorBrush x:Key="SuccessGradient" Color="{StaticResource ActivityGradientStart}" />
+    <SolidColorBrush x:Key="PrimaryGradientDark" Color="#D946A6" />
+</ResourceDictionary>

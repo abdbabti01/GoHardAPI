@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodel="clr-namespace:GoHardApp.ViewModels"
+             xmlns:model="clr-namespace:GoHardApp.Models"
+             xmlns:converters="clr-namespace:GoHardApp.Converters"
+             x:Class="GoHardApp.Views.AddExerciseToWorkoutPage"
+             x:DataType="viewmodel:AddExerciseToWorkoutViewModel"
+             Title="Add Exercise">
+
+    <ContentPage.Resources>
+        <converters:CategoryToColorConverter x:Key="CategoryToColorConverter"/>
+        <converters:CategoryToIconConverter x:Key="CategoryToIconConverter"/>
+    </ContentPage.Resources>
+
+    <RefreshView IsRefreshing="{Binding IsLoading}"
+                 Command="{Binding LoadExerciseTemplatesCommand}">
+        <CollectionView ItemsSource="{Binding ExerciseTemplates}"
+                       Margin="10,0">
+            <CollectionView.EmptyView>
+                <VerticalStackLayout HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   Padding="20">
+                    <Label Text="No exercises found"
+                           FontSize="18"
+                           FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                           HorizontalOptions="Center"/>
+                    <Label Text="Pull down to refresh"
+                           FontSize="14"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray200}}"
+                           HorizontalOptions="Center"
+                           Margin="0,10,0,0"/>
+                </VerticalStackLayout>
+            </CollectionView.EmptyView>
+
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="model:ExerciseTemplate">
+                    <Frame Margin="5" Padding="0" CornerRadius="15" HasShadow="True">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodel:AddExerciseToWorkoutViewModel}}, Path=AddExerciseToWorkoutCommand}"
+                                                 CommandParameter="{Binding .}"/>
+                        </Frame.GestureRecognizers>
+
+                        <Grid RowDefinitions="Auto,*" ColumnDefinitions="Auto,*">
+                            <!-- Category Color Strip -->
+                            <BoxView Grid.Row="0" Grid.RowSpan="2" Grid.Column="0"
+                                    WidthRequest="8"
+                                    Color="{Binding Category, Converter={StaticResource CategoryToColorConverter}}"/>
+
+                            <!-- Content -->
+                            <VerticalStackLayout Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                                               Padding="15" Spacing="8">
+                                <HorizontalStackLayout Spacing="10">
+                                    <Label Text="{Binding Category, Converter={StaticResource CategoryToIconConverter}}"
+                                          FontSize="24"
+                                          VerticalOptions="Center"/>
+                                    <Label Text="{Binding Name}"
+                                          FontSize="18"
+                                          FontAttributes="Bold"
+                                          TextColor="{AppThemeBinding Light=Black, Dark=White}"
+                                          VerticalOptions="Center"/>
+                                </HorizontalStackLayout>
+
+                                <HorizontalStackLayout Spacing="15">
+                                    <Label Text="{Binding Category}"
+                                          FontSize="12"
+                                          Padding="8,4"
+                                          BackgroundColor="{Binding Category, Converter={StaticResource CategoryToColorConverter}}"
+                                          TextColor="White"/>
+                                    <Label Text="{Binding MuscleGroup}"
+                                          FontSize="12"
+                                          TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray200}}"/>
+                                </HorizontalStackLayout>
+
+                                <Label Text="{Binding Description}"
+                                      FontSize="14"
+                                      TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray200}}"
+                                      LineBreakMode="TailTruncation"
+                                      MaxLines="2"/>
+                            </VerticalStackLayout>
+                        </Grid>
+                    </Frame>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </RefreshView>
+
+</ContentPage>

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodel="clr-namespace:GoHardApp.ViewModels"
+             xmlns:model="clr-namespace:GoHardApp.Models"
+             x:Class="GoHardApp.Views.SessionDetailPage"
+             x:DataType="viewmodel:SessionDetailViewModel"
+             Title="Workout Details">
+
+    <ScrollView>
+        <VerticalStackLayout Padding="15" Spacing="15">
+            <!-- Session Header -->
+            <Frame Padding="20" CornerRadius="15" HasShadow="True">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="{Binding CurrentSession.Date, StringFormat='{0:MMMM dd, yyyy}'}"
+                           FontSize="24"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center"/>
+
+                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="20">
+                        <Label Text="{Binding CurrentSession.Type}"
+                               FontSize="16"
+                               Padding="10,5"
+                               BackgroundColor="{StaticResource Primary}"
+                               TextColor="White"/>
+
+                        <Label Text="{Binding CurrentSession.Status}"
+                               FontSize="16"
+                               Padding="10,5"
+                               BackgroundColor="Green"
+                               TextColor="White"/>
+                    </HorizontalStackLayout>
+
+                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="15" Margin="0,10,0,0">
+                        <Label Text="{Binding CurrentSession.Duration, StringFormat='⏱️ {0} min'}"
+                               FontSize="14"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray200}}"/>
+
+                        <Label Text="{Binding CurrentSession.Exercises.Count, StringFormat='💪 {0} exercises'}"
+                               FontSize="14"
+                               TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray200}}"/>
+                    </HorizontalStackLayout>
+
+                    <Label Text="{Binding CurrentSession.Notes}"
+                           FontSize="14"
+                           TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray200}}"
+                           Margin="0,10,0,0"
+                           IsVisible="{Binding CurrentSession.Notes, Converter={StaticResource IsNotNullConverter}}"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Exercises List -->
+            <Label Text="Exercises"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   Margin="0,10,0,0"/>
+
+            <CollectionView ItemsSource="{Binding CurrentSession.Exercises}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="model:Exercise">
+                        <Frame Margin="0,5" Padding="15" CornerRadius="10" HasShadow="True">
+                            <VerticalStackLayout Spacing="10">
+                                <!-- Exercise Name -->
+                                <Label Text="{Binding Name}"
+                                       FontSize="18"
+                                       FontAttributes="Bold"/>
+
+                                <!-- Sets List -->
+                                <CollectionView ItemsSource="{Binding ExerciseSets}">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate x:DataType="model:ExerciseSet">
+                                            <Grid ColumnDefinitions="Auto,*,Auto" Padding="5">
+                                                <Label Grid.Column="0"
+                                                       Text="{Binding SetNumber, StringFormat='Set {0}'}"
+                                                       FontSize="14"
+                                                       VerticalOptions="Center"/>
+
+                                                <HorizontalStackLayout Grid.Column="1" Spacing="10" Margin="10,0">
+                                                    <Label Text="{Binding Reps, StringFormat='{0} reps'}"
+                                                           FontSize="14"/>
+                                                    <Label Text="{Binding Weight, StringFormat='@ {0} kg'}"
+                                                           FontSize="14"
+                                                           IsVisible="{Binding Weight, Converter={StaticResource IsNotNullConverter}}"/>
+                                                </HorizontalStackLayout>
+
+                                                <Label Grid.Column="2"
+                                                       Text="✓"
+                                                       FontSize="16"
+                                                       TextColor="Green"
+                                                       IsVisible="{Binding IsCompleted}"
+                                                       VerticalOptions="Center"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+
+                                <!-- Exercise Notes -->
+                                <Label Text="{Binding Notes}"
+                                       FontSize="12"
+                                       TextColor="{AppThemeBinding Light={StaticResource Gray600}, Dark={StaticResource Gray200}}"
+                                       IsVisible="{Binding Notes, Converter={StaticResource IsNotNullConverter}}"/>
+                            </VerticalStackLayout>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>

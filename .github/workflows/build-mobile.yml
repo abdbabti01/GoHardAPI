@@ -1,0 +1,85 @@
+name: Build Mobile Apps
+
+on:
+  push:
+    branches: [ master, release/* ]
+    paths:
+      - 'GoHardApp/**'
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build iOS App
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install .NET MAUI Workload
+      run: dotnet workload install maui
+
+    - name: Restore dependencies
+      run: |
+        cd GoHardApp
+        dotnet restore -f net8.0-ios
+
+    - name: Build iOS App
+      run: |
+        cd GoHardApp
+        dotnet build -f net8.0-ios -c Release
+
+    - name: Publish iOS App
+      run: |
+        cd GoHardApp
+        dotnet publish -f net8.0-ios -c Release -o ../artifacts/ios
+
+    - name: Upload iOS Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ios-app
+        path: artifacts/ios
+        retention-days: 30
+
+  build-android:
+    name: Build Android App
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install .NET MAUI Workload
+      run: dotnet workload install maui
+
+    - name: Restore dependencies
+      run: |
+        cd GoHardApp
+        dotnet restore -f net8.0-android
+
+    - name: Build Android App
+      run: |
+        cd GoHardApp
+        dotnet build -f net8.0-android -c Release
+
+    - name: Publish Android APK
+      run: |
+        cd GoHardApp
+        dotnet publish -f net8.0-android -c Release -o ../artifacts/android
+
+    - name: Upload Android APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: android-apk
+        path: artifacts/android/**/*.apk
+        retention-days: 30
