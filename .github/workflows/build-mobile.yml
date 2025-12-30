@@ -26,19 +26,16 @@ jobs:
       run: dotnet workload install maui
 
     - name: Restore dependencies
-      run: |
-        cd GoHardApp
-        dotnet restore -f net8.0-ios
+      run: dotnet restore GoHardApp.csproj -f net8.0-ios
+      working-directory: GoHardApp
 
     - name: Build iOS App
-      run: |
-        cd GoHardApp
-        dotnet build -f net8.0-ios -c Release
+      run: dotnet build GoHardApp.csproj -f net8.0-ios -c Release
+      working-directory: GoHardApp
 
     - name: Publish iOS App
-      run: |
-        cd GoHardApp
-        dotnet publish -f net8.0-ios -c Release -o ../artifacts/ios
+      run: dotnet publish GoHardApp.csproj -f net8.0-ios -c Release -o ../artifacts/ios
+      working-directory: GoHardApp
 
     - name: Upload iOS Artifacts
       uses: actions/upload-artifact@v4
@@ -63,19 +60,16 @@ jobs:
       run: dotnet workload install maui
 
     - name: Restore dependencies
-      run: |
-        cd GoHardApp
-        dotnet restore -f net8.0-android
+      run: dotnet restore GoHardApp.csproj -f net8.0-android
+      working-directory: GoHardApp
 
     - name: Build Android App
-      run: |
-        cd GoHardApp
-        dotnet build -f net8.0-android -c Release
+      run: dotnet build GoHardApp.csproj -f net8.0-android -c Release
+      working-directory: GoHardApp
 
     - name: Publish Android APK
-      run: |
-        cd GoHardApp
-        dotnet publish -f net8.0-android -c Release -o ../artifacts/android
+      run: dotnet publish GoHardApp.csproj -f net8.0-android -c Release -o ../artifacts/android
+      working-directory: GoHardApp
 
     - name: Upload Android APK
       uses: actions/upload-artifact@v4
