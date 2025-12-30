@@ -26,15 +26,15 @@ jobs:
       run: dotnet workload install maui
 
     - name: Restore dependencies
-      run: dotnet restore GoHardApp.csproj -f net8.0-ios
+      run: dotnet restore GoHardApp.csproj
       working-directory: GoHardApp
 
     - name: Build iOS App
-      run: dotnet build GoHardApp.csproj -f net8.0-ios -c Release
+      run: dotnet build GoHardApp.csproj --framework net8.0-ios --configuration Release
       working-directory: GoHardApp
 
     - name: Publish iOS App
-      run: dotnet publish GoHardApp.csproj -f net8.0-ios -c Release -o ../artifacts/ios
+      run: dotnet publish GoHardApp.csproj --framework net8.0-ios --configuration Release --output ../artifacts/ios
       working-directory: GoHardApp
 
     - name: Upload iOS Artifacts
@@ -60,15 +60,15 @@ jobs:
       run: dotnet workload install maui
 
     - name: Restore dependencies
-      run: dotnet restore GoHardApp.csproj -f net8.0-android
+      run: dotnet restore GoHardApp.csproj
       working-directory: GoHardApp
 
     - name: Build Android App
-      run: dotnet build GoHardApp.csproj -f net8.0-android -c Release
+      run: dotnet build GoHardApp.csproj --framework net8.0-android --configuration Release
       working-directory: GoHardApp
 
     - name: Publish Android APK
-      run: dotnet publish GoHardApp.csproj -f net8.0-android -c Release -o ../artifacts/android
+      run: dotnet publish GoHardApp.csproj --framework net8.0-android --configuration Release --output ../artifacts/android
       working-directory: GoHardApp
 
     - name: Upload Android APK
