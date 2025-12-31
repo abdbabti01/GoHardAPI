@@ -8,10 +8,7 @@ import '../../../routes/route_names.dart';
 class ActiveWorkoutScreen extends StatefulWidget {
   final int sessionId;
 
-  const ActiveWorkoutScreen({
-    super.key,
-    required this.sessionId,
-  });
+  const ActiveWorkoutScreen({super.key, required this.sessionId});
 
   @override
   State<ActiveWorkoutScreen> createState() => _ActiveWorkoutScreenState();
@@ -34,10 +31,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   }
 
   Future<void> _handleAddExercise() async {
-    final result = await Navigator.of(context).pushNamed(
-      RouteNames.addExercise,
-      arguments: widget.sessionId,
-    );
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.addExercise, arguments: widget.sessionId);
 
     // Reload session if exercise was added
     if (result == true && mounted) {
@@ -48,20 +44,21 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   Future<void> _handleFinishWorkout() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Finish Workout'),
-        content: const Text('Are you ready to finish this workout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Finish Workout'),
+            content: const Text('Are you ready to finish this workout?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Finish'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Finish'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true && mounted) {
@@ -76,10 +73,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   }
 
   void _handleExerciseTap(int exerciseId) {
-    Navigator.of(context).pushNamed(
-      RouteNames.logSets,
-      arguments: exerciseId,
-    );
+    Navigator.of(context).pushNamed(RouteNames.logSets, arguments: exerciseId);
   }
 
   @override
@@ -94,25 +88,26 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             // Warn user about leaving active workout
             final shouldPop = await showDialog<bool>(
               context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Leave Workout'),
-                content: const Text(
-                  'Your workout is still in progress. Are you sure you want to leave?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Stay'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.red,
+              builder:
+                  (context) => AlertDialog(
+                    title: const Text('Leave Workout'),
+                    content: const Text(
+                      'Your workout is still in progress. Are you sure you want to leave?',
                     ),
-                    child: const Text('Leave'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        child: const Text('Stay'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                        ),
+                        child: const Text('Leave'),
+                      ),
+                    ],
                   ),
-                ],
-              ),
             );
 
             if (shouldPop == true && context.mounted) {
@@ -144,9 +139,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
 
   Widget _buildBody(ActiveWorkoutProvider provider) {
     if (provider.isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (provider.errorMessage != null && provider.errorMessage!.isNotEmpty) {
@@ -154,25 +147,18 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red.shade300,
-            ),
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
             const SizedBox(height: 16),
-            Text(
-              'Error',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Error', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Text(
                 provider.errorMessage!,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               ),
             ),
           ],
@@ -187,9 +173,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
 
         // Exercises list
         Expanded(
-          child: provider.exercises.isEmpty
-              ? _buildEmptyState()
-              : _buildExercisesList(provider),
+          child:
+              provider.exercises.isEmpty
+                  ? _buildEmptyState()
+                  : _buildExercisesList(provider),
         ),
       ],
     );
@@ -222,17 +209,17 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             Text(
               _formatElapsedTime(provider.elapsedTime),
               style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontFeatures: [const FontFeature.tabularFigures()],
-                  ),
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'Workout Duration',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.9),
-                  ),
+                color: Colors.white.withValues(alpha: 0.9),
+              ),
             ),
           ],
         ),
@@ -245,11 +232,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.fitness_center,
-            size: 80,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.fitness_center, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 16),
           Text(
             'No Exercises Added',
@@ -261,9 +244,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             child: Text(
               'Add exercises to your workout using the + button below',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
             ),
           ),
         ],
@@ -285,7 +268,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
               vertical: 8,
             ),
             leading: CircleAvatar(
-              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              backgroundColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.1),
               child: Icon(
                 Icons.fitness_center,
                 color: Theme.of(context).colorScheme.primary,

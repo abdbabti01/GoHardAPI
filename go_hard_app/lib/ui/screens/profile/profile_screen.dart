@@ -30,24 +30,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _handleLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Logout'),
+            content: const Text('Are you sure you want to logout?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Logout'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true && mounted) {
@@ -55,10 +56,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (mounted) {
         // Navigate to login and clear navigation stack
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          RouteNames.login,
-          (route) => false,
-        );
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(RouteNames.login, (route) => false);
       }
     }
   }
@@ -80,13 +80,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context, provider, child) {
           // Loading state
           if (provider.isLoading && provider.currentUser == null) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           // Error state
-          if (provider.errorMessage != null && provider.errorMessage!.isNotEmpty) {
+          if (provider.errorMessage != null &&
+              provider.errorMessage!.isNotEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -107,9 +106,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Text(
                       provider.errorMessage!,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -165,16 +164,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   // App info
                   Text(
                     'GoHard - Workout Tracker',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Version 1.0.0',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: Colors.grey),
                   ),
                 ],
               ),
@@ -191,7 +190,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         // Avatar
         CircleAvatar(
           radius: 50,
-          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+          backgroundColor: Theme.of(
+            context,
+          ).colorScheme.primary.withValues(alpha: 0.2),
           child: Icon(
             Icons.person,
             size: 50,
@@ -206,9 +207,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           builder: (context, snapshot) {
             return Text(
               snapshot.data ?? 'Loading...',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
             );
           },
         ),
@@ -220,9 +221,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           builder: (context, snapshot) {
             return Text(
               snapshot.data ?? '',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey.shade600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade600),
             );
           },
         ),
@@ -241,9 +242,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Text(
               'User Information',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
 
@@ -279,12 +280,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             if (user?.goals != null && user!.goals!.isNotEmpty) ...[
               const Divider(height: 24),
-              _buildInfoRow(
-                context,
-                Icons.flag,
-                'Goals',
-                user.goals!,
-              ),
+              _buildInfoRow(context, Icons.flag, 'Goals', user.goals!),
             ],
           ],
         ),
@@ -301,42 +297,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Text(
               'Quick Stats',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem(
-                  context,
-                  Icons.fitness_center,
-                  '-',
-                  'Workouts',
-                ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.grey.shade300,
-                ),
+                _buildStatItem(context, Icons.fitness_center, '-', 'Workouts'),
+                Container(width: 1, height: 40, color: Colors.grey.shade300),
                 _buildStatItem(
                   context,
                   Icons.local_fire_department,
                   '-',
                   'Streak',
                 ),
-                Container(
-                  width: 1,
-                  height: 40,
-                  color: Colors.grey.shade300,
-                ),
-                _buildStatItem(
-                  context,
-                  Icons.trending_up,
-                  '-',
-                  'PR\'s',
-                ),
+                Container(width: 1, height: 40, color: Colors.grey.shade300),
+                _buildStatItem(context, Icons.trending_up, '-', 'PR\'s'),
               ],
             ),
           ],
@@ -353,11 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 20,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -365,16 +339,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text(
                 label,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey.shade600,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
               ),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.w500,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
               ),
             ],
           ),
@@ -391,24 +365,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ) {
     return Column(
       children: [
-        Icon(
-          icon,
-          size: 32,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+        Icon(icon, size: 32, color: Theme.of(context).colorScheme.primary),
         const SizedBox(height: 8),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Colors.grey.shade600,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
         ),
       ],
     );
@@ -427,7 +397,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'Sep',
       'Oct',
       'Nov',
-      'Dec'
+      'Dec',
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
   }

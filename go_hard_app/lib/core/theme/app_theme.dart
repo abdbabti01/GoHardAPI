@@ -44,9 +44,7 @@ class AppTheme {
       cardTheme: CardTheme(
         color: AppColors.cardBackgroundLight,
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       ),
 
@@ -85,10 +83,7 @@ class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: AppColors.errorRed,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: AppColors.errorRed, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -106,10 +101,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -117,10 +109,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.iosSystemBlue,
-          textStyle: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -151,18 +140,9 @@ class AppTheme {
           fontWeight: FontWeight.bold,
           color: AppColors.iosLabel,
         ),
-        bodyLarge: TextStyle(
-          fontSize: 17,
-          color: AppColors.iosLabel,
-        ),
-        bodyMedium: TextStyle(
-          fontSize: 15,
-          color: AppColors.iosSecondaryLabel,
-        ),
-        bodySmall: TextStyle(
-          fontSize: 13,
-          color: AppColors.iosTertiaryLabel,
-        ),
+        bodyLarge: TextStyle(fontSize: 17, color: AppColors.iosLabel),
+        bodyMedium: TextStyle(fontSize: 15, color: AppColors.iosSecondaryLabel),
+        bodySmall: TextStyle(fontSize: 13, color: AppColors.iosTertiaryLabel),
       ),
 
       // Divider
@@ -176,12 +156,8 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.iosGray1,
         selectedColor: AppColors.iosSystemBlue,
-        labelStyle: const TextStyle(
-          color: AppColors.iosLabel,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        labelStyle: const TextStyle(color: AppColors.iosLabel),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -225,9 +201,7 @@ class AppTheme {
       cardTheme: CardTheme(
         color: AppColors.cardBackgroundDark,
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       ),
 
@@ -266,10 +240,7 @@ class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: AppColors.errorRed,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: AppColors.errorRed, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -287,10 +258,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -298,10 +266,7 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: AppColors.iosSystemBlue,
-          textStyle: const TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-          ),
+          textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -332,10 +297,7 @@ class AppTheme {
           fontWeight: FontWeight.bold,
           color: AppColors.iosDarkLabel,
         ),
-        bodyLarge: TextStyle(
-          fontSize: 17,
-          color: AppColors.iosDarkLabel,
-        ),
+        bodyLarge: TextStyle(fontSize: 17, color: AppColors.iosDarkLabel),
         bodyMedium: TextStyle(
           fontSize: 15,
           color: AppColors.iosDarkSecondaryLabel,
@@ -357,12 +319,8 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.iosDarkGray2,
         selectedColor: AppColors.iosSystemBlue,
-        labelStyle: const TextStyle(
-          color: AppColors.iosDarkLabel,
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        labelStyle: const TextStyle(color: AppColors.iosDarkLabel),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }

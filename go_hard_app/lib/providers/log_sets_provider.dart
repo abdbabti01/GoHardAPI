@@ -29,7 +29,8 @@ class LogSetsProvider extends ChangeNotifier {
       // Sort by set number
       _sets.sort((a, b) => a.setNumber.compareTo(b.setNumber));
     } catch (e) {
-      _errorMessage = 'Failed to load sets: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to load sets: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load sets error: $e');
     } finally {
       _isLoading = false;
@@ -45,7 +46,11 @@ class LogSetsProvider extends ChangeNotifier {
   }) async {
     try {
       // Calculate next set number
-      final setNumber = _sets.isEmpty ? 1 : _sets.map((s) => s.setNumber).reduce((a, b) => a > b ? a : b) + 1;
+      final setNumber =
+          _sets.isEmpty
+              ? 1
+              : _sets.map((s) => s.setNumber).reduce((a, b) => a > b ? a : b) +
+                  1;
 
       final newSet = ExerciseSet(
         id: 0, // Will be assigned by server
@@ -62,7 +67,8 @@ class LogSetsProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to add set: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to add set: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Add set error: $e');
       notifyListeners();
       return false;
@@ -81,7 +87,8 @@ class LogSetsProvider extends ChangeNotifier {
         notifyListeners();
       }
     } catch (e) {
-      _errorMessage = 'Failed to complete set: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to complete set: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Complete set error: $e');
       notifyListeners();
     }
@@ -114,7 +121,8 @@ class LogSetsProvider extends ChangeNotifier {
       }
       return false;
     } catch (e) {
-      _errorMessage = 'Failed to delete set: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to delete set: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Delete set error: $e');
       notifyListeners();
       return false;

@@ -44,10 +44,7 @@ class ApiService {
   }
 
   /// Generic GET request
-  Future<T> get<T>(
-    String path, {
-    Map<String, dynamic>? queryParameters,
-  }) async {
+  Future<T> get<T>(String path, {Map<String, dynamic>? queryParameters}) async {
     try {
       final response = await _dio.get<T>(
         path,
@@ -60,15 +57,9 @@ class ApiService {
   }
 
   /// Generic POST request
-  Future<T> post<T>(
-    String path, {
-    dynamic data,
-  }) async {
+  Future<T> post<T>(String path, {dynamic data}) async {
     try {
-      final response = await _dio.post<T>(
-        path,
-        data: data,
-      );
+      final response = await _dio.post<T>(path, data: data);
       return response.data as T;
     } on DioException catch (e) {
       throw _handleError(e);
@@ -76,15 +67,9 @@ class ApiService {
   }
 
   /// Generic PUT request
-  Future<T> put<T>(
-    String path, {
-    dynamic data,
-  }) async {
+  Future<T> put<T>(String path, {dynamic data}) async {
     try {
-      final response = await _dio.put<T>(
-        path,
-        data: data,
-      );
+      final response = await _dio.put<T>(path, data: data);
       return response.data as T;
     } on DioException catch (e) {
       throw _handleError(e);
@@ -92,15 +77,9 @@ class ApiService {
   }
 
   /// Generic PATCH request
-  Future<T> patch<T>(
-    String path, {
-    dynamic data,
-  }) async {
+  Future<T> patch<T>(String path, {dynamic data}) async {
     try {
-      final response = await _dio.patch<T>(
-        path,
-        data: data,
-      );
+      final response = await _dio.patch<T>(path, data: data);
       return response.data as T;
     } on DioException catch (e) {
       throw _handleError(e);
@@ -120,17 +99,20 @@ class ApiService {
   /// Handle Dio errors and convert to user-friendly exceptions
   Exception _handleError(DioException error) {
     if (error.type == DioExceptionType.connectionTimeout) {
-      return Exception('Connection timeout - please check your internet connection');
+      return Exception(
+        'Connection timeout - please check your internet connection',
+      );
     } else if (error.type == DioExceptionType.receiveTimeout) {
       return Exception('Request timeout - server took too long to respond');
     } else if (error.type == DioExceptionType.connectionError) {
       return Exception('Network error - cannot connect to server');
     } else if (error.response != null) {
       final statusCode = error.response?.statusCode;
-      final message = error.response?.data?['message'] ??
-                     error.response?.data?['title'] ??
-                     error.response?.statusMessage ??
-                     'Server error';
+      final message =
+          error.response?.data?['message'] ??
+          error.response?.data?['title'] ??
+          error.response?.statusMessage ??
+          'Server error';
 
       switch (statusCode) {
         case 400:

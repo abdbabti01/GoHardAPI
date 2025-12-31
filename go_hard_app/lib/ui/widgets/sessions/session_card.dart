@@ -32,9 +32,7 @@ class SessionCard extends StatelessWidget {
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
@@ -58,9 +56,8 @@ class SessionCard extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           _formatDate(session.date),
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                       ],
                     ),
@@ -90,7 +87,8 @@ class SessionCard extends StatelessWidget {
                       ),
 
                     // Started time (if in progress)
-                    if (session.status == 'in_progress' && session.startedAt != null)
+                    if (session.status == 'in_progress' &&
+                        session.startedAt != null)
                       _buildInfoItem(
                         context,
                         Icons.play_circle_outline,
@@ -113,9 +111,8 @@ class SessionCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           session.notes!,
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.grey.shade600,
-                              ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: Colors.grey.shade600),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -134,17 +131,13 @@ class SessionCard extends StatelessWidget {
   Widget _buildInfoItem(BuildContext context, IconData icon, String text) {
     return Row(
       children: [
-        Icon(
-          icon,
-          size: 16,
-          color: Colors.grey.shade600,
-        ),
+        Icon(icon, size: 16, color: Colors.grey.shade600),
         const SizedBox(width: 4),
         Text(
           text,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Colors.grey.shade700,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: Colors.grey.shade700),
         ),
       ],
     );
@@ -161,18 +154,11 @@ class SessionCard extends StatelessWidget {
       child: const Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.delete,
-            color: Colors.white,
-            size: 32,
-          ),
+          Icon(Icons.delete, color: Colors.white, size: 32),
           SizedBox(height: 4),
           Text(
             'Delete',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -182,25 +168,24 @@ class SessionCard extends StatelessWidget {
   Future<bool?> _showDeleteConfirmation(BuildContext context) async {
     return showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Session'),
-        content: const Text(
-          'Are you sure you want to delete this workout session? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Session'),
+            content: const Text(
+              'Are you sure you want to delete this workout session? This action cannot be undone.',
             ),
-            child: const Text('Delete'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 

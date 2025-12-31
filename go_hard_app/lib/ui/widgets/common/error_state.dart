@@ -22,11 +22,7 @@ class ErrorState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red.shade300,
-            ),
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
             const SizedBox(height: 16),
             Text(
               title,
@@ -37,9 +33,9 @@ class ErrorState extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
             ),
             if (onRetry != null) ...[
               const SizedBox(height: 24),

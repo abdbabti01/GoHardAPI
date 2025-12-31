@@ -26,10 +26,7 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -42,14 +39,8 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.fitness_center),
             label: 'Workouts',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.list),
-            label: 'Exercises',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.list), label: 'Exercises'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),
     );

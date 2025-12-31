@@ -44,10 +44,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (success && mounted) {
       // Navigate to main screen on success
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        RouteNames.main,
-        (route) => false,
-      );
+      Navigator.of(
+        context,
+      ).pushNamedAndRemoveUntil(RouteNames.main, (route) => false);
     }
     // Error message is displayed automatically via Consumer
   }
@@ -82,8 +81,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     'GoHard',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 8),
 
@@ -91,9 +90,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     'Track your fitness journey',
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Colors.grey,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
                   ),
                   const SizedBox(height: 48),
 
@@ -170,9 +169,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: BoxDecoration(
                             color: Colors.red.shade50,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Colors.red.shade200,
-                            ),
+                            border: Border.all(color: Colors.red.shade200),
                           ),
                           child: Row(
                             children: [
@@ -184,9 +181,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               Expanded(
                                 child: Text(
                                   authProvider.errorMessage,
-                                  style: TextStyle(
-                                    color: Colors.red.shade700,
-                                  ),
+                                  style: TextStyle(color: Colors.red.shade700),
                                 ),
                               ),
                             ],
@@ -208,18 +203,19 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: authProvider.isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                        child:
+                            authProvider.isLoading
+                                ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                                : const Text(
+                                  'Login',
+                                  style: TextStyle(fontSize: 16),
                                 ),
-                              )
-                            : const Text(
-                                'Login',
-                                style: TextStyle(fontSize: 16),
-                              ),
                       );
                     },
                   ),

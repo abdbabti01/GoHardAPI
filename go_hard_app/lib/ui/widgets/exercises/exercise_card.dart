@@ -21,9 +21,7 @@ class ExerciseCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
@@ -36,7 +34,9 @@ class ExerciseCard extends StatelessWidget {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -56,8 +56,8 @@ class ExerciseCard extends StatelessWidget {
                     Text(
                       exercise.name,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -80,7 +80,8 @@ class ExerciseCard extends StatelessWidget {
                     ),
 
                     // Equipment and difficulty
-                    if (exercise.equipment != null || exercise.difficulty != null) ...[
+                    if (exercise.equipment != null ||
+                        exercise.difficulty != null) ...[
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -93,14 +94,16 @@ class ExerciseCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               exercise.equipment!,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.grey.shade600,
-                                  ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: Colors.grey.shade600),
                             ),
                           ],
-                          if (exercise.equipment != null && exercise.difficulty != null)
+                          if (exercise.equipment != null &&
+                              exercise.difficulty != null)
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                              ),
                               child: Text(
                                 '•',
                                 style: TextStyle(color: Colors.grey.shade400),
@@ -115,9 +118,13 @@ class ExerciseCard extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               exercise.difficulty!,
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: _getDifficultyColor(exercise.difficulty!),
-                                  ),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodySmall?.copyWith(
+                                color: _getDifficultyColor(
+                                  exercise.difficulty!,
+                                ),
+                              ),
                             ),
                           ],
                         ],
@@ -142,10 +149,7 @@ class ExerciseCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Text(
         label,

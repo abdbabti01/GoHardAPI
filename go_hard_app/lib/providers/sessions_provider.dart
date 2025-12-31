@@ -33,7 +33,8 @@ class SessionsProvider extends ChangeNotifier {
       // Sort by date descending (most recent first)
       _sessions = sessionList..sort((a, b) => b.date.compareTo(a.date));
     } catch (e) {
-      _errorMessage = 'Failed to load sessions: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to load sessions: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load sessions error: $e');
     } finally {
       _isLoading = false;
@@ -60,7 +61,8 @@ class SessionsProvider extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      _errorMessage = 'Failed to delete session: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to delete session: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Delete session error: $e');
       notifyListeners();
       return false;
@@ -96,7 +98,8 @@ class SessionsProvider extends ChangeNotifier {
 
       return createdSession;
     } catch (e) {
-      _errorMessage = 'Failed to start workout: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to start workout: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Start workout error: $e');
       notifyListeners();
       return null;

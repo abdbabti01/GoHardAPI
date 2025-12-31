@@ -37,7 +37,8 @@ class ExercisesProvider extends ChangeNotifier {
       _exercises = await _exerciseRepository.getExerciseTemplates();
       _applyFilters();
     } catch (e) {
-      _errorMessage = 'Failed to load exercises: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to load exercises: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load exercises error: $e');
     } finally {
       _isLoading = false;
@@ -59,16 +60,21 @@ class ExercisesProvider extends ChangeNotifier {
 
   /// Apply current filters
   void _applyFilters() {
-    _filteredExercises = _exercises.where((exercise) {
-      bool matchesCategory = _selectedCategory == null ||
-          _selectedCategory == 'All' ||
-          exercise.category?.toLowerCase() == _selectedCategory?.toLowerCase();
+    _filteredExercises =
+        _exercises.where((exercise) {
+          bool matchesCategory =
+              _selectedCategory == null ||
+              _selectedCategory == 'All' ||
+              exercise.category?.toLowerCase() ==
+                  _selectedCategory?.toLowerCase();
 
-      bool matchesMuscleGroup = _selectedMuscleGroup == null ||
-          exercise.muscleGroup?.toLowerCase() == _selectedMuscleGroup?.toLowerCase();
+          bool matchesMuscleGroup =
+              _selectedMuscleGroup == null ||
+              exercise.muscleGroup?.toLowerCase() ==
+                  _selectedMuscleGroup?.toLowerCase();
 
-      return matchesCategory && matchesMuscleGroup;
-    }).toList();
+          return matchesCategory && matchesMuscleGroup;
+        }).toList();
 
     notifyListeners();
   }

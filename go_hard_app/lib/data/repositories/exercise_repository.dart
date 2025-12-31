@@ -26,7 +26,9 @@ class ExerciseRepository {
       ApiConfig.exerciseTemplates,
       queryParameters: queryParams.isNotEmpty ? queryParams : null,
     );
-    return data.map((json) => ExerciseTemplate.fromJson(json as Map<String, dynamic>)).toList();
+    return data
+        .map((json) => ExerciseTemplate.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   /// Get exercise template by ID
@@ -60,7 +62,9 @@ class ExerciseRepository {
     final data = await _apiService.get<List<dynamic>>(
       ApiConfig.exerciseSetsByExerciseId(exerciseId),
     );
-    return data.map((json) => ExerciseSet.fromJson(json as Map<String, dynamic>)).toList();
+    return data
+        .map((json) => ExerciseSet.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   /// Create new exercise set

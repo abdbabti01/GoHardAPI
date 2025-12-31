@@ -103,10 +103,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final request = LoginRequest(
-        email: _email.trim(),
-        password: _password,
-      );
+      final request = LoginRequest(email: _email.trim(), password: _password);
 
       final response = await _authRepository.login(request);
 
@@ -129,7 +126,8 @@ class AuthProvider extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      _errorMessage = 'Login failed: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Login failed: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Login error: $e');
       return false;
     } finally {
@@ -198,7 +196,8 @@ class AuthProvider extends ChangeNotifier {
 
       return true;
     } catch (e) {
-      _errorMessage = 'Signup failed: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Signup failed: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Signup error: $e');
       return false;
     } finally {

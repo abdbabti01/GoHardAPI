@@ -9,10 +9,7 @@ import '../../widgets/exercises/category_badge.dart';
 class ExerciseDetailScreen extends StatefulWidget {
   final int exerciseId;
 
-  const ExerciseDetailScreen({
-    super.key,
-    required this.exerciseId,
-  });
+  const ExerciseDetailScreen({super.key, required this.exerciseId});
 
   @override
   State<ExerciseDetailScreen> createState() => _ExerciseDetailScreenState();
@@ -26,7 +23,9 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
   }
 
   Future<void> _loadExercise() async {
-    await context.read<ExerciseDetailProvider>().loadExercise(widget.exerciseId);
+    await context.read<ExerciseDetailProvider>().loadExercise(
+      widget.exerciseId,
+    );
   }
 
   @override
@@ -41,20 +40,18 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
                 expandedHeight: 200,
                 pinned: true,
                 flexibleSpace: FlexibleSpaceBar(
-                  title: provider.exercise != null
-                      ? Text(
-                          provider.exercise!.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            shadows: [
-                              Shadow(
-                                blurRadius: 8.0,
-                                color: Colors.black45,
-                              ),
-                            ],
-                          ),
-                        )
-                      : null,
+                  title:
+                      provider.exercise != null
+                          ? Text(
+                            provider.exercise!.name,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(blurRadius: 8.0, color: Colors.black45),
+                              ],
+                            ),
+                          )
+                          : null,
                   background: _buildHeaderImage(provider.exercise),
                 ),
               ),
@@ -86,7 +83,8 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
           Image.network(
             exercise.imageUrl!,
             fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) => _buildPlaceholderImage(),
+            errorBuilder:
+                (context, error, stackTrace) => _buildPlaceholderImage(),
           ),
           Container(
             decoration: BoxDecoration(
@@ -118,11 +116,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
           ],
         ),
       ),
-      child: const Icon(
-        Icons.fitness_center,
-        size: 80,
-        color: Colors.white,
-      ),
+      child: const Icon(Icons.fitness_center, size: 80, color: Colors.white),
     );
   }
 
@@ -131,11 +125,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Colors.red.shade300,
-          ),
+          Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
           const SizedBox(height: 16),
           Text(
             'Error Loading Exercise',
@@ -147,9 +137,9 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
             child: Text(
               errorMessage,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
             ),
           ),
           const SizedBox(height: 24),
@@ -201,12 +191,13 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
             const SizedBox(height: 24),
 
             // Description
-            if (exercise.description != null && exercise.description!.isNotEmpty) ...[
+            if (exercise.description != null &&
+                exercise.description!.isNotEmpty) ...[
               Text(
                 'Description',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
@@ -217,12 +208,13 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
             ],
 
             // Instructions
-            if (exercise.instructions != null && exercise.instructions!.isNotEmpty) ...[
+            if (exercise.instructions != null &&
+                exercise.instructions!.isNotEmpty) ...[
               Text(
                 'Instructions',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               ..._buildInstructionsList(exercise.instructions!),
@@ -265,10 +257,7 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 1,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -289,7 +278,8 @@ class _ExerciseDetailScreenState extends State<ExerciseDetailScreen> {
   }
 
   List<Widget> _buildInstructionsList(String instructions) {
-    final steps = instructions.split('\n').where((s) => s.trim().isNotEmpty).toList();
+    final steps =
+        instructions.split('\n').where((s) => s.trim().isNotEmpty).toList();
 
     return List.generate(steps.length, (index) {
       return Padding(

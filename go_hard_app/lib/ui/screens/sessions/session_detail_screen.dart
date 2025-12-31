@@ -10,10 +10,7 @@ import '../../widgets/sessions/status_badge.dart';
 class SessionDetailScreen extends StatefulWidget {
   final int sessionId;
 
-  const SessionDetailScreen({
-    super.key,
-    required this.sessionId,
-  });
+  const SessionDetailScreen({super.key, required this.sessionId});
 
   @override
   State<SessionDetailScreen> createState() => _SessionDetailScreenState();
@@ -59,18 +56,14 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Workout Details'),
-      ),
+      appBar: AppBar(title: const Text('Workout Details')),
       body: _buildBody(),
     );
   }
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     if (_errorMessage != null) {
@@ -78,11 +71,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red.shade300,
-            ),
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
             const SizedBox(height: 16),
             Text(
               'Error Loading Workout',
@@ -94,9 +83,9 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
               child: Text(
                 _errorMessage!,
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               ),
             ),
             const SizedBox(height: 24),
@@ -111,9 +100,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
     }
 
     if (_session == null) {
-      return const Center(
-        child: Text('Session not found'),
-      );
+      return const Center(child: Text('Session not found'));
     }
 
     return SingleChildScrollView(
@@ -134,8 +121,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                       Text(
                         DateFormat('EEEE, MMMM d, yyyy').format(_session!.date),
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       StatusBadge(status: _session!.status),
                     ],
@@ -145,7 +132,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   // Session stats
                   Row(
                     children: [
-                      if (_session!.duration != null && _session!.duration! > 0) ...[
+                      if (_session!.duration != null &&
+                          _session!.duration! > 0) ...[
                         _buildStatItem(
                           context,
                           Icons.timer,
@@ -171,7 +159,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                   ),
 
                   // Notes
-                  if (_session!.notes != null && _session!.notes!.isNotEmpty) ...[
+                  if (_session!.notes != null &&
+                      _session!.notes!.isNotEmpty) ...[
                     const SizedBox(height: 16),
                     const Divider(),
                     const SizedBox(height: 8),
@@ -207,18 +196,18 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                 padding: const EdgeInsets.all(32),
                 child: Text(
                   'No exercises logged',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Colors.grey,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
                 ),
               ),
             )
           else
             Text(
               'Exercises',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
 
           const SizedBox(height: 12),
@@ -235,8 +224,8 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     Text(
                       exercise.name,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 12),
 
@@ -261,14 +250,15 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
                     ),
 
                     // Exercise notes
-                    if (exercise.notes != null && exercise.notes!.isNotEmpty) ...[
+                    if (exercise.notes != null &&
+                        exercise.notes!.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Text(
                         exercise.notes!,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey.shade700,
-                              fontStyle: FontStyle.italic,
-                            ),
+                          color: Colors.grey.shade700,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ],
                   ],
@@ -292,26 +282,22 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
       children: [
         Row(
           children: [
-            Icon(
-              icon,
-              size: 16,
-              color: Colors.grey.shade600,
-            ),
+            Icon(icon, size: 16, color: Colors.grey.shade600),
             const SizedBox(width: 4),
             Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey.shade600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: Colors.grey.shade600),
             ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -319,10 +305,7 @@ class _SessionDetailScreenState extends State<SessionDetailScreen> {
 
   Widget _buildDetailChip(BuildContext context, IconData icon, String text) {
     return Chip(
-      avatar: Icon(
-        icon,
-        size: 16,
-      ),
+      avatar: Icon(icon, size: 16),
       label: Text(text),
       visualDensity: VisualDensity.compact,
     );

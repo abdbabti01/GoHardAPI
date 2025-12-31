@@ -10,10 +10,7 @@ import '../../widgets/exercises/exercise_card.dart';
 class AddExerciseScreen extends StatefulWidget {
   final int sessionId;
 
-  const AddExerciseScreen({
-    super.key,
-    required this.sessionId,
-  });
+  const AddExerciseScreen({super.key, required this.sessionId});
 
   @override
   State<AddExerciseScreen> createState() => _AddExerciseScreenState();
@@ -49,9 +46,7 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
   Future<void> _handleAddExercises() async {
     if (_selectedExerciseIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one exercise'),
-        ),
+        const SnackBar(content: Text('Please select at least one exercise')),
       );
       return;
     }
@@ -66,8 +61,9 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
 
       // Add each selected exercise to the workout
       for (final exerciseId in _selectedExerciseIds) {
-        final template = exercisesProvider.exercises
-            .firstWhere((e) => e.id == exerciseId);
+        final template = exercisesProvider.exercises.firstWhere(
+          (e) => e.id == exerciseId,
+        );
 
         final exercise = Exercise(
           id: 0, // Will be assigned by server
@@ -109,35 +105,41 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Filter by Category',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildFilterChip(context, provider, null, 'All'),
-                _buildFilterChip(context, provider, 'Strength', 'Strength'),
-                _buildFilterChip(context, provider, 'Cardio', 'Cardio'),
-                _buildFilterChip(context, provider, 'Flexibility', 'Flexibility'),
-                _buildFilterChip(context, provider, 'Balance', 'Balance'),
-                _buildFilterChip(context, provider, 'Core', 'Core'),
+                Text(
+                  'Filter by Category',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildFilterChip(context, provider, null, 'All'),
+                    _buildFilterChip(context, provider, 'Strength', 'Strength'),
+                    _buildFilterChip(context, provider, 'Cardio', 'Cardio'),
+                    _buildFilterChip(
+                      context,
+                      provider,
+                      'Flexibility',
+                      'Flexibility',
+                    ),
+                    _buildFilterChip(context, provider, 'Balance', 'Balance'),
+                    _buildFilterChip(context, provider, 'Core', 'Core'),
+                  ],
+                ),
+                const SizedBox(height: 16),
               ],
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -147,7 +149,8 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
     String? category,
     String label,
   ) {
-    final isSelected = provider.selectedCategory == category ||
+    final isSelected =
+        provider.selectedCategory == category ||
         (category == null && provider.selectedCategory == null);
 
     return FilterChip(
@@ -157,7 +160,9 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
         provider.filterByCategory(category);
         Navigator.of(context).pop();
       },
-      selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+      selectedColor: Theme.of(
+        context,
+      ).colorScheme.primary.withValues(alpha: 0.2),
       checkmarkColor: Theme.of(context).colorScheme.primary,
     );
   }
@@ -175,16 +180,17 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
           ),
           if (_selectedExerciseIds.isNotEmpty)
             IconButton(
-              icon: _isAdding
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.check),
+              icon:
+                  _isAdding
+                      ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                      : const Icon(Icons.check),
               onPressed: _isAdding ? null : _handleAddExercises,
               tooltip: 'Add Selected',
             ),
@@ -197,7 +203,9 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.1),
               child: Row(
                 children: [
                   Icon(
@@ -231,9 +239,7 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
               builder: (context, provider, child) {
                 // Loading state
                 if (provider.isLoading && provider.exercises.isEmpty) {
-                  return const Center(
-                    child: CircularProgressIndicator(),
-                  );
+                  return const Center(child: CircularProgressIndicator());
                 }
 
                 // Error state
@@ -259,10 +265,8 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                           child: Text(
                             provider.errorMessage!,
                             textAlign: TextAlign.center,
-                            style:
-                                Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                      color: Colors.grey,
-                                    ),
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey),
                           ),
                         ),
                         const SizedBox(height: 24),
@@ -296,10 +300,9 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                         Text(
                           'Try selecting a different category',
                           textAlign: TextAlign.center,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Colors.grey,
-                                  ),
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                         ),
                       ],
                     ),
@@ -315,15 +318,17 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                     padding: const EdgeInsets.only(top: 8, bottom: 16),
                     itemBuilder: (context, index) {
                       final exercise = provider.filteredExercises[index];
-                      final isSelected =
-                          _selectedExerciseIds.contains(exercise.id);
+                      final isSelected = _selectedExerciseIds.contains(
+                        exercise.id,
+                      );
 
                       return ExerciseCard(
                         exercise: exercise,
                         onTap: () => _toggleExerciseSelection(exercise.id),
                         trailing: Checkbox(
                           value: isSelected,
-                          onChanged: (_) => _toggleExerciseSelection(exercise.id),
+                          onChanged:
+                              (_) => _toggleExerciseSelection(exercise.id),
                         ),
                       );
                     },
@@ -334,24 +339,26 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
           ),
         ],
       ),
-      floatingActionButton: _selectedExerciseIds.isNotEmpty
-          ? FloatingActionButton.extended(
-              onPressed: _isAdding ? null : _handleAddExercises,
-              icon: _isAdding
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Icon(Icons.add),
-              label: Text(
-                'Add ${_selectedExerciseIds.length} Exercise${_selectedExerciseIds.length == 1 ? '' : 's'}',
-              ),
-            )
-          : null,
+      floatingActionButton:
+          _selectedExerciseIds.isNotEmpty
+              ? FloatingActionButton.extended(
+                onPressed: _isAdding ? null : _handleAddExercises,
+                icon:
+                    _isAdding
+                        ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                        : const Icon(Icons.add),
+                label: Text(
+                  'Add ${_selectedExerciseIds.length} Exercise${_selectedExerciseIds.length == 1 ? '' : 's'}',
+                ),
+              )
+              : null,
     );
   }
 }

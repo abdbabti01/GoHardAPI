@@ -8,10 +8,7 @@ import '../../../data/models/exercise_set.dart';
 class LogSetsScreen extends StatefulWidget {
   final int exerciseId;
 
-  const LogSetsScreen({
-    super.key,
-    required this.exerciseId,
-  });
+  const LogSetsScreen({super.key, required this.exerciseId});
 
   @override
   State<LogSetsScreen> createState() => _LogSetsScreenState();
@@ -62,10 +59,10 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
     }
 
     final success = await context.read<LogSetsProvider>().addSet(
-          exerciseId: widget.exerciseId,
-          reps: reps,
-          weight: weight,
-        );
+      exerciseId: widget.exerciseId,
+      reps: reps,
+      weight: weight,
+    );
 
     if (success && mounted) {
       // Clear inputs after successful add
@@ -92,23 +89,22 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
   Future<void> _handleDeleteSet(ExerciseSet set) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Set'),
-        content: Text('Delete Set ${set.setNumber}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete Set'),
+            content: Text('Delete Set ${set.setNumber}?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete'),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
     );
 
     if (confirmed == true && mounted) {
@@ -128,9 +124,7 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Log Sets'),
-      ),
+      appBar: AppBar(title: const Text('Log Sets')),
       body: Consumer<LogSetsProvider>(
         builder: (context, provider, child) {
           return Column(
@@ -146,9 +140,8 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
                     children: [
                       Text(
                         'Add New Set',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
                       Row(
@@ -174,7 +167,9 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
                           Expanded(
                             child: TextField(
                               controller: _weightController,
-                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                              keyboardType: TextInputType.numberWithOptions(
+                                decimal: true,
+                              ),
                               decoration: InputDecoration(
                                 labelText: 'Weight (lbs)',
                                 hintText: '100',
@@ -244,16 +239,15 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
                     children: [
                       Text(
                         'Sets (${provider.sets.length})',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const Spacer(),
                       Text(
                         '${provider.sets.where((s) => s.isCompleted).length} completed',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey.shade600,
-                            ),
+                          color: Colors.grey.shade600,
+                        ),
                       ),
                     ],
                   ),
@@ -263,9 +257,10 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
 
               // Sets list
               Expanded(
-                child: provider.isLoading && provider.sets.isEmpty
-                    ? const Center(child: CircularProgressIndicator())
-                    : provider.sets.isEmpty
+                child:
+                    provider.isLoading && provider.sets.isEmpty
+                        ? const Center(child: CircularProgressIndicator())
+                        : provider.sets.isEmpty
                         ? _buildEmptyState()
                         : _buildSetsList(provider),
               ),
@@ -281,25 +276,18 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.playlist_add,
-            size: 80,
-            color: Colors.grey.shade300,
-          ),
+          Icon(Icons.playlist_add, size: 80, color: Colors.grey.shade300),
           const SizedBox(height: 16),
-          Text(
-            'No Sets Logged',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text('No Sets Logged', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 48),
             child: Text(
               'Add your first set using the form above',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.grey,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
             ),
           ),
         ],
@@ -317,34 +305,40 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: set.isCompleted
-                  ? Colors.green.withValues(alpha: 0.2)
-                  : Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-              child: set.isCompleted
-                  ? const Icon(Icons.check, color: Colors.green)
-                  : Text(
-                      '${set.setNumber}',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.bold,
+              backgroundColor:
+                  set.isCompleted
+                      ? Colors.green.withValues(alpha: 0.2)
+                      : Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.2),
+              child:
+                  set.isCompleted
+                      ? const Icon(Icons.check, color: Colors.green)
+                      : Text(
+                        '${set.setNumber}',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
             ),
             title: Text(
               '${set.reps} reps × ${set.weight} lbs',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                decoration: set.isCompleted
-                    ? TextDecoration.lineThrough
-                    : TextDecoration.none,
+                decoration:
+                    set.isCompleted
+                        ? TextDecoration.lineThrough
+                        : TextDecoration.none,
               ),
             ),
-            subtitle: set.completedAt != null
-                ? Text(
-                    'Completed at ${_formatTime(set.completedAt!)}',
-                    style: const TextStyle(fontSize: 12),
-                  )
-                : null,
+            subtitle:
+                set.completedAt != null
+                    ? Text(
+                      'Completed at ${_formatTime(set.completedAt!)}',
+                      style: const TextStyle(fontSize: 12),
+                    )
+                    : null,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

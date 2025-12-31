@@ -63,10 +63,10 @@ class CategoryHelpers {
 
   /// Get all available categories
   static List<String> get allCategories => [
-        'All',
-        'Strength',
-        'Cardio',
-        'Core',
-        'Flexibility',
-      ];
+    'All',
+    'Strength',
+    'Cardio',
+    'Core',
+    'Flexibility',
+  ];
 }

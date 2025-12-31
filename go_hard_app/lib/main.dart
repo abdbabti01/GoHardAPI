@@ -23,9 +23,7 @@ void main() {
     MultiProvider(
       providers: [
         // Services (singletons)
-        Provider<AuthService>(
-          create: (_) => AuthService(),
-        ),
+        Provider<AuthService>(create: (_) => AuthService()),
         ProxyProvider<AuthService, ApiService>(
           update: (_, authService, __) => ApiService(authService),
         ),
@@ -46,55 +44,73 @@ void main() {
 
         // Providers (state managers - equivalent to ViewModels)
         ChangeNotifierProxyProvider2<AuthRepository, AuthService, AuthProvider>(
-          create: (context) => AuthProvider(
-            context.read<AuthRepository>(),
-            context.read<AuthService>(),
-          ),
-          update: (_, authRepo, authService, previous) =>
-              previous ?? AuthProvider(authRepo, authService),
+          create:
+              (context) => AuthProvider(
+                context.read<AuthRepository>(),
+                context.read<AuthService>(),
+              ),
+          update:
+              (_, authRepo, authService, previous) =>
+                  previous ?? AuthProvider(authRepo, authService),
         ),
-        ChangeNotifierProxyProvider2<SessionRepository, AuthService,
-            SessionsProvider>(
-          create: (context) => SessionsProvider(
-            context.read<SessionRepository>(),
-            context.read<AuthService>(),
-          ),
-          update: (_, sessionRepo, authService, previous) =>
-              previous ?? SessionsProvider(sessionRepo, authService),
+        ChangeNotifierProxyProvider2<
+          SessionRepository,
+          AuthService,
+          SessionsProvider
+        >(
+          create:
+              (context) => SessionsProvider(
+                context.read<SessionRepository>(),
+                context.read<AuthService>(),
+              ),
+          update:
+              (_, sessionRepo, authService, previous) =>
+                  previous ?? SessionsProvider(sessionRepo, authService),
         ),
         ChangeNotifierProxyProvider<SessionRepository, ActiveWorkoutProvider>(
-          create: (context) =>
-              ActiveWorkoutProvider(context.read<SessionRepository>()),
-          update: (_, sessionRepo, previous) =>
-              previous ?? ActiveWorkoutProvider(sessionRepo),
+          create:
+              (context) =>
+                  ActiveWorkoutProvider(context.read<SessionRepository>()),
+          update:
+              (_, sessionRepo, previous) =>
+                  previous ?? ActiveWorkoutProvider(sessionRepo),
         ),
         ChangeNotifierProxyProvider<ExerciseRepository, ExercisesProvider>(
-          create: (context) =>
-              ExercisesProvider(context.read<ExerciseRepository>()),
-          update: (_, exerciseRepo, previous) =>
-              previous ?? ExercisesProvider(exerciseRepo),
+          create:
+              (context) =>
+                  ExercisesProvider(context.read<ExerciseRepository>()),
+          update:
+              (_, exerciseRepo, previous) =>
+                  previous ?? ExercisesProvider(exerciseRepo),
         ),
-        ChangeNotifierProxyProvider<ExerciseRepository,
-            ExerciseDetailProvider>(
-          create: (context) =>
-              ExerciseDetailProvider(context.read<ExerciseRepository>()),
-          update: (_, exerciseRepo, previous) =>
-              previous ?? ExerciseDetailProvider(exerciseRepo),
+        ChangeNotifierProxyProvider<ExerciseRepository, ExerciseDetailProvider>(
+          create:
+              (context) =>
+                  ExerciseDetailProvider(context.read<ExerciseRepository>()),
+          update:
+              (_, exerciseRepo, previous) =>
+                  previous ?? ExerciseDetailProvider(exerciseRepo),
         ),
         ChangeNotifierProxyProvider<ExerciseRepository, LogSetsProvider>(
-          create: (context) =>
-              LogSetsProvider(context.read<ExerciseRepository>()),
-          update: (_, exerciseRepo, previous) =>
-              previous ?? LogSetsProvider(exerciseRepo),
+          create:
+              (context) => LogSetsProvider(context.read<ExerciseRepository>()),
+          update:
+              (_, exerciseRepo, previous) =>
+                  previous ?? LogSetsProvider(exerciseRepo),
         ),
-        ChangeNotifierProxyProvider2<UserRepository, AuthService,
-            ProfileProvider>(
-          create: (context) => ProfileProvider(
-            context.read<UserRepository>(),
-            context.read<AuthService>(),
-          ),
-          update: (_, userRepo, authService, previous) =>
-              previous ?? ProfileProvider(userRepo, authService),
+        ChangeNotifierProxyProvider2<
+          UserRepository,
+          AuthService,
+          ProfileProvider
+        >(
+          create:
+              (context) => ProfileProvider(
+                context.read<UserRepository>(),
+                context.read<AuthService>(),
+              ),
+          update:
+              (_, userRepo, authService, previous) =>
+                  previous ?? ProfileProvider(userRepo, authService),
         ),
       ],
       child: const MyApp(),

@@ -33,10 +33,9 @@ class _SessionsScreenState extends State<SessionsScreen> {
 
     if (session != null && mounted) {
       // Navigate to active workout screen
-      Navigator.of(context).pushNamed(
-        RouteNames.activeWorkout,
-        arguments: session.id,
-      );
+      Navigator.of(
+        context,
+      ).pushNamed(RouteNames.activeWorkout, arguments: session.id);
     }
   }
 
@@ -47,16 +46,14 @@ class _SessionsScreenState extends State<SessionsScreen> {
   void _handleSessionTap(int sessionId, String status) {
     if (status == 'in_progress' || status == 'draft') {
       // Navigate to active workout screen for in-progress/draft sessions
-      Navigator.of(context).pushNamed(
-        RouteNames.activeWorkout,
-        arguments: sessionId,
-      );
+      Navigator.of(
+        context,
+      ).pushNamed(RouteNames.activeWorkout, arguments: sessionId);
     } else {
       // Navigate to detail screen for completed sessions
-      Navigator.of(context).pushNamed(
-        RouteNames.sessionDetail,
-        arguments: sessionId,
-      );
+      Navigator.of(
+        context,
+      ).pushNamed(RouteNames.sessionDetail, arguments: sessionId);
     }
   }
 
@@ -77,13 +74,12 @@ class _SessionsScreenState extends State<SessionsScreen> {
         builder: (context, provider, child) {
           // Loading state
           if (provider.isLoading && provider.sessions.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           // Error state
-          if (provider.errorMessage != null && provider.errorMessage!.isNotEmpty) {
+          if (provider.errorMessage != null &&
+              provider.errorMessage!.isNotEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -104,9 +100,9 @@ class _SessionsScreenState extends State<SessionsScreen> {
                     child: Text(
                       provider.errorMessage!,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -142,9 +138,9 @@ class _SessionsScreenState extends State<SessionsScreen> {
                     child: Text(
                       'Start your first workout by tapping the + button below',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                     ),
                   ),
                 ],

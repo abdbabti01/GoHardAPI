@@ -30,21 +30,27 @@ void main() {
   }
 
   group('LoginScreen Widget Tests', () {
-    testWidgets('should display all required UI elements', (WidgetTester tester) async {
+    testWidgets('should display all required UI elements', (
+      WidgetTester tester,
+    ) async {
       // Arrange & Act
       await tester.pumpWidget(createTestWidget());
 
       // Assert
       expect(find.text('GoHard'), findsOneWidget);
       expect(find.text('Track your fitness journey'), findsOneWidget);
-      expect(find.byType(TextField), findsNWidgets(2)); // Email and password fields
+      expect(
+        find.byType(TextField),
+        findsNWidgets(2),
+      ); // Email and password fields
       expect(find.text('Login'), findsOneWidget);
       expect(find.text("Don't have an account? "), findsOneWidget);
       expect(find.text('Sign Up'), findsOneWidget);
     });
 
-    testWidgets('should show error message when auth provider has error',
-        (WidgetTester tester) async {
+    testWidgets('should show error message when auth provider has error', (
+      WidgetTester tester,
+    ) async {
       // Arrange
       when(mockAuthProvider.errorMessage).thenReturn('Invalid credentials');
 
@@ -56,8 +62,9 @@ void main() {
       expect(find.byIcon(Icons.error_outline), findsOneWidget);
     });
 
-    testWidgets('should show loading indicator when logging in',
-        (WidgetTester tester) async {
+    testWidgets('should show loading indicator when logging in', (
+      WidgetTester tester,
+    ) async {
       // Arrange
       when(mockAuthProvider.isLoading).thenReturn(true);
 
@@ -68,7 +75,9 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
 
-    testWidgets('should toggle password visibility', (WidgetTester tester) async {
+    testWidgets('should toggle password visibility', (
+      WidgetTester tester,
+    ) async {
       // Arrange
       await tester.pumpWidget(createTestWidget());
 
@@ -89,24 +98,30 @@ void main() {
       expect(updatedTextField.obscureText, false);
     });
 
-    testWidgets('should call updateEmail and updatePassword when text is entered',
-        (WidgetTester tester) async {
-      // Arrange
-      await tester.pumpWidget(createTestWidget());
+    testWidgets(
+      'should call updateEmail and updatePassword when text is entered',
+      (WidgetTester tester) async {
+        // Arrange
+        await tester.pumpWidget(createTestWidget());
 
-      // Act - enter email
-      await tester.enterText(find.byType(TextField).at(0), 'test@example.com');
+        // Act - enter email
+        await tester.enterText(
+          find.byType(TextField).at(0),
+          'test@example.com',
+        );
 
-      // Act - enter password
-      await tester.enterText(find.byType(TextField).at(1), 'password123');
+        // Act - enter password
+        await tester.enterText(find.byType(TextField).at(1), 'password123');
 
-      // Assert - verify the text was entered (fields exist with text)
-      expect(find.text('test@example.com'), findsOneWidget);
-      expect(find.text('password123'), findsOneWidget);
-    });
+        // Assert - verify the text was entered (fields exist with text)
+        expect(find.text('test@example.com'), findsOneWidget);
+        expect(find.text('password123'), findsOneWidget);
+      },
+    );
 
-    testWidgets('email field should have correct keyboard type',
-        (WidgetTester tester) async {
+    testWidgets('email field should have correct keyboard type', (
+      WidgetTester tester,
+    ) async {
       // Arrange & Act
       await tester.pumpWidget(createTestWidget());
 
@@ -115,7 +130,9 @@ void main() {
       expect(emailField.keyboardType, TextInputType.emailAddress);
     });
 
-    testWidgets('should have working form validation', (WidgetTester tester) async {
+    testWidgets('should have working form validation', (
+      WidgetTester tester,
+    ) async {
       // Arrange
       await tester.pumpWidget(createTestWidget());
 

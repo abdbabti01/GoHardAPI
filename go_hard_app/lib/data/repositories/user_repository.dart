@@ -11,7 +11,9 @@ class UserRepository {
   /// Get all users
   Future<List<User>> getUsers() async {
     final data = await _apiService.get<List<dynamic>>(ApiConfig.users);
-    return data.map((json) => User.fromJson(json as Map<String, dynamic>)).toList();
+    return data
+        .map((json) => User.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   /// Get user by ID

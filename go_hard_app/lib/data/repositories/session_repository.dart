@@ -12,7 +12,9 @@ class SessionRepository {
   /// Get all sessions for the current user
   Future<List<Session>> getSessions() async {
     final data = await _apiService.get<List<dynamic>>(ApiConfig.sessions);
-    return data.map((json) => Session.fromJson(json as Map<String, dynamic>)).toList();
+    return data
+        .map((json) => Session.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   /// Get session by ID
@@ -47,7 +49,10 @@ class SessionRepository {
   }
 
   /// Add exercise to session
-  Future<Exercise> addExerciseToSession(int sessionId, Exercise exercise) async {
+  Future<Exercise> addExerciseToSession(
+    int sessionId,
+    Exercise exercise,
+  ) async {
     final data = await _apiService.post<Map<String, dynamic>>(
       ApiConfig.sessionExercises(sessionId),
       data: exercise.toJson(),

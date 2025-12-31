@@ -41,11 +41,14 @@ class ApiConfig {
   static String userById(int id) => '$users/$id';
   static String sessionById(int id) => '$sessions/$id';
   static String sessionStatus(int id) => '$sessions/$id/status';
-  static String sessionExercises(int sessionId) => '$sessions/$sessionId/exercises';
+  static String sessionExercises(int sessionId) =>
+      '$sessions/$sessionId/exercises';
   static String exerciseSetById(int id) => '$exerciseSets/$id';
-  static String exerciseSetsByExerciseId(int exerciseId) => '$exerciseSets/exercise/$exerciseId';
+  static String exerciseSetsByExerciseId(int exerciseId) =>
+      '$exerciseSets/exercise/$exerciseId';
   static String exerciseSetComplete(int id) => '$exerciseSets/$id/complete';
   static String exerciseTemplateById(int id) => '$exerciseTemplates/$id';
   static String exerciseTemplateCategories = '$exerciseTemplates/categories';
-  static String exerciseTemplateMuscleGroups = '$exerciseTemplates/musclegroups';
+  static String exerciseTemplateMuscleGroups =
+      '$exerciseTemplates/musclegroups';
 }

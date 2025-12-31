@@ -39,14 +39,15 @@ void main() {
         email: email,
       );
 
-      when(mockAuthRepository.login(any))
-          .thenAnswer((_) async => authResponse);
-      when(mockAuthService.saveToken(
-        token: anyNamed('token'),
-        userId: anyNamed('userId'),
-        name: anyNamed('name'),
-        email: anyNamed('email'),
-      )).thenAnswer((_) async => {});
+      when(mockAuthRepository.login(any)).thenAnswer((_) async => authResponse);
+      when(
+        mockAuthService.saveToken(
+          token: anyNamed('token'),
+          userId: anyNamed('userId'),
+          name: anyNamed('name'),
+          email: anyNamed('email'),
+        ),
+      ).thenAnswer((_) async => {});
 
       authProvider.updateEmail(email);
       authProvider.updatePassword(password);
@@ -62,12 +63,14 @@ void main() {
       expect(authProvider.currentUserEmail, email);
       expect(authProvider.errorMessage, '');
       verify(mockAuthRepository.login(any)).called(1);
-      verify(mockAuthService.saveToken(
-        token: 'fake-jwt-token',
-        userId: 1,
-        name: 'Test User',
-        email: email,
-      )).called(1);
+      verify(
+        mockAuthService.saveToken(
+          token: 'fake-jwt-token',
+          userId: 1,
+          name: 'Test User',
+          email: email,
+        ),
+      ).called(1);
     });
 
     test('login() should fail with empty email', () async {
@@ -105,8 +108,9 @@ void main() {
       authProvider.updateEmail('test@example.com');
       authProvider.updatePassword('password123');
 
-      when(mockAuthRepository.login(any))
-          .thenThrow(Exception('Invalid credentials'));
+      when(
+        mockAuthRepository.login(any),
+      ).thenThrow(Exception('Invalid credentials'));
 
       // Act
       final result = await authProvider.login();
@@ -132,14 +136,17 @@ void main() {
         email: email,
       );
 
-      when(mockAuthRepository.signup(any))
-          .thenAnswer((_) async => authResponse);
-      when(mockAuthService.saveToken(
-        token: anyNamed('token'),
-        userId: anyNamed('userId'),
-        name: anyNamed('name'),
-        email: anyNamed('email'),
-      )).thenAnswer((_) async => {});
+      when(
+        mockAuthRepository.signup(any),
+      ).thenAnswer((_) async => authResponse);
+      when(
+        mockAuthService.saveToken(
+          token: anyNamed('token'),
+          userId: anyNamed('userId'),
+          name: anyNamed('name'),
+          email: anyNamed('email'),
+        ),
+      ).thenAnswer((_) async => {});
 
       authProvider.setSignupName(name);
       authProvider.setSignupEmail(email);
@@ -167,7 +174,10 @@ void main() {
 
       // Assert
       expect(result, false);
-      expect(authProvider.errorMessage, 'Password must be at least 6 characters');
+      expect(
+        authProvider.errorMessage,
+        'Password must be at least 6 characters',
+      );
       verifyNever(mockAuthRepository.signup(any));
     });
   });

@@ -36,7 +36,8 @@ class ProfileProvider extends ChangeNotifier {
     try {
       _currentUser = await _userRepository.getUser(userId);
     } catch (e) {
-      _errorMessage = 'Failed to load profile: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to load profile: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load profile error: $e');
     } finally {
       _isLoading = false;

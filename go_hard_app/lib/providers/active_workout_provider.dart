@@ -43,7 +43,8 @@ class ActiveWorkoutProvider extends ChangeNotifier {
         _startTimer();
       }
     } catch (e) {
-      _errorMessage = 'Failed to load session: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to load session: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load session error: $e');
     } finally {
       _isLoading = false;
@@ -81,7 +82,8 @@ class ActiveWorkoutProvider extends ChangeNotifier {
       _startTimer();
       notifyListeners();
     } catch (e) {
-      _errorMessage = 'Failed to start workout: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to start workout: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Start workout error: $e');
       notifyListeners();
     }
@@ -100,7 +102,8 @@ class ActiveWorkoutProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to finish workout: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to finish workout: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Finish workout error: $e');
       notifyListeners();
       return false;
@@ -120,7 +123,8 @@ class ActiveWorkoutProvider extends ChangeNotifier {
       // Reload session to get updated exercises
       await loadSession(_currentSession!.id);
     } catch (e) {
-      _errorMessage = 'Failed to add exercise: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to add exercise: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Add exercise error: $e');
       notifyListeners();
     }

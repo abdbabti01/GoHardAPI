@@ -27,7 +27,8 @@ class ExerciseDetailProvider extends ChangeNotifier {
     try {
       _exercise = await _exerciseRepository.getExerciseTemplate(exerciseId);
     } catch (e) {
-      _errorMessage = 'Failed to load exercise: ${e.toString().replaceAll('Exception: ', '')}';
+      _errorMessage =
+          'Failed to load exercise: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load exercise error: $e');
     } finally {
       _isLoading = false;

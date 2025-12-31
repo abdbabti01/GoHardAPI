@@ -28,10 +28,9 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
   }
 
   void _handleExerciseTap(int exerciseId) {
-    Navigator.of(context).pushNamed(
-      RouteNames.exerciseDetail,
-      arguments: exerciseId,
-    );
+    Navigator.of(
+      context,
+    ).pushNamed(RouteNames.exerciseDetail, arguments: exerciseId);
   }
 
   void _showCategoryFilter() {
@@ -42,35 +41,41 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Filter by Category',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+      builder:
+          (context) => Container(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildFilterChip(context, provider, null, 'All'),
-                _buildFilterChip(context, provider, 'Strength', 'Strength'),
-                _buildFilterChip(context, provider, 'Cardio', 'Cardio'),
-                _buildFilterChip(context, provider, 'Flexibility', 'Flexibility'),
-                _buildFilterChip(context, provider, 'Balance', 'Balance'),
-                _buildFilterChip(context, provider, 'Core', 'Core'),
+                Text(
+                  'Filter by Category',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _buildFilterChip(context, provider, null, 'All'),
+                    _buildFilterChip(context, provider, 'Strength', 'Strength'),
+                    _buildFilterChip(context, provider, 'Cardio', 'Cardio'),
+                    _buildFilterChip(
+                      context,
+                      provider,
+                      'Flexibility',
+                      'Flexibility',
+                    ),
+                    _buildFilterChip(context, provider, 'Balance', 'Balance'),
+                    _buildFilterChip(context, provider, 'Core', 'Core'),
+                  ],
+                ),
+                const SizedBox(height: 16),
               ],
             ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -80,7 +85,8 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
     String? category,
     String label,
   ) {
-    final isSelected = provider.selectedCategory == category ||
+    final isSelected =
+        provider.selectedCategory == category ||
         (category == null && provider.selectedCategory == null);
 
     return FilterChip(
@@ -90,7 +96,9 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
         provider.filterByCategory(category);
         Navigator.of(context).pop();
       },
-      selectedColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+      selectedColor: Theme.of(
+        context,
+      ).colorScheme.primary.withValues(alpha: 0.2),
       checkmarkColor: Theme.of(context).colorScheme.primary,
     );
   }
@@ -117,13 +125,12 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
         builder: (context, provider, child) {
           // Loading state
           if (provider.isLoading && provider.exercises.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
 
           // Error state
-          if (provider.errorMessage != null && provider.errorMessage!.isNotEmpty) {
+          if (provider.errorMessage != null &&
+              provider.errorMessage!.isNotEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -144,9 +151,9 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
                     child: Text(
                       provider.errorMessage!,
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -166,11 +173,7 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.search_off,
-                    size: 80,
-                    color: Colors.grey.shade300,
-                  ),
+                  Icon(Icons.search_off, size: 80, color: Colors.grey.shade300),
                   const SizedBox(height: 16),
                   Text(
                     provider.selectedCategory != null
@@ -186,9 +189,9 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
                           ? 'Try selecting a different category'
                           : 'Pull down to refresh',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey,
-                          ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
                     ),
                   ),
                   if (provider.selectedCategory != null) ...[
@@ -210,8 +213,13 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
               if (provider.selectedCategory != null)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
                   child: Row(
                     children: [
                       Icon(

@@ -5,10 +5,7 @@ import 'package:flutter/material.dart';
 class StatusBadge extends StatelessWidget {
   final String status;
 
-  const StatusBadge({
-    super.key,
-    required this.status,
-  });
+  const StatusBadge({super.key, required this.status});
 
   @override
   Widget build(BuildContext context) {
@@ -27,11 +24,7 @@ class StatusBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            badgeData.icon,
-            size: 14,
-            color: badgeData.color,
-          ),
+          Icon(badgeData.icon, size: 14, color: badgeData.color),
           const SizedBox(width: 4),
           Text(
             badgeData.label,
@@ -81,9 +74,5 @@ class _BadgeData {
   final Color color;
   final IconData icon;
 
-  _BadgeData({
-    required this.label,
-    required this.color,
-    required this.icon,
-  });
+  _BadgeData({required this.label, required this.color, required this.icon});
 }
