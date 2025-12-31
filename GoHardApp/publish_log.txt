@@ -1,4 +1,0 @@
-MSBuild version 17.9.8+610b4d3b5 for .NET
-  Determining projects to restore...
-  Restored C:\Users\babti\source\repos\GoHardAPI\GoHardApp\GoHardApp.csproj (in 1.92 sec).
-C:\Program Files\dotnet\packs\Microsoft.Android.Sdk.Windows\34.0.154\tools\Xamarin.Android.Common.targets(555,3): error XA1030: The 'RunAOTCompilation' MSBuild property is only supported when trimming is enabled. Edit the project file in a text editor to set 'PublishTrimmed' to 'true' for this build configuration. [C:\Users\babti\source\repos\GoHardAPI\GoHardApp\GoHardApp.csproj::TargetFramework=net8.0-android]
