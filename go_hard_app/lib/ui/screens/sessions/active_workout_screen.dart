@@ -128,7 +128,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 gradient: LinearGradient(
                   colors: [
                     Theme.of(context).colorScheme.secondary,
-                    Theme.of(context).colorScheme.secondary.withValues(alpha: 0.8),
+                    Theme.of(
+                      context,
+                    ).colorScheme.secondary.withValues(alpha: 0.8),
                   ],
                 ),
                 boxShadow: [
