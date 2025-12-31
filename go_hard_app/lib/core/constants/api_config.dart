@@ -11,7 +11,8 @@ class ApiConfig {
   /// - Other platforms: http://localhost:5121/api
   static String get baseUrl {
     if (Platform.isIOS || Platform.isMacOS) {
-      return 'http://localhost:5121/api/';
+      // For physical iPhone on WiFi, use computer's IP address
+      return 'http://10.0.0.4:5121/api/';
     } else if (Platform.isAndroid) {
       // IMPORTANT: Choose the correct URL based on your testing device:
       // - Android Emulator: use 10.0.2.2 (special alias to host machine's localhost)
