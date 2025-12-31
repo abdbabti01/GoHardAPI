@@ -36,11 +36,29 @@ class SessionRepository {
 
   /// Update session status
   Future<Session> updateSessionStatus(int id, String status) async {
-    final data = await _apiService.patch<Map<String, dynamic>>(
+    // Send status as object with 'status' property
+    await _apiService.patch<void>(
       ApiConfig.sessionStatus(id),
       data: {'status': status},
     );
-    return Session.fromJson(data);
+    // Fetch the updated session
+    return await getSession(id);
+  }
+
+  /// Pause session timer
+  Future<void> pauseSession(int id) async {
+    await _apiService.patch<void>(
+      '${ApiConfig.sessions}/$id/pause',
+      data: {},
+    );
+  }
+
+  /// Resume session timer
+  Future<void> resumeSession(int id) async {
+    await _apiService.patch<void>(
+      '${ApiConfig.sessions}/$id/resume',
+      data: {},
+    );
   }
 
   /// Delete session
@@ -51,11 +69,12 @@ class SessionRepository {
   /// Add exercise to session
   Future<Exercise> addExerciseToSession(
     int sessionId,
-    Exercise exercise,
+    int exerciseTemplateId,
   ) async {
+    // Send exerciseTemplateId as object with 'exerciseTemplateId' property
     final data = await _apiService.post<Map<String, dynamic>>(
       ApiConfig.sessionExercises(sessionId),
-      data: exercise.toJson(),
+      data: {'exerciseTemplateId': exerciseTemplateId},
     );
     return Exercise.fromJson(data);
   }

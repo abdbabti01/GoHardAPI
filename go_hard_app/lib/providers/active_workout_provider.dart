@@ -28,7 +28,7 @@ class ActiveWorkoutProvider extends ChangeNotifier {
   bool get isTimerRunning => _isTimerRunning;
   List<Exercise> get exercises => _currentSession?.exercises ?? [];
 
-  /// Load session by ID and start timer if in progress
+  /// Load session by ID and calculate elapsed time
   Future<void> loadSession(int sessionId) async {
     _isLoading = true;
     _errorMessage = null;
@@ -38,9 +38,29 @@ class ActiveWorkoutProvider extends ChangeNotifier {
       _currentSession = await _sessionRepository.getSession(sessionId);
 
       // Calculate elapsed time if session has started
+      // (startedAt and pausedAt are already in UTC from Session.fromJson)
       if (_currentSession?.startedAt != null) {
-        _elapsedTime = DateTime.now().difference(_currentSession!.startedAt!);
-        _startTimer();
+        final Duration calculated;
+
+        if (_currentSession?.pausedAt != null) {
+          // Timer is paused - elapsed time is when it was paused
+          calculated = _currentSession!.pausedAt!.difference(_currentSession!.startedAt!);
+          _stopTimer();  // Ensure timer is stopped
+        } else {
+          // Timer is running - calculate from current time
+          calculated = DateTime.now().toUtc().difference(_currentSession!.startedAt!);
+          // Auto-start timer since it should be running in background
+          if (_currentSession?.status == 'in_progress') {
+            _startTimer();
+          }
+        }
+
+        // Ensure elapsed time is never negative (due to network latency)
+        _elapsedTime = calculated.isNegative ? Duration.zero : calculated;
+      } else {
+        // Session hasn't started yet (still draft), reset timer
+        _elapsedTime = Duration.zero;
+        _stopTimer();
       }
     } catch (e) {
       _errorMessage =
@@ -79,12 +99,55 @@ class ActiveWorkoutProvider extends ChangeNotifier {
         _currentSession!.id,
         'in_progress',
       );
+
+      // Calculate elapsed time (should be near zero for new workouts)
+      // startedAt is already in UTC from Session.fromJson
+      if (_currentSession?.startedAt != null) {
+        final calculated = DateTime.now().toUtc().difference(_currentSession!.startedAt!);
+        // Ensure elapsed time is never negative (due to network latency)
+        _elapsedTime = calculated.isNegative ? Duration.zero : calculated;
+      } else {
+        _elapsedTime = Duration.zero;
+      }
+
       _startTimer();
       notifyListeners();
     } catch (e) {
       _errorMessage =
           'Failed to start workout: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Start workout error: $e');
+      notifyListeners();
+    }
+  }
+
+  /// Pause the timer (keeps session in_progress but stops timer)
+  Future<void> pauseTimer() async {
+    if (_currentSession == null) return;
+
+    try {
+      await _sessionRepository.pauseSession(_currentSession!.id);
+      // Reload session to get updated pausedAt timestamp
+      await loadSession(_currentSession!.id);
+    } catch (e) {
+      _errorMessage =
+          'Failed to pause: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Pause error: $e');
+      notifyListeners();
+    }
+  }
+
+  /// Resume the timer (continues from current elapsed time)
+  Future<void> resumeTimer() async {
+    if (_currentSession == null) return;
+
+    try {
+      await _sessionRepository.resumeSession(_currentSession!.id);
+      // Reload session to get updated state (pausedAt cleared, startedAt adjusted)
+      await loadSession(_currentSession!.id);
+    } catch (e) {
+      _errorMessage =
+          'Failed to resume: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Resume error: $e');
       notifyListeners();
     }
   }
@@ -111,13 +174,13 @@ class ActiveWorkoutProvider extends ChangeNotifier {
   }
 
   /// Add exercise to current session
-  Future<void> addExercise(Exercise exercise) async {
+  Future<void> addExercise(int exerciseTemplateId) async {
     if (_currentSession == null) return;
 
     try {
       await _sessionRepository.addExerciseToSession(
         _currentSession!.id,
-        exercise,
+        exerciseTemplateId,
       );
 
       // Reload session to get updated exercises

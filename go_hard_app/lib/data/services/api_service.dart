@@ -77,9 +77,13 @@ class ApiService {
   }
 
   /// Generic PATCH request
-  Future<T> patch<T>(String path, {dynamic data}) async {
+  Future<T?> patch<T>(String path, {dynamic data}) async {
     try {
       final response = await _dio.patch<T>(path, data: data);
+      // Handle NoContent (204) responses
+      if (response.statusCode == 204 || response.data == null) {
+        return null;
+      }
       return response.data as T;
     } on DioException catch (e) {
       throw _handleError(e);

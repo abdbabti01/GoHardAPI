@@ -91,6 +91,9 @@ class ExerciseRepository {
       ApiConfig.exerciseSetComplete(id),
       data: {},
     );
+    if (data == null) {
+      throw Exception('Failed to complete exercise set: No data returned');
+    }
     return ExerciseSet.fromJson(data);
   }
 

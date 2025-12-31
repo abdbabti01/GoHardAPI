@@ -18,15 +18,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   @override
   void initState() {
     super.initState();
-    // Load session and start timer
+    // Load session (timer will auto-start if in_progress)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<ActiveWorkoutProvider>();
       provider.loadSession(widget.sessionId);
-
-      // Start workout if it's still a draft
-      if (provider.currentSession?.status == 'draft') {
-        provider.startWorkout();
-      }
     });
   }
 
@@ -126,10 +121,50 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
               ],
             ),
             body: _buildBody(provider),
-            floatingActionButton: FloatingActionButton.extended(
-              onPressed: _handleAddExercise,
-              icon: const Icon(Icons.add),
-              label: const Text('Add Exercise'),
+            floatingActionButton: Container(
+              height: 56,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.secondary,
+                    Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                  ],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Theme.of(context).colorScheme.secondary.withOpacity(0.4),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(28),
+                  onTap: _handleAddExercise,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.add_circle_outline, color: Colors.white, size: 24),
+                        SizedBox(width: 12),
+                        Text(
+                          'Add Exercise',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         );
@@ -183,6 +218,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   }
 
   Widget _buildTimerCard(ActiveWorkoutProvider provider) {
+    final isDraft = provider.currentSession?.status == 'draft';
+
     return Card(
       margin: const EdgeInsets.all(16),
       elevation: 4,
@@ -221,6 +258,34 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 color: Colors.white.withValues(alpha: 0.9),
               ),
             ),
+            const SizedBox(height: 16),
+            // Start/Pause button
+            if (isDraft)
+              ElevatedButton.icon(
+                onPressed: provider.startWorkout,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Start Workout'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                ),
+              )
+            else
+              ElevatedButton.icon(
+                onPressed: provider.isTimerRunning
+                    ? provider.pauseTimer
+                    : provider.resumeTimer,
+                icon: Icon(
+                  provider.isTimerRunning ? Icons.pause : Icons.play_arrow,
+                ),
+                label: Text(provider.isTimerRunning ? 'Pause' : 'Resume'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                ),
+              ),
           ],
         ),
       ),
@@ -290,23 +355,14 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   }
 
   Widget? _buildExerciseSubtitle(dynamic exercise) {
-    final List<String> details = [];
+    // Show count of logged sets
+    final setsCount = exercise.exerciseSets?.length ?? 0;
 
-    if (exercise.sets != null && exercise.sets > 0) {
-      details.add('${exercise.sets} sets');
-    }
-    if (exercise.reps != null && exercise.reps > 0) {
-      details.add('${exercise.reps} reps');
-    }
-    if (exercise.weight != null && exercise.weight > 0) {
-      details.add('${exercise.weight} lbs');
-    }
-
-    if (details.isEmpty) {
+    if (setsCount == 0) {
       return const Text('Tap to log sets');
     }
 
-    return Text(details.join(' • '));
+    return Text('$setsCount set${setsCount == 1 ? '' : 's'} logged');
   }
 
   String _formatElapsedTime(Duration duration) {

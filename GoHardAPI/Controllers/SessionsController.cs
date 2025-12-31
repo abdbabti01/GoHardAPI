@@ -123,7 +123,7 @@ namespace GoHardAPI.Controllers
 
         // PATCH: api/Sessions/5/status
         [HttpPatch("{id}/status")]
-        public async Task<IActionResult> UpdateSessionStatus(int id, [FromBody] string status)
+        public async Task<IActionResult> UpdateSessionStatus(int id, [FromBody] UpdateStatusRequest request)
         {
             var userId = GetCurrentUserId();
             var session = await _context.Sessions.FindAsync(id);
@@ -133,21 +133,26 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
+            if (string.IsNullOrEmpty(request.Status))
+            {
+                return BadRequest(new { message = "Status cannot be empty." });
+            }
+
             // Validate status
             var validStatuses = new[] { "draft", "in_progress", "completed" };
-            if (!validStatuses.Contains(status.ToLower()))
+            if (!validStatuses.Contains(request.Status.ToLower()))
             {
                 return BadRequest(new { message = "Invalid status. Must be: draft, in_progress, or completed" });
             }
 
-            session.Status = status.ToLower();
+            session.Status = request.Status.ToLower();
 
             // Update timestamps based on status
-            if (status.ToLower() == "in_progress" && session.StartedAt == null)
+            if (request.Status.ToLower() == "in_progress" && session.StartedAt == null)
             {
                 session.StartedAt = DateTime.UtcNow;
             }
-            else if (status.ToLower() == "completed" && session.CompletedAt == null)
+            else if (request.Status.ToLower() == "completed" && session.CompletedAt == null)
             {
                 session.CompletedAt = DateTime.UtcNow;
             }
@@ -157,9 +162,69 @@ namespace GoHardAPI.Controllers
             return NoContent();
         }
 
+        // PATCH: api/Sessions/5/pause
+        [HttpPatch("{id}/pause")]
+        public async Task<IActionResult> PauseSession(int id)
+        {
+            var userId = GetCurrentUserId();
+            var session = await _context.Sessions.FindAsync(id);
+
+            if (session == null || session.UserId != userId)
+            {
+                return NotFound();
+            }
+
+            if (session.Status != "in_progress")
+            {
+                return BadRequest(new { message = "Can only pause an in-progress session" });
+            }
+
+            session.PausedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // PATCH: api/Sessions/5/resume
+        [HttpPatch("{id}/resume")]
+        public async Task<IActionResult> ResumeSession(int id)
+        {
+            var userId = GetCurrentUserId();
+            var session = await _context.Sessions.FindAsync(id);
+
+            if (session == null || session.UserId != userId)
+            {
+                return NotFound();
+            }
+
+            if (session.Status != "in_progress")
+            {
+                return BadRequest(new { message = "Can only resume an in-progress session" });
+            }
+
+            if (session.PausedAt == null)
+            {
+                return BadRequest(new { message = "Session is not paused" });
+            }
+
+            // Calculate how long it was paused
+            var pausedDuration = DateTime.UtcNow - session.PausedAt.Value;
+
+            // Adjust StartedAt to account for paused time
+            if (session.StartedAt != null)
+            {
+                session.StartedAt = session.StartedAt.Value.Add(pausedDuration);
+            }
+
+            session.PausedAt = null;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
         // POST: api/Sessions/5/exercises
         [HttpPost("{id}/exercises")]
-        public async Task<ActionResult<Exercise>> AddExerciseToSession(int id, [FromBody] int exerciseTemplateId)
+        public async Task<ActionResult<Exercise>> AddExerciseToSession(int id, [FromBody] AddExerciseRequest request)
         {
             var userId = GetCurrentUserId();
             var session = await _context.Sessions.FindAsync(id);
@@ -169,7 +234,7 @@ namespace GoHardAPI.Controllers
                 return NotFound(new { message = "Session not found" });
             }
 
-            var template = await _context.ExerciseTemplates.FindAsync(exerciseTemplateId);
+            var template = await _context.ExerciseTemplates.FindAsync(request.ExerciseTemplateId);
             if (template == null)
             {
                 return NotFound(new { message = "Exercise template not found" });
@@ -180,7 +245,7 @@ namespace GoHardAPI.Controllers
             {
                 SessionId = id,
                 Name = template.Name,
-                ExerciseTemplateId = exerciseTemplateId
+                ExerciseTemplateId = request.ExerciseTemplateId
             };
 
             _context.Exercises.Add(exercise);

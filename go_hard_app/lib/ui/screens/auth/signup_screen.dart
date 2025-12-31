@@ -47,9 +47,10 @@ class _SignupScreenState extends State<SignupScreen> {
     }
 
     // Update provider with credentials
-    authProvider.updateName(_nameController.text);
-    authProvider.updateEmail(_emailController.text);
-    authProvider.updatePassword(_passwordController.text);
+    authProvider.setSignupName(_nameController.text);
+    authProvider.setSignupEmail(_emailController.text);
+    authProvider.setSignupPassword(_passwordController.text);
+    authProvider.setSignupConfirmPassword(_confirmPasswordController.text);
 
     // Attempt signup
     final success = await authProvider.signup();

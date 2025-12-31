@@ -11,14 +11,16 @@ class ApiConfig {
   /// - Other platforms: http://localhost:5121/api
   static String get baseUrl {
     if (Platform.isIOS || Platform.isMacOS) {
-      return 'http://localhost:5121/api';
+      return 'http://localhost:5121/api/';
     } else if (Platform.isAndroid) {
-      // For Android emulator, use 10.0.2.2
-      // For physical Android device on same WiFi, use the computer's IP
-      return 'http://10.0.0.4:5121/api';
+      // IMPORTANT: Choose the correct URL based on your testing device:
+      // - Android Emulator: use 10.0.2.2 (special alias to host machine's localhost)
+      // - Physical Android Device: use your computer's WiFi IP address (e.g., 10.0.0.4, 192.168.x.x)
+      //   To find your IP: Windows (ipconfig), Mac/Linux (ifconfig)
+      return 'http://10.0.2.2:5121/api/';  // Currently configured for emulator
     } else {
       // Windows, Linux, or other platforms
-      return 'http://localhost:5121/api';
+      return 'http://localhost:5121/api/';
     }
   }
 
@@ -29,13 +31,13 @@ class ApiConfig {
   static const Duration receiveTimeout = Duration(seconds: 10);
 
   /// API endpoints
-  static const String authLogin = '/auth/login';
-  static const String authSignup = '/auth/signup';
-  static const String users = '/users';
-  static const String sessions = '/sessions';
-  static const String exercises = '/exercises';
-  static const String exerciseSets = '/exercisesets';
-  static const String exerciseTemplates = '/exercisetemplates';
+  static const String authLogin = 'auth/login';
+  static const String authSignup = 'auth/signup';
+  static const String users = 'users';
+  static const String sessions = 'sessions';
+  static const String exercises = 'exercises';
+  static const String exerciseSets = 'exercisesets';
+  static const String exerciseTemplates = 'exercisetemplates';
 
   /// Helper methods for building endpoint URLs
   static String userById(int id) => '$users/$id';

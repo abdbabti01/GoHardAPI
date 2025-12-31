@@ -27,6 +27,8 @@ namespace GoHardAPI.Models
 
         public DateTime? CompletedAt { get; set; }
 
+        public DateTime? PausedAt { get; set; }  // When timer was paused (null if running)
+
         // Navigation properties
         public User? User { get; set; }
         public ICollection<Exercise> Exercises { get; set; } = new List<Exercise>();

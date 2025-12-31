@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/exercises_provider.dart';
 import '../../../providers/active_workout_provider.dart';
-import '../../../data/models/exercise.dart';
 import '../../widgets/exercises/exercise_card.dart';
 
 /// Add exercise screen for selecting exercises to add to active workout
@@ -61,18 +60,8 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
 
       // Add each selected exercise to the workout
       for (final exerciseId in _selectedExerciseIds) {
-        final template = exercisesProvider.exercises.firstWhere(
-          (e) => e.id == exerciseId,
-        );
-
-        final exercise = Exercise(
-          id: 0, // Will be assigned by server
-          sessionId: widget.sessionId,
-          name: template.name,
-          exerciseTemplateId: template.id,
-        );
-
-        await provider.addExercise(exercise);
+        // Send just the template ID - API will create the exercise
+        await provider.addExercise(exerciseId);
       }
 
       if (mounted) {
