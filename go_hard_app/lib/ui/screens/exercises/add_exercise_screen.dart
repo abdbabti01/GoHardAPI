@@ -56,7 +56,6 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
 
     try {
       final provider = context.read<ActiveWorkoutProvider>();
-      final exercisesProvider = context.read<ExercisesProvider>();
 
       // Add each selected exercise to the workout
       for (final exerciseId in _selectedExerciseIds) {

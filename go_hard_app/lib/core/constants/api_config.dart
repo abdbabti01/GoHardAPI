@@ -17,7 +17,7 @@ class ApiConfig {
       // - Android Emulator: use 10.0.2.2 (special alias to host machine's localhost)
       // - Physical Android Device: use your computer's WiFi IP address (e.g., 10.0.0.4, 192.168.x.x)
       //   To find your IP: Windows (ipconfig), Mac/Linux (ifconfig)
-      return 'http://10.0.2.2:5121/api/';  // Currently configured for emulator
+      return 'http://10.0.2.2:5121/api/'; // Currently configured for emulator
     } else {
       // Windows, Linux, or other platforms
       return 'http://localhost:5121/api/';

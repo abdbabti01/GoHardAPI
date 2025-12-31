@@ -128,12 +128,14 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 gradient: LinearGradient(
                   colors: [
                     Theme.of(context).colorScheme.secondary,
-                    Theme.of(context).colorScheme.secondary.withOpacity(0.8),
+                    Theme.of(context).colorScheme.secondary.withValues(alpha: 0.8),
                   ],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Theme.of(context).colorScheme.secondary.withOpacity(0.4),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.secondary.withValues(alpha: 0.4),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -145,11 +147,18 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                   borderRadius: BorderRadius.circular(28),
                   onTap: _handleAddExercise,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 16,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Icon(Icons.add_circle_outline, color: Colors.white, size: 24),
+                        Icon(
+                          Icons.add_circle_outline,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                         SizedBox(width: 12),
                         Text(
                           'Add Exercise',
@@ -268,14 +277,18 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Theme.of(context).colorScheme.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
                 ),
               )
             else
               ElevatedButton.icon(
-                onPressed: provider.isTimerRunning
-                    ? provider.pauseTimer
-                    : provider.resumeTimer,
+                onPressed:
+                    provider.isTimerRunning
+                        ? provider.pauseTimer
+                        : provider.resumeTimer,
                 icon: Icon(
                   provider.isTimerRunning ? Icons.pause : Icons.play_arrow,
                 ),
@@ -283,7 +296,10 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Theme.of(context).colorScheme.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 12,
+                  ),
                 ),
               ),
           ],

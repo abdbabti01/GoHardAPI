@@ -44,11 +44,15 @@ class ActiveWorkoutProvider extends ChangeNotifier {
 
         if (_currentSession?.pausedAt != null) {
           // Timer is paused - elapsed time is when it was paused
-          calculated = _currentSession!.pausedAt!.difference(_currentSession!.startedAt!);
-          _stopTimer();  // Ensure timer is stopped
+          calculated = _currentSession!.pausedAt!.difference(
+            _currentSession!.startedAt!,
+          );
+          _stopTimer(); // Ensure timer is stopped
         } else {
           // Timer is running - calculate from current time
-          calculated = DateTime.now().toUtc().difference(_currentSession!.startedAt!);
+          calculated = DateTime.now().toUtc().difference(
+            _currentSession!.startedAt!,
+          );
           // Auto-start timer since it should be running in background
           if (_currentSession?.status == 'in_progress') {
             _startTimer();
@@ -103,7 +107,9 @@ class ActiveWorkoutProvider extends ChangeNotifier {
       // Calculate elapsed time (should be near zero for new workouts)
       // startedAt is already in UTC from Session.fromJson
       if (_currentSession?.startedAt != null) {
-        final calculated = DateTime.now().toUtc().difference(_currentSession!.startedAt!);
+        final calculated = DateTime.now().toUtc().difference(
+          _currentSession!.startedAt!,
+        );
         // Ensure elapsed time is never negative (due to network latency)
         _elapsedTime = calculated.isNegative ? Duration.zero : calculated;
       } else {

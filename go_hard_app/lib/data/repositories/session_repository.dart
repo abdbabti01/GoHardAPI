@@ -47,18 +47,12 @@ class SessionRepository {
 
   /// Pause session timer
   Future<void> pauseSession(int id) async {
-    await _apiService.patch<void>(
-      '${ApiConfig.sessions}/$id/pause',
-      data: {},
-    );
+    await _apiService.patch<void>('${ApiConfig.sessions}/$id/pause', data: {});
   }
 
   /// Resume session timer
   Future<void> resumeSession(int id) async {
-    await _apiService.patch<void>(
-      '${ApiConfig.sessions}/$id/resume',
-      data: {},
-    );
+    await _apiService.patch<void>('${ApiConfig.sessions}/$id/resume', data: {});
   }
 
   /// Delete session
