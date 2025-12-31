@@ -7,19 +7,18 @@ part of 'exercise_set.dart';
 // **************************************************************************
 
 ExerciseSet _$ExerciseSetFromJson(Map<String, dynamic> json) => ExerciseSet(
-  id: (json['id'] as num).toInt(),
-  exerciseId: (json['exerciseId'] as num).toInt(),
-  setNumber: (json['setNumber'] as num).toInt(),
-  reps: (json['reps'] as num?)?.toInt(),
-  weight: (json['weight'] as num?)?.toDouble(),
-  duration: (json['duration'] as num?)?.toInt(),
-  isCompleted: json['isCompleted'] as bool? ?? false,
-  completedAt:
-      json['completedAt'] == null
+      id: (json['id'] as num).toInt(),
+      exerciseId: (json['exerciseId'] as num).toInt(),
+      setNumber: (json['setNumber'] as num).toInt(),
+      reps: (json['reps'] as num?)?.toInt(),
+      weight: (json['weight'] as num?)?.toDouble(),
+      duration: (json['duration'] as num?)?.toInt(),
+      isCompleted: json['isCompleted'] as bool? ?? false,
+      completedAt: json['completedAt'] == null
           ? null
           : DateTime.parse(json['completedAt'] as String),
-  notes: json['notes'] as String?,
-);
+      notes: json['notes'] as String?,
+    );
 
 Map<String, dynamic> _$ExerciseSetToJson(ExerciseSet instance) =>
     <String, dynamic>{

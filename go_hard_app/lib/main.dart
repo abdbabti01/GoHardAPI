@@ -8,6 +8,7 @@ import 'data/repositories/auth_repository.dart';
 import 'data/repositories/session_repository.dart';
 import 'data/repositories/exercise_repository.dart';
 import 'data/repositories/user_repository.dart';
+import 'data/local/services/local_database_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/sessions_provider.dart';
 import 'providers/active_workout_provider.dart';
@@ -16,13 +17,24 @@ import 'providers/exercise_detail_provider.dart';
 import 'providers/log_sets_provider.dart';
 import 'providers/profile_provider.dart';
 
-void main() {
+void main() async {
+  // Ensure Flutter bindings are initialized for async operations
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize local database before app starts
+  final localDb = LocalDatabaseService.instance;
+  await localDb.initialize();
+
+  debugPrint('✅ Local database initialized successfully');
+  debugPrint('📊 Database path: ${localDb.database.directory}');
+  debugPrint('🔍 Isar Inspector enabled - use Isar Inspector app to view data');
   runApp(
     /// MultiProvider setup for dependency injection and state management
     /// Matches the service and ViewModel structure from MAUI app
     MultiProvider(
       providers: [
         // Services (singletons)
+        Provider<LocalDatabaseService>.value(value: localDb),
         Provider<AuthService>(create: (_) => AuthService()),
         ProxyProvider<AuthService, ApiService>(
           update: (_, authService, __) => ApiService(authService),
