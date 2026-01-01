@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/sessions_provider.dart';
 import '../../../routes/route_names.dart';
+import '../../../core/services/sync_service.dart';
 import '../../widgets/sessions/session_card.dart';
+import '../../widgets/common/sync_status_indicator.dart';
+import '../../widgets/common/offline_banner.dart';
 
 /// Sessions screen displaying list of workout sessions
 /// Matches SessionsPage.xaml from MAUI app
@@ -24,7 +27,17 @@ class _SessionsScreenState extends State<SessionsScreen> {
   }
 
   Future<void> _handleRefresh() async {
-    await context.read<SessionsProvider>().loadSessions();
+    // Trigger manual sync first (will upload pending changes)
+    try {
+      await context.read<SyncService>().sync();
+    } catch (e) {
+      debugPrint('Sync failed during refresh: $e');
+    }
+
+    // Then reload sessions from local DB (which now includes synced data)
+    if (mounted) {
+      await context.read<SessionsProvider>().loadSessions();
+    }
   }
 
   Future<void> _handleStartNewWorkout() async {
@@ -62,20 +75,20 @@ class _SessionsScreenState extends State<SessionsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Workouts'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _handleRefresh,
-            tooltip: 'Refresh',
-          ),
+        actions: const [
+          SyncStatusIndicator(),
         ],
       ),
-      body: Consumer<SessionsProvider>(
-        builder: (context, provider, child) {
-          // Loading state
-          if (provider.isLoading && provider.sessions.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(
+            child: Consumer<SessionsProvider>(
+              builder: (context, provider, child) {
+                // Loading state
+                if (provider.isLoading && provider.sessions.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
           // Error state
           if (provider.errorMessage != null &&
@@ -148,24 +161,27 @@ class _SessionsScreenState extends State<SessionsScreen> {
             );
           }
 
-          // Sessions list with pull-to-refresh
-          return RefreshIndicator(
-            onRefresh: _handleRefresh,
-            child: ListView.builder(
-              physics: const AlwaysScrollableScrollPhysics(),
-              itemCount: provider.sessions.length,
-              padding: const EdgeInsets.only(top: 8, bottom: 80),
-              itemBuilder: (context, index) {
-                final session = provider.sessions[index];
-                return SessionCard(
-                  session: session,
-                  onTap: () => _handleSessionTap(session.id, session.status),
-                  onDelete: () => _handleDeleteSession(session.id),
+                // Sessions list with pull-to-refresh
+                return RefreshIndicator(
+                  onRefresh: _handleRefresh,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    itemCount: provider.sessions.length,
+                    padding: const EdgeInsets.only(top: 8, bottom: 80),
+                    itemBuilder: (context, index) {
+                      final session = provider.sessions[index];
+                      return SessionCard(
+                        session: session,
+                        onTap: () => _handleSessionTap(session.id, session.status),
+                        onDelete: () => _handleDeleteSession(session.id),
+                      );
+                    },
+                  ),
                 );
               },
             ),
-          );
-        },
+          ),
+        ],
       ),
       floatingActionButton: Container(
         height: 56,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/active_workout_provider.dart';
 import '../../../routes/route_names.dart';
+import '../../widgets/common/sync_status_indicator.dart';
+import '../../widgets/common/offline_banner.dart';
 
 /// Active workout screen with timer and exercise management
 /// Matches ActiveWorkoutPage.xaml from MAUI app
@@ -113,6 +115,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             appBar: AppBar(
               title: const Text('Active Workout'),
               actions: [
+                const SyncStatusIndicator(),
                 IconButton(
                   icon: const Icon(Icons.check_circle),
                   onPressed: _handleFinishWorkout,
@@ -120,7 +123,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 ),
               ],
             ),
-            body: _buildBody(provider),
+            body: Column(
+              children: [
+                const OfflineBanner(),
+                Expanded(child: _buildBody(provider)),
+              ],
+            ),
             floatingActionButton: Container(
               height: 56,
               decoration: BoxDecoration(
