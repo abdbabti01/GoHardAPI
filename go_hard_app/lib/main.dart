@@ -11,6 +11,7 @@ import 'data/repositories/user_repository.dart';
 import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
+import 'core/services/sync_service_initializer.dart';
 import 'providers/auth_provider.dart';
 import 'providers/sessions_provider.dart';
 import 'providers/active_workout_provider.dart';
@@ -145,7 +146,9 @@ void main() async {
                   previous ?? ProfileProvider(userRepo, authService),
         ),
       ],
-      child: const MyApp(),
+      child: const SyncServiceInitializer(
+        child: MyApp(),
+      ),
     ),
   );
 }
