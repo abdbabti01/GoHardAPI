@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/local_session.dart';
@@ -141,5 +142,63 @@ class LocalDatabaseService {
     if (times.isEmpty) return null;
 
     return times.reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  /// Clean up old synced data to prevent database bloat
+  /// Deletes sessions (and their related data) that were:
+  /// - Successfully synced (isSynced = true)
+  /// - Last modified more than [daysOld] days ago (default: 30)
+  ///
+  /// Returns the number of sessions deleted
+  Future<int> cleanupOldData({int daysOld = 30}) async {
+    if (_isar == null || !_isar!.isOpen) return 0;
+
+    final cutoffDate = DateTime.now().subtract(Duration(days: daysOld));
+
+    // Find old synced sessions to delete
+    final oldSessions = await _isar!.localSessions
+        .filter()
+        .isSyncedEqualTo(true)
+        .lastModifiedServerLessThan(cutoffDate)
+        .findAll();
+
+    if (oldSessions.isEmpty) {
+      debugPrint('🧹 No old data to cleanup');
+      return 0;
+    }
+
+    int deletedCount = 0;
+
+    // Delete old sessions and their related data
+    await _isar!.writeTxn(() async {
+      for (final session in oldSessions) {
+        // Delete related exercises
+        final exercises = await _isar!.localExercises
+            .filter()
+            .sessionLocalIdEqualTo(session.localId)
+            .findAll();
+
+        for (final exercise in exercises) {
+          // Delete related sets
+          final sets = await _isar!.localExerciseSets
+              .filter()
+              .exerciseLocalIdEqualTo(exercise.localId)
+              .findAll();
+
+          for (final set in sets) {
+            await _isar!.localExerciseSets.delete(set.localId);
+          }
+
+          await _isar!.localExercises.delete(exercise.localId);
+        }
+
+        // Delete the session
+        await _isar!.localSessions.delete(session.localId);
+        deletedCount++;
+      }
+    });
+
+    debugPrint('🧹 Cleaned up $deletedCount old sessions (older than $daysOld days)');
+    return deletedCount;
   }
 }
