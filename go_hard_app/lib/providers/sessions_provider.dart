@@ -13,7 +13,10 @@ class SessionsProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
 
-  SessionsProvider(this._sessionRepository, this._authService);
+  SessionsProvider(this._sessionRepository, this._authService) {
+    // Auto-load sessions on initialization to cache them for offline use
+    loadSessions();
+  }
 
   // Getters
   List<Session> get sessions => _sessions;

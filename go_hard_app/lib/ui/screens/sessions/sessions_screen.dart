@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/sessions_provider.dart';
+import '../../../providers/exercises_provider.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/services/sync_service.dart';
 import '../../widgets/sessions/session_card.dart';
@@ -20,9 +21,11 @@ class _SessionsScreenState extends State<SessionsScreen> {
   @override
   void initState() {
     super.initState();
-    // Load sessions on first build
+    // Load sessions and exercise templates on first build (for offline caching)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SessionsProvider>().loadSessions();
+      // Trigger exercise templates to load and cache for offline use
+      context.read<ExercisesProvider>().loadExercises();
     });
   }
 

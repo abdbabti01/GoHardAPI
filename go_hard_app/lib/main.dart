@@ -42,7 +42,7 @@ void main() async {
       providers: [
         // Services (singletons)
         Provider<LocalDatabaseService>.value(value: localDb),
-        Provider<ConnectivityService>.value(value: connectivity),
+        ChangeNotifierProvider<ConnectivityService>.value(value: connectivity),
         Provider<AuthService>(create: (_) => AuthService()),
         ProxyProvider<AuthService, ApiService>(
           update: (_, authService, __) => ApiService(authService),
@@ -62,8 +62,11 @@ void main() async {
               (_, apiService, localDb, connectivity, __) =>
                   SessionRepository(apiService, localDb, connectivity),
         ),
-        ProxyProvider<ApiService, ExerciseRepository>(
-          update: (_, apiService, __) => ExerciseRepository(apiService),
+        ProxyProvider3<ApiService, LocalDatabaseService, ConnectivityService,
+            ExerciseRepository>(
+          update:
+              (_, apiService, localDb, connectivity, __) =>
+                  ExerciseRepository(apiService, localDb, connectivity),
         ),
         ProxyProvider<ApiService, UserRepository>(
           update: (_, apiService, __) => UserRepository(apiService),

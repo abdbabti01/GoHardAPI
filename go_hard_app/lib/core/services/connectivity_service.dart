@@ -3,7 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/foundation.dart';
 
 /// Service for monitoring network connectivity status
-class ConnectivityService {
+class ConnectivityService extends ChangeNotifier {
   static ConnectivityService? _instance;
   final Connectivity _connectivity = Connectivity();
 
@@ -15,7 +15,7 @@ class ConnectivityService {
   bool _isInitialized = false;
 
   /// Private constructor for singleton pattern
-  ConnectivityService._();
+  ConnectivityService._() : super();
 
   /// Get singleton instance
   static ConnectivityService get instance {
@@ -44,6 +44,7 @@ class ConnectivityService {
           '🌐 Connectivity changed: ${_isOnline ? "ONLINE" : "OFFLINE"}',
         );
         _connectivityController.add(_isOnline);
+        notifyListeners(); // Notify widgets to rebuild
       }
     });
 

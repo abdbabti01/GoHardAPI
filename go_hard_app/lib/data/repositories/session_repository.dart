@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../local/services/local_database_service.dart';
 import '../local/services/model_mapper.dart';
 import '../local/models/local_session.dart';
+import '../local/models/local_exercise.dart';
 
 /// Repository for session (workout) operations with offline support
 class SessionRepository {
@@ -31,7 +32,7 @@ class SessionRepository {
                 .map((json) => Session.fromJson(json as Map<String, dynamic>))
                 .toList();
 
-        // Update local cache
+        // Update local cache (sessions AND their exercises)
         await db.writeTxn(() async {
           for (final apiSession in apiSessions) {
             // Check if session already exists locally
@@ -41,6 +42,7 @@ class SessionRepository {
                     .serverIdEqualTo(apiSession.id)
                     .findFirst();
 
+            LocalSession savedSession;
             if (existingLocal != null) {
               // Update existing local session
               final updated = ModelMapper.sessionToLocal(
@@ -49,10 +51,40 @@ class SessionRepository {
                 isSynced: true,
               );
               await db.localSessions.put(updated);
+              savedSession = updated;
             } else {
               // Create new local session
               final localSession = ModelMapper.sessionToLocal(apiSession);
               await db.localSessions.put(localSession);
+              savedSession = localSession;
+            }
+
+            // Save exercises for this session
+            for (final apiExercise in apiSession.exercises) {
+              // Check if exercise already exists locally
+              final existingExercise =
+                  await db.localExercises
+                      .filter()
+                      .serverIdEqualTo(apiExercise.id)
+                      .findFirst();
+
+              if (existingExercise != null) {
+                // Update existing
+                final updated = ModelMapper.exerciseToLocal(
+                  apiExercise,
+                  sessionLocalId: savedSession.localId,
+                  localId: existingExercise.localId,
+                  isSynced: true,
+                );
+                await db.localExercises.put(updated);
+              } else {
+                // Create new
+                final localExercise = ModelMapper.exerciseToLocal(
+                  apiExercise,
+                  sessionLocalId: savedSession.localId,
+                );
+                await db.localExercises.put(localExercise);
+              }
             }
           }
         });
@@ -69,20 +101,125 @@ class SessionRepository {
     }
   }
 
-  /// Get sessions from local database
+  /// Get sessions from local database with exercises
   Future<List<Session>> _getLocalSessions(Isar db) async {
     final localSessions = await db.localSessions.where().findAll();
-    return localSessions
-        .map((local) => ModelMapper.localToSession(local))
-        .toList();
+
+    final sessions = <Session>[];
+    for (final localSession in localSessions) {
+      // Load exercises for this session
+      final localExercises = await db.localExercises
+          .filter()
+          .sessionLocalIdEqualTo(localSession.localId)
+          .findAll();
+
+      final exercises = localExercises
+          .map((localEx) => ModelMapper.localToExercise(localEx))
+          .toList();
+
+      sessions.add(ModelMapper.localToSession(localSession, exercises: exercises));
+    }
+
+    return sessions;
   }
 
   /// Get session by ID
+  /// Offline-first: returns local cache, then tries to sync with server
   Future<Session> getSession(int id) async {
-    final data = await _apiService.get<Map<String, dynamic>>(
-      ApiConfig.sessionById(id),
-    );
-    return Session.fromJson(data);
+    final Isar db = _localDb.database;
+
+    if (_connectivity.isOnline) {
+      try {
+        // Fetch from API
+        final data = await _apiService.get<Map<String, dynamic>>(
+          ApiConfig.sessionById(id),
+        );
+        final apiSession = Session.fromJson(data);
+
+        // Update local cache (session AND exercises)
+        await db.writeTxn(() async {
+          final existingLocal =
+              await db.localSessions
+                  .filter()
+                  .serverIdEqualTo(apiSession.id)
+                  .findFirst();
+
+          LocalSession savedSession;
+          if (existingLocal != null) {
+            final updated = ModelMapper.sessionToLocal(
+              apiSession,
+              localId: existingLocal.localId,
+              isSynced: true,
+            );
+            await db.localSessions.put(updated);
+            savedSession = updated;
+          } else {
+            final localSession = ModelMapper.sessionToLocal(apiSession);
+            await db.localSessions.put(localSession);
+            savedSession = localSession;
+          }
+
+          // Save exercises for this session
+          for (final apiExercise in apiSession.exercises) {
+            final existingExercise =
+                await db.localExercises
+                    .filter()
+                    .serverIdEqualTo(apiExercise.id)
+                    .findFirst();
+
+            if (existingExercise != null) {
+              final updated = ModelMapper.exerciseToLocal(
+                apiExercise,
+                sessionLocalId: savedSession.localId,
+                localId: existingExercise.localId,
+                isSynced: true,
+              );
+              await db.localExercises.put(updated);
+            } else {
+              final localExercise = ModelMapper.exerciseToLocal(
+                apiExercise,
+                sessionLocalId: savedSession.localId,
+              );
+              await db.localExercises.put(localExercise);
+            }
+          }
+        });
+
+        return apiSession;
+      } catch (e) {
+        debugPrint('⚠️ API failed, falling back to local cache: $e');
+        return await _getLocalSession(db, id);
+      }
+    } else {
+      debugPrint('📴 Offline - returning cached session');
+      return await _getLocalSession(db, id);
+    }
+  }
+
+  /// Get session from local database by ID (server ID or local ID) with exercises
+  Future<Session> _getLocalSession(Isar db, int id) async {
+    // Try by server ID first
+    var localSession =
+        await db.localSessions.filter().serverIdEqualTo(id).findFirst();
+
+    // If not found, try by local ID
+    localSession ??= await db.localSessions.get(id);
+
+    if (localSession == null) {
+      throw Exception('Session not found: $id');
+    }
+
+    // Load exercises for this session
+    final localExercises = await db.localExercises
+        .filter()
+        .sessionLocalIdEqualTo(localSession.localId)
+        .findAll();
+
+    final exercises = localExercises
+        .map((localEx) => ModelMapper.localToExercise(localEx))
+        .toList();
+
+    return ModelMapper.localToSession(localSession, exercises: exercises);
   }
 
   /// Create new session

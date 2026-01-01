@@ -15,7 +15,10 @@ class ExercisesProvider extends ChangeNotifier {
   String? _selectedCategory;
   String? _selectedMuscleGroup;
 
-  ExercisesProvider(this._exerciseRepository);
+  ExercisesProvider(this._exerciseRepository) {
+    // Auto-load exercises on initialization to cache them for offline use
+    loadExercises();
+  }
 
   // Getters
   List<ExerciseTemplate> get exercises => _exercises;
