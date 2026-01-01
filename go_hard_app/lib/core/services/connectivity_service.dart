@@ -32,21 +32,25 @@ class ConnectivityService {
     _isOnline = _hasInternetConnectivity([initialResult]);
 
     // Listen for connectivity changes
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen(
-      (result) {
-        final wasOnline = _isOnline;
-        _isOnline = _hasInternetConnectivity([result]);
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
+      result,
+    ) {
+      final wasOnline = _isOnline;
+      _isOnline = _hasInternetConnectivity([result]);
 
-        // Only emit if status changed
-        if (wasOnline != _isOnline) {
-          debugPrint('🌐 Connectivity changed: ${_isOnline ? "ONLINE" : "OFFLINE"}');
-          _connectivityController.add(_isOnline);
-        }
-      },
-    );
+      // Only emit if status changed
+      if (wasOnline != _isOnline) {
+        debugPrint(
+          '🌐 Connectivity changed: ${_isOnline ? "ONLINE" : "OFFLINE"}',
+        );
+        _connectivityController.add(_isOnline);
+      }
+    });
 
     _isInitialized = true;
-    debugPrint('✅ ConnectivityService initialized - Status: ${_isOnline ? "ONLINE" : "OFFLINE"}');
+    debugPrint(
+      '✅ ConnectivityService initialized - Status: ${_isOnline ? "ONLINE" : "OFFLINE"}',
+    );
   }
 
   /// Check if any connectivity result indicates internet access
@@ -78,7 +82,9 @@ class ConnectivityService {
   /// Wait for online connectivity (useful for sync operations)
   /// Returns immediately if already online
   /// Timeout after specified duration if still offline
-  Future<bool> waitForConnection({Duration timeout = const Duration(seconds: 30)}) async {
+  Future<bool> waitForConnection({
+    Duration timeout = const Duration(seconds: 30),
+  }) async {
     if (_isOnline) return true;
 
     try {

@@ -22,19 +22,12 @@ class OfflineBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.orange.shade100,
         border: Border(
-          bottom: BorderSide(
-            color: Colors.orange.shade300,
-            width: 1,
-          ),
+          bottom: BorderSide(color: Colors.orange.shade300, width: 1),
         ),
       ),
       child: Row(
         children: [
-          Icon(
-            Icons.cloud_off,
-            size: 20,
-            color: Colors.orange.shade700,
-          ),
+          Icon(Icons.cloud_off, size: 20, color: Colors.orange.shade700),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -70,19 +63,12 @@ class CompactOfflineIndicator extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.orange.shade50,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: Colors.orange.shade300,
-          width: 1,
-        ),
+        border: Border.all(color: Colors.orange.shade300, width: 1),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.cloud_off,
-            size: 16,
-            color: Colors.orange.shade700,
-          ),
+          Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade700),
           const SizedBox(width: 8),
           Text(
             'Offline mode',

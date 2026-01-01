@@ -50,9 +50,7 @@ class LocalDatabaseService {
   /// Throws if database is not initialized
   Isar get database {
     if (_isar == null || !_isar!.isOpen) {
-      throw Exception(
-        'Database not initialized. Call initialize() first.',
-      );
+      throw Exception('Database not initialized. Call initialize() first.');
     }
     return _isar!;
   }
@@ -81,25 +79,20 @@ class LocalDatabaseService {
   Future<int> getPendingSyncCount() async {
     if (_isar == null || !_isar!.isOpen) return 0;
 
-    final sessionCount = await _isar!.localSessions
-        .filter()
-        .isSyncedEqualTo(false)
-        .count();
+    final sessionCount =
+        await _isar!.localSessions.filter().isSyncedEqualTo(false).count();
 
-    final exerciseCount = await _isar!.localExercises
-        .filter()
-        .isSyncedEqualTo(false)
-        .count();
+    final exerciseCount =
+        await _isar!.localExercises.filter().isSyncedEqualTo(false).count();
 
-    final setCount = await _isar!.localExerciseSets
-        .filter()
-        .isSyncedEqualTo(false)
-        .count();
+    final setCount =
+        await _isar!.localExerciseSets.filter().isSyncedEqualTo(false).count();
 
-    final templateCount = await _isar!.localExerciseTemplates
-        .filter()
-        .isSyncedEqualTo(false)
-        .count();
+    final templateCount =
+        await _isar!.localExerciseTemplates
+            .filter()
+            .isSyncedEqualTo(false)
+            .count();
 
     return sessionCount + exerciseCount + setCount + templateCount;
   }
@@ -108,36 +101,41 @@ class LocalDatabaseService {
   Future<DateTime?> getLastSyncTime() async {
     if (_isar == null || !_isar!.isOpen) return null;
 
-    final sessions = await _isar!.localSessions
-        .where()
-        .sortByLastSyncAttemptDesc()
-        .limit(1)
-        .findAll();
+    final sessions =
+        await _isar!.localSessions
+            .where()
+            .sortByLastSyncAttemptDesc()
+            .limit(1)
+            .findAll();
 
-    final exercises = await _isar!.localExercises
-        .where()
-        .sortByLastSyncAttemptDesc()
-        .limit(1)
-        .findAll();
+    final exercises =
+        await _isar!.localExercises
+            .where()
+            .sortByLastSyncAttemptDesc()
+            .limit(1)
+            .findAll();
 
-    final sets = await _isar!.localExerciseSets
-        .where()
-        .sortByLastSyncAttemptDesc()
-        .limit(1)
-        .findAll();
+    final sets =
+        await _isar!.localExerciseSets
+            .where()
+            .sortByLastSyncAttemptDesc()
+            .limit(1)
+            .findAll();
 
-    final templates = await _isar!.localExerciseTemplates
-        .where()
-        .sortByLastSyncAttemptDesc()
-        .limit(1)
-        .findAll();
+    final templates =
+        await _isar!.localExerciseTemplates
+            .where()
+            .sortByLastSyncAttemptDesc()
+            .limit(1)
+            .findAll();
 
-    final times = <DateTime?>[
-      sessions.isNotEmpty ? sessions.first.lastSyncAttempt : null,
-      exercises.isNotEmpty ? exercises.first.lastSyncAttempt : null,
-      sets.isNotEmpty ? sets.first.lastSyncAttempt : null,
-      templates.isNotEmpty ? templates.first.lastSyncAttempt : null,
-    ].whereType<DateTime>();
+    final times =
+        <DateTime?>[
+          sessions.isNotEmpty ? sessions.first.lastSyncAttempt : null,
+          exercises.isNotEmpty ? exercises.first.lastSyncAttempt : null,
+          sets.isNotEmpty ? sets.first.lastSyncAttempt : null,
+          templates.isNotEmpty ? templates.first.lastSyncAttempt : null,
+        ].whereType<DateTime>();
 
     if (times.isEmpty) return null;
 
@@ -156,11 +154,12 @@ class LocalDatabaseService {
     final cutoffDate = DateTime.now().subtract(Duration(days: daysOld));
 
     // Find old synced sessions to delete
-    final oldSessions = await _isar!.localSessions
-        .filter()
-        .isSyncedEqualTo(true)
-        .lastModifiedServerLessThan(cutoffDate)
-        .findAll();
+    final oldSessions =
+        await _isar!.localSessions
+            .filter()
+            .isSyncedEqualTo(true)
+            .lastModifiedServerLessThan(cutoffDate)
+            .findAll();
 
     if (oldSessions.isEmpty) {
       debugPrint('🧹 No old data to cleanup');
@@ -173,17 +172,19 @@ class LocalDatabaseService {
     await _isar!.writeTxn(() async {
       for (final session in oldSessions) {
         // Delete related exercises
-        final exercises = await _isar!.localExercises
-            .filter()
-            .sessionLocalIdEqualTo(session.localId)
-            .findAll();
+        final exercises =
+            await _isar!.localExercises
+                .filter()
+                .sessionLocalIdEqualTo(session.localId)
+                .findAll();
 
         for (final exercise in exercises) {
           // Delete related sets
-          final sets = await _isar!.localExerciseSets
-              .filter()
-              .exerciseLocalIdEqualTo(exercise.localId)
-              .findAll();
+          final sets =
+              await _isar!.localExerciseSets
+                  .filter()
+                  .exerciseLocalIdEqualTo(exercise.localId)
+                  .findAll();
 
           for (final set in sets) {
             await _isar!.localExerciseSets.delete(set.localId);
@@ -198,7 +199,9 @@ class LocalDatabaseService {
       }
     });
 
-    debugPrint('🧹 Cleaned up $deletedCount old sessions (older than $daysOld days)');
+    debugPrint(
+      '🧹 Cleaned up $deletedCount old sessions (older than $daysOld days)',
+    );
     return deletedCount;
   }
 }

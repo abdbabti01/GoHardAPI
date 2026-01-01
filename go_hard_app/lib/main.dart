@@ -52,12 +52,15 @@ void main() async {
         ProxyProvider<ApiService, AuthRepository>(
           update: (_, apiService, __) => AuthRepository(apiService),
         ),
-        ProxyProvider3<ApiService, LocalDatabaseService, ConnectivityService, SessionRepository>(
-          update: (_, apiService, localDb, connectivity, __) => SessionRepository(
-            apiService,
-            localDb,
-            connectivity,
-          ),
+        ProxyProvider3<
+          ApiService,
+          LocalDatabaseService,
+          ConnectivityService,
+          SessionRepository
+        >(
+          update:
+              (_, apiService, localDb, connectivity, __) =>
+                  SessionRepository(apiService, localDb, connectivity),
         ),
         ProxyProvider<ApiService, ExerciseRepository>(
           update: (_, apiService, __) => ExerciseRepository(apiService),
@@ -67,12 +70,18 @@ void main() async {
         ),
 
         // Sync Service
-        ProxyProvider3<ApiService, LocalDatabaseService, ConnectivityService, SyncService>(
-          update: (_, apiService, localDb, connectivity, __) => SyncService(
-            apiService: apiService,
-            localDb: localDb,
-            connectivity: connectivity,
-          ),
+        ProxyProvider3<
+          ApiService,
+          LocalDatabaseService,
+          ConnectivityService,
+          SyncService
+        >(
+          update:
+              (_, apiService, localDb, connectivity, __) => SyncService(
+                apiService: apiService,
+                localDb: localDb,
+                connectivity: connectivity,
+              ),
         ),
 
         // Providers (state managers - equivalent to ViewModels)
@@ -146,9 +155,7 @@ void main() async {
                   previous ?? ProfileProvider(userRepo, authService),
         ),
       ],
-      child: const SyncServiceInitializer(
-        child: MyApp(),
-      ),
+      child: const SyncServiceInitializer(child: MyApp()),
     ),
   );
 }

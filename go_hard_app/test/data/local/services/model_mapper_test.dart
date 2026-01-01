@@ -59,7 +59,10 @@ void main() {
       );
 
       // Act
-      final localSession = ModelMapper.sessionToLocal(apiSession, isSynced: false);
+      final localSession = ModelMapper.sessionToLocal(
+        apiSession,
+        isSynced: false,
+      );
 
       // Assert
       expect(localSession.serverId, 123);
@@ -101,29 +104,32 @@ void main() {
       expect(apiSession.pausedAt, null);
     });
 
-    test('localToSession should use 0 for unsynced sessions without serverId', () {
-      // Arrange
-      final localSession = LocalSession(
-        serverId: null, // Not synced yet
-        userId: 456,
-        date: DateTime(2024, 1, 15),
-        duration: 3600,
-        notes: 'Test workout',
-        type: 'strength',
-        status: 'in_progress',
-        isSynced: false,
-        syncStatus: 'pending_create',
-        lastModifiedLocal: DateTime.now(),
-      );
+    test(
+      'localToSession should use 0 for unsynced sessions without serverId',
+      () {
+        // Arrange
+        final localSession = LocalSession(
+          serverId: null, // Not synced yet
+          userId: 456,
+          date: DateTime(2024, 1, 15),
+          duration: 3600,
+          notes: 'Test workout',
+          type: 'strength',
+          status: 'in_progress',
+          isSynced: false,
+          syncStatus: 'pending_create',
+          lastModifiedLocal: DateTime.now(),
+        );
 
-      // Act
-      final apiSession = ModelMapper.localToSession(localSession);
+        // Act
+        final apiSession = ModelMapper.localToSession(localSession);
 
-      // Assert
-      expect(apiSession.id, 0); // Should use 0 for unsynced items
-      expect(apiSession.userId, 456);
-      expect(apiSession.status, 'in_progress');
-    });
+        // Assert
+        expect(apiSession.id, 0); // Should use 0 for unsynced items
+        expect(apiSession.userId, 456);
+        expect(apiSession.status, 'in_progress');
+      },
+    );
 
     test('sessionToLocal and localToSession should be bidirectional', () {
       // Arrange
@@ -218,74 +224,80 @@ void main() {
   });
 
   group('ModelMapper - ExerciseSet Conversion', () {
-    test('exerciseSetToLocal should convert API ExerciseSet to LocalExerciseSet', () {
-      // Arrange
-      final apiSet = ExerciseSet(
-        id: 1,
-        exerciseId: 10,
-        setNumber: 1,
-        reps: 10,
-        weight: 135.0,
-        duration: 30,
-        isCompleted: true,
-        completedAt: DateTime(2024, 1, 15, 10, 30),
-        notes: 'Good form',
-      );
+    test(
+      'exerciseSetToLocal should convert API ExerciseSet to LocalExerciseSet',
+      () {
+        // Arrange
+        final apiSet = ExerciseSet(
+          id: 1,
+          exerciseId: 10,
+          setNumber: 1,
+          reps: 10,
+          weight: 135.0,
+          duration: 30,
+          isCompleted: true,
+          completedAt: DateTime(2024, 1, 15, 10, 30),
+          notes: 'Good form',
+        );
 
-      // Act
-      final localSet = ModelMapper.exerciseSetToLocal(
-        apiSet,
-        exerciseLocalId: 50,
-        exerciseServerId: 10,
-      );
+        // Act
+        final localSet = ModelMapper.exerciseSetToLocal(
+          apiSet,
+          exerciseLocalId: 50,
+          exerciseServerId: 10,
+        );
 
-      // Assert
-      expect(localSet.serverId, 1);
-      expect(localSet.exerciseLocalId, 50);
-      expect(localSet.exerciseServerId, 10);
-      expect(localSet.setNumber, 1);
-      expect(localSet.reps, 10);
-      expect(localSet.weight, 135.0);
-      expect(localSet.duration, 30);
-      expect(localSet.isCompleted, true);
-      expect(localSet.completedAt, DateTime(2024, 1, 15, 10, 30));
-      expect(localSet.notes, 'Good form');
-      expect(localSet.isSynced, true);
-      expect(localSet.syncStatus, 'synced');
-    });
+        // Assert
+        expect(localSet.serverId, 1);
+        expect(localSet.exerciseLocalId, 50);
+        expect(localSet.exerciseServerId, 10);
+        expect(localSet.setNumber, 1);
+        expect(localSet.reps, 10);
+        expect(localSet.weight, 135.0);
+        expect(localSet.duration, 30);
+        expect(localSet.isCompleted, true);
+        expect(localSet.completedAt, DateTime(2024, 1, 15, 10, 30));
+        expect(localSet.notes, 'Good form');
+        expect(localSet.isSynced, true);
+        expect(localSet.syncStatus, 'synced');
+      },
+    );
 
-    test('localToExerciseSet should convert LocalExerciseSet to API ExerciseSet', () {
-      // Arrange
-      final localSet = LocalExerciseSet(
-        serverId: 1,
-        exerciseLocalId: 50,
-        exerciseServerId: 10,
-        setNumber: 2,
-        reps: 8,
-        weight: 140.0,
-        duration: 35,
-        isCompleted: false,
-        completedAt: null,
-        notes: null,
-        isSynced: true,
-        syncStatus: 'synced',
-        lastModifiedLocal: DateTime.now(),
-      );
+    test(
+      'localToExerciseSet should convert LocalExerciseSet to API ExerciseSet',
+      () {
+        // Arrange
+        final localSet = LocalExerciseSet(
+          serverId: 1,
+          exerciseLocalId: 50,
+          exerciseServerId: 10,
+          setNumber: 2,
+          reps: 8,
+          weight: 140.0,
+          duration: 35,
+          isCompleted: false,
+          completedAt: null,
+          notes: null,
+          isSynced: true,
+          syncStatus: 'synced',
+          lastModifiedLocal: DateTime.now(),
+        );
 
-      // Act
-      final apiSet = ModelMapper.localToExerciseSet(localSet);
+        // Act
+        final apiSet = ModelMapper.localToExerciseSet(localSet);
 
-      // Assert
-      expect(apiSet.id, 1);
-      expect(apiSet.exerciseId, 10);
-      expect(apiSet.setNumber, 2);
-      expect(apiSet.reps, 8);
-      expect(apiSet.weight, 140.0);
-      expect(apiSet.duration, 35);
-      expect(apiSet.isCompleted, false);
-      expect(apiSet.completedAt, null);
-      expect(apiSet.notes, null);
-    });
+        // Assert
+        expect(apiSet.id, 1);
+        expect(apiSet.exerciseId, 10);
+        expect(apiSet.setNumber, 2);
+        expect(apiSet.reps, 8);
+        expect(apiSet.weight, 140.0);
+        expect(apiSet.duration, 35);
+        expect(apiSet.isCompleted, false);
+        expect(apiSet.completedAt, null);
+        expect(apiSet.notes, null);
+      },
+    );
   });
 
   group('ModelMapper - ExerciseTemplate Conversion', () {
@@ -319,7 +331,10 @@ void main() {
       expect(localTemplate.difficulty, 'Intermediate');
       expect(localTemplate.videoUrl, 'https://example.com/video');
       expect(localTemplate.imageUrl, 'https://example.com/image');
-      expect(localTemplate.instructions, '1. Lie on bench\n2. Lower bar\n3. Press up');
+      expect(
+        localTemplate.instructions,
+        '1. Lie on bench\n2. Lower bar\n3. Press up',
+      );
       expect(localTemplate.isCustom, false);
       expect(localTemplate.createdByUserId, null);
       expect(localTemplate.isSynced, true);

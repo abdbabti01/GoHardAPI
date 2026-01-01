@@ -42,7 +42,9 @@ class SyncService {
   /// Get singleton instance (must be initialized first)
   static SyncService get instance {
     if (_instance == null) {
-      throw Exception('SyncService not initialized. Call factory constructor first.');
+      throw Exception(
+        'SyncService not initialized. Call factory constructor first.',
+      );
     }
     return _instance!;
   }
@@ -52,17 +54,17 @@ class SyncService {
     if (_isInitialized) return;
 
     // Listen for connectivity changes
-    _connectivitySubscription = _connectivity.connectivityStream.listen(
-      (isOnline) {
-        if (isOnline) {
-          debugPrint('🔄 Network connected - scheduling sync');
-          _scheduleDebouncedSync();
-        } else {
-          debugPrint('📴 Network disconnected - canceling sync');
-          _cancelDebouncedSync();
-        }
-      },
-    );
+    _connectivitySubscription = _connectivity.connectivityStream.listen((
+      isOnline,
+    ) {
+      if (isOnline) {
+        debugPrint('🔄 Network connected - scheduling sync');
+        _scheduleDebouncedSync();
+      } else {
+        debugPrint('📴 Network disconnected - canceling sync');
+        _cancelDebouncedSync();
+      }
+    });
 
     // Start periodic sync timer (only syncs when online)
     _periodicSyncTimer = Timer.periodic(_syncInterval, (_) {
@@ -128,10 +130,8 @@ class SyncService {
 
   /// Sync all pending sessions
   Future<void> _syncSessions(Isar db) async {
-    final pendingSessions = await db.localSessions
-        .filter()
-        .isSyncedEqualTo(false)
-        .findAll();
+    final pendingSessions =
+        await db.localSessions.filter().isSyncedEqualTo(false).findAll();
 
     if (pendingSessions.isEmpty) {
       debugPrint('  No pending sessions to sync');
@@ -187,14 +187,18 @@ class SyncService {
         localSession.serverId = response['id'] as int;
         localSession.isSynced = true;
         localSession.syncStatus = 'synced';
-        localSession.lastModifiedServer = DateTime.parse(response['date'] as String);
+        localSession.lastModifiedServer = DateTime.parse(
+          response['date'] as String,
+        );
         localSession.syncRetryCount = 0;
         localSession.syncError = null;
         localSession.lastSyncAttempt = DateTime.now();
         await db.localSessions.put(localSession);
       });
 
-      debugPrint('  ✅ Session created with server ID: ${localSession.serverId}');
+      debugPrint(
+        '  ✅ Session created with server ID: ${localSession.serverId}',
+      );
     } catch (e) {
       rethrow;
     }
@@ -220,7 +224,9 @@ class SyncService {
       // Server-wins conflict resolution
       if (localSession.lastModifiedServer != null &&
           serverModified.isAfter(localSession.lastModifiedServer!)) {
-        debugPrint('  ⚠️ Conflict detected - server has newer data, discarding local changes');
+        debugPrint(
+          '  ⚠️ Conflict detected - server has newer data, discarding local changes',
+        );
 
         // Update local with server data (server wins)
         await db.writeTxn(() async {
@@ -228,15 +234,18 @@ class SyncService {
           localSession.notes = serverData['notes'] as String?;
           localSession.duration = serverData['duration'] as int?;
           localSession.type = serverData['type'] as String?;
-          localSession.startedAt = serverData['startedAt'] != null
-              ? DateTime.parse(serverData['startedAt'] as String)
-              : null;
-          localSession.completedAt = serverData['completedAt'] != null
-              ? DateTime.parse(serverData['completedAt'] as String)
-              : null;
-          localSession.pausedAt = serverData['pausedAt'] != null
-              ? DateTime.parse(serverData['pausedAt'] as String)
-              : null;
+          localSession.startedAt =
+              serverData['startedAt'] != null
+                  ? DateTime.parse(serverData['startedAt'] as String)
+                  : null;
+          localSession.completedAt =
+              serverData['completedAt'] != null
+                  ? DateTime.parse(serverData['completedAt'] as String)
+                  : null;
+          localSession.pausedAt =
+              serverData['pausedAt'] != null
+                  ? DateTime.parse(serverData['pausedAt'] as String)
+                  : null;
           localSession.lastModifiedServer = serverModified;
           localSession.isSynced = true;
           localSession.syncStatus = 'synced';
@@ -302,7 +311,11 @@ class SyncService {
   }
 
   /// Mark sync error with exponential backoff
-  Future<void> _markSyncError(Isar db, LocalSession session, String error) async {
+  Future<void> _markSyncError(
+    Isar db,
+    LocalSession session,
+    String error,
+  ) async {
     await db.writeTxn(() async {
       session.syncRetryCount += 1;
       session.syncError = error;
@@ -310,9 +323,13 @@ class SyncService {
 
       if (session.syncRetryCount >= _maxRetries) {
         session.syncStatus = 'sync_error';
-        debugPrint('  ❌ Session ${session.localId} failed after $_maxRetries attempts: $error');
+        debugPrint(
+          '  ❌ Session ${session.localId} failed after $_maxRetries attempts: $error',
+        );
       } else {
-        debugPrint('  ⚠️ Session ${session.localId} sync failed (attempt ${session.syncRetryCount}/$_maxRetries): $error');
+        debugPrint(
+          '  ⚠️ Session ${session.localId} sync failed (attempt ${session.syncRetryCount}/$_maxRetries): $error',
+        );
       }
 
       await db.localSessions.put(session);
@@ -323,25 +340,23 @@ class SyncService {
   Future<Map<String, dynamic>> getSyncStatus() async {
     final db = _localDb.database;
 
-    final pendingCount = await db.localSessions
-        .filter()
-        .isSyncedEqualTo(false)
-        .count();
+    final pendingCount =
+        await db.localSessions.filter().isSyncedEqualTo(false).count();
 
-    final errorCount = await db.localSessions
-        .filter()
-        .syncStatusEqualTo('sync_error')
-        .count();
+    final errorCount =
+        await db.localSessions.filter().syncStatusEqualTo('sync_error').count();
 
     final allSessions = await db.localSessions.where().findAll();
-    final lastSyncAttempts = allSessions
-        .where((s) => s.lastSyncAttempt != null)
-        .map((s) => s.lastSyncAttempt!)
-        .toList();
+    final lastSyncAttempts =
+        allSessions
+            .where((s) => s.lastSyncAttempt != null)
+            .map((s) => s.lastSyncAttempt!)
+            .toList();
 
-    final lastSyncTime = lastSyncAttempts.isEmpty
-        ? null
-        : lastSyncAttempts.reduce((a, b) => a.isAfter(b) ? a : b);
+    final lastSyncTime =
+        lastSyncAttempts.isEmpty
+            ? null
+            : lastSyncAttempts.reduce((a, b) => a.isAfter(b) ? a : b);
 
     return {
       'isSyncing': _isSyncing,
@@ -357,10 +372,11 @@ class SyncService {
     final db = _localDb.database;
 
     // Reset retry count for failed items
-    final failedSessions = await db.localSessions
-        .filter()
-        .syncStatusEqualTo('sync_error')
-        .findAll();
+    final failedSessions =
+        await db.localSessions
+            .filter()
+            .syncStatusEqualTo('sync_error')
+            .findAll();
 
     await db.writeTxn(() async {
       for (final session in failedSessions) {

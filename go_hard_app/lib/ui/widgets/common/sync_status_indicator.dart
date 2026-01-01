@@ -98,11 +98,7 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
 
     return Text(
       text,
-      style: TextStyle(
-        fontSize: 12,
-        color: color,
-        fontWeight: FontWeight.w500,
-      ),
+      style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500),
     );
   }
 
@@ -148,13 +144,13 @@ class _SyncStatusDialog extends StatelessWidget {
             isSyncing
                 ? 'Syncing...'
                 : pendingCount > 0
-                    ? 'Pending sync'
-                    : 'Up to date',
+                ? 'Pending sync'
+                : 'Up to date',
             isSyncing
                 ? Colors.blue
                 : pendingCount > 0
-                    ? Colors.orange
-                    : Colors.green,
+                ? Colors.orange
+                : Colors.green,
           ),
           const SizedBox(height: 8),
           _buildStatusRow(
@@ -205,14 +201,8 @@ class _SyncStatusDialog extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-        Text(
-          value,
-          style: TextStyle(color: valueColor),
-        ),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        Text(value, style: TextStyle(color: valueColor)),
       ],
     );
   }
@@ -236,9 +226,9 @@ class _SyncStatusDialog extends StatelessWidget {
     try {
       final syncService = context.read<SyncService>();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Starting sync...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Starting sync...')));
 
       await syncService.sync();
 
@@ -266,9 +256,9 @@ class _SyncStatusDialog extends StatelessWidget {
     try {
       final syncService = context.read<SyncService>();
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Retrying failed syncs...')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Retrying failed syncs...')));
 
       await syncService.retryFailedSyncs();
 

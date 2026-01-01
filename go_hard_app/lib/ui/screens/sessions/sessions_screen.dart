@@ -75,9 +75,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Workouts'),
-        actions: const [
-          SyncStatusIndicator(),
-        ],
+        actions: const [SyncStatusIndicator()],
       ),
       body: Column(
         children: [
@@ -90,76 +88,74 @@ class _SessionsScreenState extends State<SessionsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-          // Error state
-          if (provider.errorMessage != null &&
-              provider.errorMessage!.isNotEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 64,
-                    color: Colors.red.shade300,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error Loading Workouts',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      provider.errorMessage!,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                // Error state
+                if (provider.errorMessage != null &&
+                    provider.errorMessage!.isNotEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: Colors.red.shade300,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error Loading Workouts',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Text(
+                            provider.errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: _handleRefresh,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: _handleRefresh,
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              ),
-            );
-          }
+                  );
+                }
 
-          // Empty state
-          if (provider.sessions.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.fitness_center,
-                    size: 80,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No Workouts Yet',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 48),
-                    child: Text(
-                      'Start your first workout by tapping the + button below',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+                // Empty state
+                if (provider.sessions.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.fitness_center,
+                          size: 80,
+                          color: Colors.grey.shade300,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No Workouts Yet',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 48),
+                          child: Text(
+                            'Start your first workout by tapping the + button below',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(color: Colors.grey),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            );
-          }
+                  );
+                }
 
                 // Sessions list with pull-to-refresh
                 return RefreshIndicator(
@@ -172,7 +168,8 @@ class _SessionsScreenState extends State<SessionsScreen> {
                       final session = provider.sessions[index];
                       return SessionCard(
                         session: session,
-                        onTap: () => _handleSessionTap(session.id, session.status),
+                        onTap:
+                            () => _handleSessionTap(session.id, session.status),
                         onDelete: () => _handleDeleteSession(session.id),
                       );
                     },

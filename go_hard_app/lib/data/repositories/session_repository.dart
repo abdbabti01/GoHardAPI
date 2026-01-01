@@ -15,11 +15,7 @@ class SessionRepository {
   final LocalDatabaseService _localDb;
   final ConnectivityService _connectivity;
 
-  SessionRepository(
-    this._apiService,
-    this._localDb,
-    this._connectivity,
-  );
+  SessionRepository(this._apiService, this._localDb, this._connectivity);
 
   /// Get all sessions for the current user
   /// Offline-first: returns local cache, then tries to sync with server
@@ -30,18 +26,20 @@ class SessionRepository {
       try {
         // Fetch from API
         final data = await _apiService.get<List<dynamic>>(ApiConfig.sessions);
-        final apiSessions = data
-            .map((json) => Session.fromJson(json as Map<String, dynamic>))
-            .toList();
+        final apiSessions =
+            data
+                .map((json) => Session.fromJson(json as Map<String, dynamic>))
+                .toList();
 
         // Update local cache
         await db.writeTxn(() async {
           for (final apiSession in apiSessions) {
             // Check if session already exists locally
-            final existingLocal = await db.localSessions
-                .filter()
-                .serverIdEqualTo(apiSession.id)
-                .findFirst();
+            final existingLocal =
+                await db.localSessions
+                    .filter()
+                    .serverIdEqualTo(apiSession.id)
+                    .findFirst();
 
             if (existingLocal != null) {
               // Update existing local session
@@ -167,10 +165,8 @@ class SessionRepository {
 
     // Find local session (id could be localId or serverId)
     var localSession = await db.localSessions.get(id);
-    localSession ??= await db.localSessions
-          .filter()
-          .serverIdEqualTo(id)
-          .findFirst();
+    localSession ??=
+        await db.localSessions.filter().serverIdEqualTo(id).findFirst();
 
     if (localSession == null) {
       throw Exception('Session not found: $id');
@@ -193,7 +189,9 @@ class SessionRepository {
           await db.localSessions.put(localSession);
         });
 
-        debugPrint('✅ Updated session status on server: ${localSession.serverId}');
+        debugPrint(
+          '✅ Updated session status on server: ${localSession.serverId}',
+        );
       } catch (e) {
         debugPrint('⚠️ API failed, updating locally: $e');
         await _updateLocalSessionStatus(db, localSession, status);
@@ -226,10 +224,8 @@ class SessionRepository {
   Future<void> pauseSession(int id) async {
     final Isar db = _localDb.database;
     var localSession = await db.localSessions.get(id);
-    localSession ??= await db.localSessions
-          .filter()
-          .serverIdEqualTo(id)
-          .findFirst();
+    localSession ??=
+        await db.localSessions.filter().serverIdEqualTo(id).findFirst();
 
     if (localSession == null) {
       throw Exception('Session not found: $id');
@@ -265,10 +261,8 @@ class SessionRepository {
   Future<void> resumeSession(int id) async {
     final Isar db = _localDb.database;
     var localSession = await db.localSessions.get(id);
-    localSession ??= await db.localSessions
-          .filter()
-          .serverIdEqualTo(id)
-          .findFirst();
+    localSession ??=
+        await db.localSessions.filter().serverIdEqualTo(id).findFirst();
 
     if (localSession == null) {
       throw Exception('Session not found: $id');
@@ -304,10 +298,8 @@ class SessionRepository {
   Future<bool> deleteSession(int id) async {
     final Isar db = _localDb.database;
     var localSession = await db.localSessions.get(id);
-    localSession ??= await db.localSessions
-          .filter()
-          .serverIdEqualTo(id)
-          .findFirst();
+    localSession ??=
+        await db.localSessions.filter().serverIdEqualTo(id).findFirst();
 
     if (localSession == null) {
       throw Exception('Session not found: $id');

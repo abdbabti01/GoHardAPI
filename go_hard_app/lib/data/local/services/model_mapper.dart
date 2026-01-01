@@ -218,12 +218,14 @@ class ModelMapper {
     bool isSynced = true,
   }) {
     return apiExercises
-        .map((exercise) => exerciseToLocal(
-              exercise,
-              sessionLocalId: sessionLocalId,
-              sessionServerId: sessionServerId,
-              isSynced: isSynced,
-            ))
+        .map(
+          (exercise) => exerciseToLocal(
+            exercise,
+            sessionLocalId: sessionLocalId,
+            sessionServerId: sessionServerId,
+            isSynced: isSynced,
+          ),
+        )
         .toList();
   }
 
@@ -240,12 +242,14 @@ class ModelMapper {
     bool isSynced = true,
   }) {
     return apiSets
-        .map((set) => exerciseSetToLocal(
-              set,
-              exerciseLocalId: exerciseLocalId,
-              exerciseServerId: exerciseServerId,
-              isSynced: isSynced,
-            ))
+        .map(
+          (set) => exerciseSetToLocal(
+            set,
+            exerciseLocalId: exerciseLocalId,
+            exerciseServerId: exerciseServerId,
+            isSynced: isSynced,
+          ),
+        )
         .toList();
   }
 
@@ -262,7 +266,9 @@ class ModelMapper {
     bool isSynced = true,
   }) {
     return apiTemplates
-        .map((template) => exerciseTemplateToLocal(template, isSynced: isSynced))
+        .map(
+          (template) => exerciseTemplateToLocal(template, isSynced: isSynced),
+        )
         .toList();
   }
 

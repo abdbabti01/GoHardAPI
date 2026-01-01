@@ -26,13 +26,8 @@ import 'package:mockito/mockito.dart' as _i1;
 // ignore_for_file: subtype_of_sealed_class
 
 class _FakeAuthResponse_0 extends _i1.SmartFake implements _i2.AuthResponse {
-  _FakeAuthResponse_0(
-    Object parent,
-    Invocation parentInvocation,
-  ) : super(
-          parent,
-          parentInvocation,
-        );
+  _FakeAuthResponse_0(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
 }
 
 /// A class which mocks [AuthRepository].
@@ -46,34 +41,22 @@ class MockAuthRepository extends _i1.Mock implements _i3.AuthRepository {
   @override
   _i4.Future<_i2.AuthResponse> login(_i5.LoginRequest? request) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #login,
-          [request],
-        ),
-        returnValue: _i4.Future<_i2.AuthResponse>.value(_FakeAuthResponse_0(
-          this,
-          Invocation.method(
-            #login,
-            [request],
-          ),
-        )),
-      ) as _i4.Future<_i2.AuthResponse>);
+            Invocation.method(#login, [request]),
+            returnValue: _i4.Future<_i2.AuthResponse>.value(
+              _FakeAuthResponse_0(this, Invocation.method(#login, [request])),
+            ),
+          )
+          as _i4.Future<_i2.AuthResponse>);
 
   @override
   _i4.Future<_i2.AuthResponse> signup(_i6.SignupRequest? request) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #signup,
-          [request],
-        ),
-        returnValue: _i4.Future<_i2.AuthResponse>.value(_FakeAuthResponse_0(
-          this,
-          Invocation.method(
-            #signup,
-            [request],
-          ),
-        )),
-      ) as _i4.Future<_i2.AuthResponse>);
+            Invocation.method(#signup, [request]),
+            returnValue: _i4.Future<_i2.AuthResponse>.value(
+              _FakeAuthResponse_0(this, Invocation.method(#signup, [request])),
+            ),
+          )
+          as _i4.Future<_i2.AuthResponse>);
 }
 
 /// A class which mocks [AuthService].
@@ -92,72 +75,63 @@ class MockAuthService extends _i1.Mock implements _i7.AuthService {
     required String? email,
   }) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #saveToken,
-          [],
-          {
-            #token: token,
-            #userId: userId,
-            #name: name,
-            #email: email,
-          },
-        ),
-        returnValue: _i4.Future<void>.value(),
-        returnValueForMissingStub: _i4.Future<void>.value(),
-      ) as _i4.Future<void>);
+            Invocation.method(#saveToken, [], {
+              #token: token,
+              #userId: userId,
+              #name: name,
+              #email: email,
+            }),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
 
   @override
-  _i4.Future<String?> getToken() => (super.noSuchMethod(
-        Invocation.method(
-          #getToken,
-          [],
-        ),
-        returnValue: _i4.Future<String?>.value(),
-      ) as _i4.Future<String?>);
+  _i4.Future<String?> getToken() =>
+      (super.noSuchMethod(
+            Invocation.method(#getToken, []),
+            returnValue: _i4.Future<String?>.value(),
+          )
+          as _i4.Future<String?>);
 
   @override
-  _i4.Future<int?> getUserId() => (super.noSuchMethod(
-        Invocation.method(
-          #getUserId,
-          [],
-        ),
-        returnValue: _i4.Future<int?>.value(),
-      ) as _i4.Future<int?>);
+  _i4.Future<int?> getUserId() =>
+      (super.noSuchMethod(
+            Invocation.method(#getUserId, []),
+            returnValue: _i4.Future<int?>.value(),
+          )
+          as _i4.Future<int?>);
 
   @override
-  _i4.Future<String?> getUserName() => (super.noSuchMethod(
-        Invocation.method(
-          #getUserName,
-          [],
-        ),
-        returnValue: _i4.Future<String?>.value(),
-      ) as _i4.Future<String?>);
+  _i4.Future<String?> getUserName() =>
+      (super.noSuchMethod(
+            Invocation.method(#getUserName, []),
+            returnValue: _i4.Future<String?>.value(),
+          )
+          as _i4.Future<String?>);
 
   @override
-  _i4.Future<String?> getUserEmail() => (super.noSuchMethod(
-        Invocation.method(
-          #getUserEmail,
-          [],
-        ),
-        returnValue: _i4.Future<String?>.value(),
-      ) as _i4.Future<String?>);
+  _i4.Future<String?> getUserEmail() =>
+      (super.noSuchMethod(
+            Invocation.method(#getUserEmail, []),
+            returnValue: _i4.Future<String?>.value(),
+          )
+          as _i4.Future<String?>);
 
   @override
-  _i4.Future<bool> isAuthenticated() => (super.noSuchMethod(
-        Invocation.method(
-          #isAuthenticated,
-          [],
-        ),
-        returnValue: _i4.Future<bool>.value(false),
-      ) as _i4.Future<bool>);
+  _i4.Future<bool> isAuthenticated() =>
+      (super.noSuchMethod(
+            Invocation.method(#isAuthenticated, []),
+            returnValue: _i4.Future<bool>.value(false),
+          )
+          as _i4.Future<bool>);
 
   @override
-  _i4.Future<void> clearToken() => (super.noSuchMethod(
-        Invocation.method(
-          #clearToken,
-          [],
-        ),
-        returnValue: _i4.Future<void>.value(),
-        returnValueForMissingStub: _i4.Future<void>.value(),
-      ) as _i4.Future<void>);
+  _i4.Future<void> clearToken() =>
+      (super.noSuchMethod(
+            Invocation.method(#clearToken, []),
+            returnValue: _i4.Future<void>.value(),
+            returnValueForMissingStub: _i4.Future<void>.value(),
+          )
+          as _i4.Future<void>);
 }
