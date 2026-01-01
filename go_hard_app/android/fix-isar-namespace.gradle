@@ -1,6 +1,8 @@
-// Workaround for isar_flutter_libs missing namespace
-// This file is applied automatically by settings.gradle.kts
-// Issue: https://github.com/isar/isar/issues
+// Workaround for isar_flutter_libs compatibility issues
+// This file is applied automatically by build.gradle.kts
+// Issues:
+// 1. Missing namespace (required for AGP 7.3+)
+// 2. compileSdkVersion 30 too low (android:attr/lStar requires API 31+)
 
 afterEvaluate { project ->
     if (project.name == 'isar_flutter_libs') {
@@ -9,6 +11,10 @@ afterEvaluate { project ->
                 namespace = 'dev.isar.isar_flutter_libs'
                 println("Applied namespace fix for isar_flutter_libs")
             }
+
+            // Update compileSdkVersion to support modern Android resources
+            compileSdkVersion = 34
+            println("Updated isar_flutter_libs compileSdkVersion to 34")
         }
     }
 }
