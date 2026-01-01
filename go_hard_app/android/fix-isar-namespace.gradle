@@ -1,0 +1,14 @@
+// Workaround for isar_flutter_libs missing namespace
+// This file is applied automatically by settings.gradle.kts
+// Issue: https://github.com/isar/isar/issues
+
+afterEvaluate { project ->
+    if (project.name == 'isar_flutter_libs') {
+        project.android {
+            if (namespace == null) {
+                namespace = 'dev.isar.isar_flutter_libs'
+                println("Applied namespace fix for isar_flutter_libs")
+            }
+        }
+    }
+}
