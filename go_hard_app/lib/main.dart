@@ -10,6 +10,7 @@ import 'data/repositories/exercise_repository.dart';
 import 'data/repositories/user_repository.dart';
 import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
+import 'core/services/sync_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/sessions_provider.dart';
 import 'providers/active_workout_provider.dart';
@@ -62,6 +63,15 @@ void main() async {
         ),
         ProxyProvider<ApiService, UserRepository>(
           update: (_, apiService, __) => UserRepository(apiService),
+        ),
+
+        // Sync Service
+        ProxyProvider3<ApiService, LocalDatabaseService, ConnectivityService, SyncService>(
+          update: (_, apiService, localDb, connectivity, __) => SyncService(
+            apiService: apiService,
+            localDb: localDb,
+            connectivity: connectivity,
+          ),
         ),
 
         // Providers (state managers - equivalent to ViewModels)
