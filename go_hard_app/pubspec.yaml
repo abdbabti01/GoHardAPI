@@ -64,6 +64,9 @@ dependencies:
   # Charts & Data Visualization
   fl_chart: ^0.68.0
 
+  # Image Picker
+  image_picker: ^1.0.7
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

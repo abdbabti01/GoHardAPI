@@ -39,6 +39,8 @@ class ApiConfig {
   static const String exercises = 'exercises';
   static const String exerciseSets = 'exercisesets';
   static const String exerciseTemplates = 'exercisetemplates';
+  static const String profile = 'profile';
+  static const String profilePhoto = 'profile/photo';
 
   /// Helper methods for building endpoint URLs
   static String userById(int id) => '$users/$id';

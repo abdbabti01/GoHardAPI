@@ -8,6 +8,7 @@ import 'data/repositories/auth_repository.dart';
 import 'data/repositories/session_repository.dart';
 import 'data/repositories/exercise_repository.dart';
 import 'data/repositories/user_repository.dart';
+import 'data/repositories/profile_repository.dart';
 import 'data/repositories/analytics_repository.dart';
 import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
@@ -86,6 +87,10 @@ void main() async {
         ),
         ProxyProvider<ApiService, UserRepository>(
           update: (_, apiService, __) => UserRepository(apiService),
+        ),
+        ProxyProvider2<ApiService, AuthService, ProfileRepository>(
+          update: (_, apiService, authService, __) =>
+              ProfileRepository(apiService, authService),
         ),
         ProxyProvider<ApiService, AnalyticsRepository>(
           update: (_, apiService, __) => AnalyticsRepository(apiService),
@@ -171,19 +176,22 @@ void main() async {
               (_, exerciseRepo, previous) =>
                   previous ?? LogSetsProvider(exerciseRepo),
         ),
-        ChangeNotifierProxyProvider2<
+        ChangeNotifierProxyProvider3<
           UserRepository,
+          ProfileRepository,
           AuthService,
           ProfileProvider
         >(
           create:
               (context) => ProfileProvider(
                 context.read<UserRepository>(),
+                context.read<ProfileRepository>(),
                 context.read<AuthService>(),
               ),
           update:
-              (_, userRepo, authService, previous) =>
-                  previous ?? ProfileProvider(userRepo, authService),
+              (_, userRepo, profileRepo, authService, previous) =>
+                  previous ??
+                  ProfileProvider(userRepo, profileRepo, authService),
         ),
         ChangeNotifierProxyProvider<AnalyticsRepository, AnalyticsProvider>(
           create:
