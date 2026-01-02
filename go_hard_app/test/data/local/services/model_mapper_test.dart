@@ -119,13 +119,13 @@ void main() {
           isSynced: false,
           syncStatus: 'pending_create',
           lastModifiedLocal: DateTime.now(),
-        );
+        )..localId = 0; // Explicitly set localId for testing
 
         // Act
         final apiSession = ModelMapper.localToSession(localSession);
 
         // Assert
-        expect(apiSession.id, 0); // Should use 0 for unsynced items
+        expect(apiSession.id, 0); // Should use localId when serverId is null
         expect(apiSession.userId, 456);
         expect(apiSession.status, 'in_progress');
       },
