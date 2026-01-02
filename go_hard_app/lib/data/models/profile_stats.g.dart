@@ -7,10 +7,10 @@ part of 'profile_stats.dart';
 // **************************************************************************
 
 ProfileStats _$ProfileStatsFromJson(Map<String, dynamic> json) => ProfileStats(
-      totalWorkouts: (json['totalWorkouts'] as num).toInt(),
-      currentStreak: (json['currentStreak'] as num).toInt(),
-      personalRecords: (json['personalRecords'] as num).toInt(),
-    );
+  totalWorkouts: (json['totalWorkouts'] as num).toInt(),
+  currentStreak: (json['currentStreak'] as num).toInt(),
+  personalRecords: (json['personalRecords'] as num).toInt(),
+);
 
 Map<String, dynamic> _$ProfileStatsToJson(ProfileStats instance) =>
     <String, dynamic>{

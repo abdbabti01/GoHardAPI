@@ -213,16 +213,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           backgroundColor: Theme.of(
             context,
           ).colorScheme.primary.withValues(alpha: 0.2),
-          backgroundImage: user?.profilePhotoUrl != null
-              ? NetworkImage(user!.profilePhotoUrl!)
-              : null,
-          child: user?.profilePhotoUrl == null
-              ? Icon(
-                Icons.person,
-                size: 50,
-                color: Theme.of(context).colorScheme.primary,
-              )
-              : null,
+          backgroundImage:
+              user?.profilePhotoUrl != null
+                  ? NetworkImage(user!.profilePhotoUrl!)
+                  : null,
+          child:
+              user?.profilePhotoUrl == null
+                  ? Icon(
+                    Icons.person,
+                    size: 50,
+                    color: Theme.of(context).colorScheme.primary,
+                  )
+                  : null,
         ),
         const SizedBox(height: 16),
 

@@ -41,10 +41,7 @@ class UnitConverter {
     final feet = (totalInches / inchesPerFoot).floor();
     final inches = (totalInches % inchesPerFoot).round();
 
-    return {
-      'feet': feet,
-      'inches': inches,
-    };
+    return {'feet': feet, 'inches': inches};
   }
 
   /// Convert feet and inches to centimeters
@@ -101,7 +98,10 @@ class UnitConverter {
 
   /// Convert user input weight to metric (kg) for backend storage
   /// If user is in Imperial mode, input is in lbs and needs conversion
-  static double? convertInputWeightToMetric(double? inputValue, String unitPreference) {
+  static double? convertInputWeightToMetric(
+    double? inputValue,
+    String unitPreference,
+  ) {
     if (inputValue == null) return null;
 
     if (unitPreference == 'Imperial') {
@@ -113,7 +113,10 @@ class UnitConverter {
 
   /// Convert user input height to metric (cm) for backend storage
   /// If user is in Imperial mode, input needs conversion from ft/in
-  static double? convertInputHeightToMetric(double? inputValue, String unitPreference) {
+  static double? convertInputHeightToMetric(
+    double? inputValue,
+    String unitPreference,
+  ) {
     if (inputValue == null) return null;
 
     if (unitPreference == 'Imperial') {
@@ -125,7 +128,10 @@ class UnitConverter {
 
   /// Convert metric weight (kg) from backend to display value
   /// If user is in Imperial mode, convert to lbs
-  static double? convertMetricWeightToDisplay(double? metricValue, String unitPreference) {
+  static double? convertMetricWeightToDisplay(
+    double? metricValue,
+    String unitPreference,
+  ) {
     if (metricValue == null) return null;
 
     if (unitPreference == 'Imperial') {
@@ -137,7 +143,10 @@ class UnitConverter {
 
   /// Convert metric height (cm) from backend to display value
   /// If user is in Imperial mode, convert to total inches
-  static double? convertMetricHeightToDisplay(double? metricValue, String unitPreference) {
+  static double? convertMetricHeightToDisplay(
+    double? metricValue,
+    String unitPreference,
+  ) {
     if (metricValue == null) return null;
 
     if (unitPreference == 'Imperial') {

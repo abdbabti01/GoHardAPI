@@ -89,8 +89,9 @@ void main() async {
           update: (_, apiService, __) => UserRepository(apiService),
         ),
         ProxyProvider2<ApiService, AuthService, ProfileRepository>(
-          update: (_, apiService, authService, __) =>
-              ProfileRepository(apiService, authService),
+          update:
+              (_, apiService, authService, __) =>
+                  ProfileRepository(apiService, authService),
         ),
         ProxyProvider<ApiService, AnalyticsRepository>(
           update: (_, apiService, __) => AnalyticsRepository(apiService),

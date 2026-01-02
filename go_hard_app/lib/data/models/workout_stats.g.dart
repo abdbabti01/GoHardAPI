@@ -7,23 +7,25 @@ part of 'workout_stats.dart';
 // **************************************************************************
 
 WorkoutStats _$WorkoutStatsFromJson(Map<String, dynamic> json) => WorkoutStats(
-      totalWorkouts: (json['totalWorkouts'] as num).toInt(),
-      totalDuration: (json['totalDuration'] as num).toInt(),
-      averageDuration: (json['averageDuration'] as num).toInt(),
-      currentStreak: (json['currentStreak'] as num).toInt(),
-      longestStreak: (json['longestStreak'] as num).toInt(),
-      workoutsThisWeek: (json['workoutsThisWeek'] as num).toInt(),
-      workoutsThisMonth: (json['workoutsThisMonth'] as num).toInt(),
-      totalSets: (json['totalSets'] as num).toInt(),
-      totalReps: (json['totalReps'] as num).toInt(),
-      totalVolume: (json['totalVolume'] as num).toDouble(),
-      firstWorkoutDate: json['firstWorkoutDate'] == null
+  totalWorkouts: (json['totalWorkouts'] as num).toInt(),
+  totalDuration: (json['totalDuration'] as num).toInt(),
+  averageDuration: (json['averageDuration'] as num).toInt(),
+  currentStreak: (json['currentStreak'] as num).toInt(),
+  longestStreak: (json['longestStreak'] as num).toInt(),
+  workoutsThisWeek: (json['workoutsThisWeek'] as num).toInt(),
+  workoutsThisMonth: (json['workoutsThisMonth'] as num).toInt(),
+  totalSets: (json['totalSets'] as num).toInt(),
+  totalReps: (json['totalReps'] as num).toInt(),
+  totalVolume: (json['totalVolume'] as num).toDouble(),
+  firstWorkoutDate:
+      json['firstWorkoutDate'] == null
           ? null
           : DateTime.parse(json['firstWorkoutDate'] as String),
-      lastWorkoutDate: json['lastWorkoutDate'] == null
+  lastWorkoutDate:
+      json['lastWorkoutDate'] == null
           ? null
           : DateTime.parse(json['lastWorkoutDate'] as String),
-    );
+);
 
 Map<String, dynamic> _$WorkoutStatsToJson(WorkoutStats instance) =>
     <String, dynamic>{
@@ -48,13 +50,15 @@ ExerciseProgress _$ExerciseProgressFromJson(Map<String, dynamic> json) =>
       timesPerformed: (json['timesPerformed'] as num).toInt(),
       totalVolume: (json['totalVolume'] as num).toDouble(),
       personalRecord: (json['personalRecord'] as num?)?.toDouble(),
-      personalRecordDate: json['personalRecordDate'] == null
-          ? null
-          : DateTime.parse(json['personalRecordDate'] as String),
+      personalRecordDate:
+          json['personalRecordDate'] == null
+              ? null
+              : DateTime.parse(json['personalRecordDate'] as String),
       lastWeight: (json['lastWeight'] as num?)?.toDouble(),
-      lastPerformedDate: json['lastPerformedDate'] == null
-          ? null
-          : DateTime.parse(json['lastPerformedDate'] as String),
+      lastPerformedDate:
+          json['lastPerformedDate'] == null
+              ? null
+              : DateTime.parse(json['lastPerformedDate'] as String),
       progressPercentage: (json['progressPercentage'] as num?)?.toDouble(),
     );
 

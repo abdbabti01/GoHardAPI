@@ -72,12 +72,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       text: displayWeight != null ? displayWeight.toStringAsFixed(1) : '',
     );
     _targetWeightController = TextEditingController(
-      text: displayTargetWeight != null ? displayTargetWeight.toStringAsFixed(1) : '',
+      text:
+          displayTargetWeight != null
+              ? displayTargetWeight.toStringAsFixed(1)
+              : '',
     );
     _bodyFatController = TextEditingController(
-      text: user?.bodyFatPercentage != null
-          ? user!.bodyFatPercentage!.toStringAsFixed(1)
-          : '',
+      text:
+          user?.bodyFatPercentage != null
+              ? user!.bodyFatPercentage!.toStringAsFixed(1)
+              : '',
     );
     _goalsController = TextEditingController(text: user?.goals ?? '');
     _favoriteExercisesController = TextEditingController(
@@ -151,28 +155,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _showImagePickerOptions() {
     showModalBottomSheet(
       context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Choose from Gallery'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
+      builder:
+          (context) => SafeArea(
+            child: Wrap(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_library),
+                  title: const Text('Choose from Gallery'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt),
+                  title: const Text('Take a Photo'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Take a Photo'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -203,31 +208,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         // Convert metric to imperial
         _unitPreference = UnitPreference.imperial;
         if (currentHeight != null) {
-          _heightController.text =
-              UnitConverter.cmToInches(currentHeight).toStringAsFixed(1);
+          _heightController.text = UnitConverter.cmToInches(
+            currentHeight,
+          ).toStringAsFixed(1);
         }
         if (currentWeight != null) {
-          _weightController.text =
-              UnitConverter.kgToLbs(currentWeight).toStringAsFixed(1);
+          _weightController.text = UnitConverter.kgToLbs(
+            currentWeight,
+          ).toStringAsFixed(1);
         }
         if (currentTargetWeight != null) {
-          _targetWeightController.text =
-              UnitConverter.kgToLbs(currentTargetWeight).toStringAsFixed(1);
+          _targetWeightController.text = UnitConverter.kgToLbs(
+            currentTargetWeight,
+          ).toStringAsFixed(1);
         }
       } else {
         // Convert imperial to metric
         _unitPreference = UnitPreference.metric;
         if (currentHeight != null) {
-          _heightController.text =
-              UnitConverter.inchesToCm(currentHeight).toStringAsFixed(1);
+          _heightController.text = UnitConverter.inchesToCm(
+            currentHeight,
+          ).toStringAsFixed(1);
         }
         if (currentWeight != null) {
-          _weightController.text =
-              UnitConverter.lbsToKg(currentWeight).toStringAsFixed(1);
+          _weightController.text = UnitConverter.lbsToKg(
+            currentWeight,
+          ).toStringAsFixed(1);
         }
         if (currentTargetWeight != null) {
-          _targetWeightController.text =
-              UnitConverter.lbsToKg(currentTargetWeight).toStringAsFixed(1);
+          _targetWeightController.text = UnitConverter.lbsToKg(
+            currentTargetWeight,
+          ).toStringAsFixed(1);
         }
       }
     });
@@ -245,7 +256,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     final request = ProfileUpdateRequest(
       name: _nameController.text.trim(),
-      bio: _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+      bio:
+          _bioController.text.trim().isEmpty
+              ? null
+              : _bioController.text.trim(),
       dateOfBirth: _dateOfBirth,
       gender: _gender?.serverValue,
       height: UnitConverter.convertInputHeightToMetric(
@@ -263,14 +277,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       bodyFatPercentage: double.tryParse(_bodyFatController.text),
       experienceLevel: _experienceLevel?.serverValue,
       primaryGoal: _primaryGoal?.serverValue,
-      goals: _goalsController.text.trim().isEmpty
-          ? null
-          : _goalsController.text.trim(),
+      goals:
+          _goalsController.text.trim().isEmpty
+              ? null
+              : _goalsController.text.trim(),
       unitPreference: _unitPreference.serverValue,
       themePreference: _themePreference,
-      favoriteExercises: _favoriteExercisesController.text.trim().isEmpty
-          ? null
-          : _favoriteExercisesController.text.trim(),
+      favoriteExercises:
+          _favoriteExercisesController.text.trim().isEmpty
+              ? null
+              : _favoriteExercisesController.text.trim(),
     );
 
     final provider = context.read<ProfileProvider>();
@@ -370,11 +386,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         children: [
           CircleAvatar(
             radius: 60,
-            backgroundColor:
-                Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
-            backgroundImage: _selectedImage != null
-                ? FileImage(_selectedImage!)
-                : provider.currentUser?.profilePhotoUrl != null
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.2),
+            backgroundImage:
+                _selectedImage != null
+                    ? FileImage(_selectedImage!)
+                    : provider.currentUser?.profilePhotoUrl != null
                     ? NetworkImage(provider.currentUser!.profilePhotoUrl!)
                     : null,
             child:
@@ -417,10 +435,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget _buildSectionHeader(String title) {
     return Text(
       title,
-      style: Theme.of(context)
-          .textTheme
-          .titleLarge
-          ?.copyWith(fontWeight: FontWeight.bold),
+      style: Theme.of(
+        context,
+      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
     );
   }
 
@@ -468,14 +485,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 labelText: 'Gender',
                 prefixIcon: Icon(Icons.wc),
               ),
-              items: Gender.values
-                  .map(
-                    (gender) => DropdownMenuItem(
-                      value: gender,
-                      child: Text(gender.displayName),
-                    ),
-                  )
-                  .toList(),
+              items:
+                  Gender.values
+                      .map(
+                        (gender) => DropdownMenuItem(
+                          value: gender,
+                          child: Text(gender.displayName),
+                        ),
+                      )
+                      .toList(),
               onChanged: (value) => setState(() => _gender = value),
             ),
           ],
@@ -508,8 +526,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   _unitPreference.serverValue,
                 ),
               ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -521,8 +540,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   _unitPreference.serverValue,
                 ),
               ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -534,8 +554,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   _unitPreference.serverValue,
                 ),
               ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -545,8 +566,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 prefixIcon: Icon(Icons.percent),
                 suffixText: '%',
               ),
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
             ),
           ],
         ),
@@ -566,14 +588,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 labelText: 'Experience Level',
                 prefixIcon: Icon(Icons.star),
               ),
-              items: ExperienceLevel.values
-                  .map(
-                    (level) => DropdownMenuItem(
-                      value: level,
-                      child: Text(level.displayName),
-                    ),
-                  )
-                  .toList(),
+              items:
+                  ExperienceLevel.values
+                      .map(
+                        (level) => DropdownMenuItem(
+                          value: level,
+                          child: Text(level.displayName),
+                        ),
+                      )
+                      .toList(),
               onChanged: (value) => setState(() => _experienceLevel = value),
             ),
             const SizedBox(height: 16),
@@ -583,14 +606,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 labelText: 'Primary Goal',
                 prefixIcon: Icon(Icons.track_changes),
               ),
-              items: FitnessGoal.values
-                  .map(
-                    (goal) => DropdownMenuItem(
-                      value: goal,
-                      child: Text(goal.displayName),
-                    ),
-                  )
-                  .toList(),
+              items:
+                  FitnessGoal.values
+                      .map(
+                        (goal) => DropdownMenuItem(
+                          value: goal,
+                          child: Text(goal.displayName),
+                        ),
+                      )
+                      .toList(),
               onChanged: (value) => setState(() => _primaryGoal = value),
             ),
             const SizedBox(height: 16),

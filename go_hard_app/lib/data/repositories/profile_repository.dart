@@ -15,9 +15,7 @@ class ProfileRepository {
 
   /// Get current user's profile with stats
   Future<User> getProfile() async {
-    final data = await _apiService.get<Map<String, dynamic>>(
-      ApiConfig.profile,
-    );
+    final data = await _apiService.get<Map<String, dynamic>>(ApiConfig.profile);
     return User.fromJson(data);
   }
 
@@ -51,9 +49,7 @@ class ProfileRepository {
           baseUrl: ApiConfig.baseUrl,
           connectTimeout: ApiConfig.connectTimeout,
           receiveTimeout: ApiConfig.receiveTimeout,
-          headers: {
-            'Authorization': 'Bearer $token',
-          },
+          headers: {'Authorization': 'Bearer $token'},
         ),
       );
 

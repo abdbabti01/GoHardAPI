@@ -78,7 +78,16 @@ class _SessionsScreenState extends State<SessionsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Workouts'),
-        actions: const [SyncStatusIndicator()],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.analytics),
+            onPressed: () {
+              Navigator.pushNamed(context, RouteNames.analytics);
+            },
+            tooltip: 'Analytics',
+          ),
+          const SyncStatusIndicator(),
+        ],
       ),
       body: Column(
         children: [

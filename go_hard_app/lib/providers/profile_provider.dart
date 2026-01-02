@@ -128,9 +128,7 @@ class ProfileProvider extends ChangeNotifier {
     final currentPreference = _currentUser!.unitPreference ?? 'Metric';
     final newPreference = currentPreference == 'Metric' ? 'Imperial' : 'Metric';
 
-    final request = ProfileUpdateRequest(
-      unitPreference: newPreference,
-    );
+    final request = ProfileUpdateRequest(unitPreference: newPreference);
 
     await updateProfile(request);
   }
