@@ -43,8 +43,10 @@ class ExerciseRepository {
         );
         final apiTemplates =
             data
-                .map((json) =>
-                    ExerciseTemplate.fromJson(json as Map<String, dynamic>))
+                .map(
+                  (json) =>
+                      ExerciseTemplate.fromJson(json as Map<String, dynamic>),
+                )
                 .toList();
 
         // Update local cache
@@ -189,7 +191,10 @@ class ExerciseRepository {
 
     // First, try to find the exercise in local database
     var localExercise =
-        await db.localExercises.filter().serverIdEqualTo(exerciseId).findFirst();
+        await db.localExercises
+            .filter()
+            .serverIdEqualTo(exerciseId)
+            .findFirst();
     localExercise ??= await db.localExercises.get(exerciseId);
 
     if (localExercise == null) {
@@ -427,8 +432,9 @@ class ExerciseRepository {
 
     if (_connectivity.isOnline && localSet.serverId != null) {
       try {
-        final success =
-            await _apiService.delete(ApiConfig.exerciseSetById(localSet.serverId!));
+        final success = await _apiService.delete(
+          ApiConfig.exerciseSetById(localSet.serverId!),
+        );
         if (success) {
           // Delete from local database
           await db.writeTxn(() async {

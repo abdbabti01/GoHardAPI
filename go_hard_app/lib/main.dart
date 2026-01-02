@@ -66,8 +66,12 @@ void main() async {
               (_, apiService, localDb, connectivity, __) =>
                   SessionRepository(apiService, localDb, connectivity),
         ),
-        ProxyProvider3<ApiService, LocalDatabaseService, ConnectivityService,
-            ExerciseRepository>(
+        ProxyProvider3<
+          ApiService,
+          LocalDatabaseService,
+          ConnectivityService,
+          ExerciseRepository
+        >(
           update:
               (_, apiService, localDb, connectivity, __) =>
                   ExerciseRepository(apiService, localDb, connectivity),

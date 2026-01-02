@@ -13,26 +13,30 @@ class DatabaseCleanup {
 
     try {
       // Get all sessions with sync errors (retry count >= 3)
-      final failedSessions = await db.localSessions
-          .filter()
-          .syncRetryCountGreaterThan(2)
-          .findAll();
+      final failedSessions =
+          await db.localSessions
+              .filter()
+              .syncRetryCountGreaterThan(2)
+              .findAll();
 
       if (failedSessions.isEmpty) {
         debugPrint('✅ No failed sessions to clean up');
         return;
       }
 
-      debugPrint('🗑️ Found ${failedSessions.length} failed sessions to delete');
+      debugPrint(
+        '🗑️ Found ${failedSessions.length} failed sessions to delete',
+      );
 
       // Delete each failed session and its exercises
       for (final session in failedSessions) {
         await db.writeTxn(() async {
           // Delete exercises for this session
-          final exercises = await db.localExercises
-              .filter()
-              .sessionLocalIdEqualTo(session.localId)
-              .findAll();
+          final exercises =
+              await db.localExercises
+                  .filter()
+                  .sessionLocalIdEqualTo(session.localId)
+                  .findAll();
 
           for (final exercise in exercises) {
             // Delete sets for this exercise

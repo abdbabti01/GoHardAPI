@@ -98,14 +98,18 @@ class SessionRepository {
                   apiExercise,
                   sessionLocalId: savedSession.localId,
                 );
-                final savedExerciseId = await db.localExercises.put(localExercise);
+                final savedExerciseId = await db.localExercises.put(
+                  localExercise,
+                );
                 debugPrint(
                   '    ➕ Created exercise ${localExercise.serverId}, localId=$savedExerciseId, sessionLocalId=${localExercise.sessionLocalId}',
                 );
               }
               exerciseCount++;
             }
-            debugPrint('  📝 Cached ${exerciseCount} exercises for session ${apiSession.id}');
+            debugPrint(
+              '  📝 Cached ${exerciseCount} exercises for session ${apiSession.id}',
+            );
           }
         });
 
@@ -133,16 +137,20 @@ class SessionRepository {
       }
 
       // Load exercises for this session
-      final localExercises = await db.localExercises
-          .filter()
-          .sessionLocalIdEqualTo(localSession.localId)
-          .findAll();
+      final localExercises =
+          await db.localExercises
+              .filter()
+              .sessionLocalIdEqualTo(localSession.localId)
+              .findAll();
 
-      final exercises = localExercises
-          .map((localEx) => ModelMapper.localToExercise(localEx))
-          .toList();
+      final exercises =
+          localExercises
+              .map((localEx) => ModelMapper.localToExercise(localEx))
+              .toList();
 
-      sessions.add(ModelMapper.localToSession(localSession, exercises: exercises));
+      sessions.add(
+        ModelMapper.localToSession(localSession, exercises: exercises),
+      );
     }
 
     return sessions;
@@ -246,14 +254,16 @@ class SessionRepository {
     }
 
     // Load exercises for this session
-    final localExercises = await db.localExercises
-        .filter()
-        .sessionLocalIdEqualTo(localSession.localId)
-        .findAll();
+    final localExercises =
+        await db.localExercises
+            .filter()
+            .sessionLocalIdEqualTo(localSession.localId)
+            .findAll();
 
-    final exercises = localExercises
-        .map((localEx) => ModelMapper.localToExercise(localEx))
-        .toList();
+    final exercises =
+        localExercises
+            .map((localEx) => ModelMapper.localToExercise(localEx))
+            .toList();
 
     debugPrint(
       '  📦 Loaded session ${localSession.serverId ?? localSession.localId} from cache with ${exercises.length} exercises',
@@ -615,7 +625,8 @@ class SessionRepository {
     // Get exercise template name from local cache
     String exerciseName = 'Exercise'; // Default name
     try {
-      final templates = await db.collection<LocalExerciseTemplate>().where().findAll();
+      final templates =
+          await db.collection<LocalExerciseTemplate>().where().findAll();
       final template = templates.firstWhere(
         (t) => t.serverId == exerciseTemplateId,
         orElse: () => templates.first,
@@ -659,7 +670,9 @@ class SessionRepository {
       exerciseSets: [],
     );
 
-    debugPrint('➕ Created exercise "$exerciseName" locally (offline), id=$localId, will sync later');
+    debugPrint(
+      '➕ Created exercise "$exerciseName" locally (offline), id=$localId, will sync later',
+    );
     return newExercise;
   }
 }

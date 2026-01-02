@@ -395,12 +395,9 @@ class SyncService {
 
     for (final exercise in pendingExercises) {
       // Skip if parent session doesn't have serverId yet
-      final parentSession =
-          await db.localSessions.get(exercise.sessionLocalId);
+      final parentSession = await db.localSessions.get(exercise.sessionLocalId);
       if (parentSession == null || parentSession.serverId == null) {
-        debugPrint(
-          '    ! Skipping exercise - parent session not synced yet',
-        );
+        debugPrint('    ! Skipping exercise - parent session not synced yet');
         continue;
       }
 
@@ -449,14 +446,10 @@ class SyncService {
     debugPrint('    ✅ Created exercise ${exercise.serverId}');
   }
 
-  Future<void> _syncUpdateExercise(
-    Isar db,
-    LocalExercise exercise,
-  ) async {
+  Future<void> _syncUpdateExercise(Isar db, LocalExercise exercise) async {
     if (exercise.serverId == null) {
       // Convert to create
-      final parentSession =
-          await db.localSessions.get(exercise.sessionLocalId);
+      final parentSession = await db.localSessions.get(exercise.sessionLocalId);
       if (parentSession != null && parentSession.serverId != null) {
         await _syncCreateExercise(db, exercise, parentSession);
       }
@@ -482,10 +475,7 @@ class SyncService {
     debugPrint('    ✅ Updated exercise ${exercise.serverId}');
   }
 
-  Future<void> _syncDeleteExercise(
-    Isar db,
-    LocalExercise exercise,
-  ) async {
+  Future<void> _syncDeleteExercise(Isar db, LocalExercise exercise) async {
     if (exercise.serverId != null) {
       await _apiService.delete('${ApiConfig.exercises}/${exercise.serverId}');
     }

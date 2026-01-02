@@ -50,7 +50,9 @@ class ModelMapper {
     List<Exercise> exercises = const [],
   }) {
     return Session(
-      id: localSession.serverId ?? localSession.localId, // Use localId for unsynced items
+      id:
+          localSession.serverId ??
+          localSession.localId, // Use localId for unsynced items
       userId: localSession.userId,
       date: localSession.date,
       duration: localSession.duration,
