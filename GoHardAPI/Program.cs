@@ -14,6 +14,9 @@ builder.Services.AddDbContext<TrainingContext>(options =>
 // Register AuthService
 builder.Services.AddScoped<AuthService>();
 
+// Register FileUploadService
+builder.Services.AddScoped<FileUploadService>();
+
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 builder.Services.AddAuthentication(options =>
@@ -79,6 +82,9 @@ if (app.Environment.IsDevelopment())
 // app.UseHttpsRedirection();
 
 app.UseCors("AllowAll");
+
+// Serve static files (profile photos)
+app.UseStaticFiles();
 
 app.UseAuthentication();
 app.UseAuthorization();
