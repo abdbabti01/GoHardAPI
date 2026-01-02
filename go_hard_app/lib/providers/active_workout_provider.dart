@@ -29,10 +29,12 @@ class ActiveWorkoutProvider extends ChangeNotifier {
   List<Exercise> get exercises => _currentSession?.exercises ?? [];
 
   /// Load session by ID and calculate elapsed time
-  Future<void> loadSession(int sessionId) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+  Future<void> loadSession(int sessionId, {bool showLoading = true}) async {
+    if (showLoading) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       _currentSession = await _sessionRepository.getSession(sessionId);
@@ -71,7 +73,9 @@ class ActiveWorkoutProvider extends ChangeNotifier {
           'Failed to load session: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load session error: $e');
     } finally {
-      _isLoading = false;
+      if (showLoading) {
+        _isLoading = false;
+      }
       notifyListeners();
     }
   }
@@ -99,25 +103,14 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     if (_currentSession == null) return;
 
     try {
-      _currentSession = await _sessionRepository.updateSessionStatus(
+      await _sessionRepository.updateSessionStatus(
         _currentSession!.id,
         'in_progress',
       );
 
-      // Calculate elapsed time (should be near zero for new workouts)
-      // startedAt is already in UTC from Session.fromJson
-      if (_currentSession?.startedAt != null) {
-        final calculated = DateTime.now().toUtc().difference(
-          _currentSession!.startedAt!,
-        );
-        // Ensure elapsed time is never negative (due to network latency)
-        _elapsedTime = calculated.isNegative ? Duration.zero : calculated;
-      } else {
-        _elapsedTime = Duration.zero;
-      }
-
-      _startTimer();
-      notifyListeners();
+      // Reload session to get updated state with all exercises
+      // Don't show loading indicator for smooth UX
+      await loadSession(_currentSession!.id, showLoading: false);
     } catch (e) {
       _errorMessage =
           'Failed to start workout: ${e.toString().replaceAll('Exception: ', '')}';
@@ -133,7 +126,8 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     try {
       await _sessionRepository.pauseSession(_currentSession!.id);
       // Reload session to get updated pausedAt timestamp
-      await loadSession(_currentSession!.id);
+      // Don't show loading indicator for smooth UX
+      await loadSession(_currentSession!.id, showLoading: false);
     } catch (e) {
       _errorMessage =
           'Failed to pause: ${e.toString().replaceAll('Exception: ', '')}';
@@ -149,7 +143,8 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     try {
       await _sessionRepository.resumeSession(_currentSession!.id);
       // Reload session to get updated state (pausedAt cleared, startedAt adjusted)
-      await loadSession(_currentSession!.id);
+      // Don't show loading indicator for smooth UX
+      await loadSession(_currentSession!.id, showLoading: false);
     } catch (e) {
       _errorMessage =
           'Failed to resume: ${e.toString().replaceAll('Exception: ', '')}';
