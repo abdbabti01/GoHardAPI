@@ -3,12 +3,14 @@ import '../data/models/login_request.dart';
 import '../data/models/signup_request.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/services/auth_service.dart';
+import '../data/local/services/local_database_service.dart';
 
 /// Provider for authentication state management
 /// Combines LoginViewModel and SignupViewModel from MAUI app
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _authRepository;
   final AuthService _authService;
+  final LocalDatabaseService _localDb;
 
   // Login fields
   String _email = '';
@@ -30,7 +32,7 @@ class AuthProvider extends ChangeNotifier {
   String? _currentUserName;
   String? _currentUserEmail;
 
-  AuthProvider(this._authRepository, this._authService) {
+  AuthProvider(this._authRepository, this._authService, this._localDb) {
     _checkAuthStatus();
   }
 
@@ -208,7 +210,18 @@ class AuthProvider extends ChangeNotifier {
 
   /// Logout user
   Future<void> logout() async {
+    // Clear authentication token
     await _authService.clearToken();
+
+    // Clear all local database data for privacy/security
+    try {
+      await _localDb.clearAll();
+      debugPrint('✅ Local database cleared on logout');
+    } catch (e) {
+      debugPrint('⚠️ Failed to clear local database: $e');
+    }
+
+    // Clear local state
     _isAuthenticated = false;
     _currentUserId = null;
     _currentUserName = null;

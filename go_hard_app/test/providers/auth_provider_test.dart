@@ -4,19 +4,22 @@ import 'package:mockito/annotations.dart';
 import 'package:go_hard_app/providers/auth_provider.dart';
 import 'package:go_hard_app/data/repositories/auth_repository.dart';
 import 'package:go_hard_app/data/services/auth_service.dart';
+import 'package:go_hard_app/data/local/services/local_database_service.dart';
 import 'package:go_hard_app/data/models/auth_response.dart';
 
-@GenerateMocks([AuthRepository, AuthService])
+@GenerateMocks([AuthRepository, AuthService, LocalDatabaseService])
 import 'auth_provider_test.mocks.dart';
 
 void main() {
   late AuthProvider authProvider;
   late MockAuthRepository mockAuthRepository;
   late MockAuthService mockAuthService;
+  late MockLocalDatabaseService mockLocalDb;
 
   setUp(() {
     mockAuthRepository = MockAuthRepository();
     mockAuthService = MockAuthService();
+    mockLocalDb = MockLocalDatabaseService();
 
     // Stub the auth check methods called in constructor
     when(mockAuthService.isAuthenticated()).thenAnswer((_) async => false);
@@ -24,7 +27,11 @@ void main() {
     when(mockAuthService.getUserName()).thenAnswer((_) async => null);
     when(mockAuthService.getUserEmail()).thenAnswer((_) async => null);
 
-    authProvider = AuthProvider(mockAuthRepository, mockAuthService);
+    authProvider = AuthProvider(
+      mockAuthRepository,
+      mockAuthService,
+      mockLocalDb,
+    );
   });
 
   group('AuthProvider - Login Tests', () {

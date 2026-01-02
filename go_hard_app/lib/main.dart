@@ -56,15 +56,21 @@ void main() async {
         ProxyProvider<ApiService, AuthRepository>(
           update: (_, apiService, __) => AuthRepository(apiService),
         ),
-        ProxyProvider3<
+        ProxyProvider4<
           ApiService,
           LocalDatabaseService,
           ConnectivityService,
+          AuthService,
           SessionRepository
         >(
           update:
-              (_, apiService, localDb, connectivity, __) =>
-                  SessionRepository(apiService, localDb, connectivity),
+              (_, apiService, localDb, connectivity, authService, __) =>
+                  SessionRepository(
+                    apiService,
+                    localDb,
+                    connectivity,
+                    authService,
+                  ),
         ),
         ProxyProvider3<
           ApiService,
@@ -81,30 +87,39 @@ void main() async {
         ),
 
         // Sync Service
-        ProxyProvider3<
+        ProxyProvider4<
           ApiService,
+          AuthService,
           LocalDatabaseService,
           ConnectivityService,
           SyncService
         >(
           update:
-              (_, apiService, localDb, connectivity, __) => SyncService(
-                apiService: apiService,
-                localDb: localDb,
-                connectivity: connectivity,
-              ),
+              (_, apiService, authService, localDb, connectivity, __) =>
+                  SyncService(
+                    apiService: apiService,
+                    authService: authService,
+                    localDb: localDb,
+                    connectivity: connectivity,
+                  ),
         ),
 
         // Providers (state managers - equivalent to ViewModels)
-        ChangeNotifierProxyProvider2<AuthRepository, AuthService, AuthProvider>(
+        ChangeNotifierProxyProvider3<
+          AuthRepository,
+          AuthService,
+          LocalDatabaseService,
+          AuthProvider
+        >(
           create:
               (context) => AuthProvider(
                 context.read<AuthRepository>(),
                 context.read<AuthService>(),
+                context.read<LocalDatabaseService>(),
               ),
           update:
-              (_, authRepo, authService, previous) =>
-                  previous ?? AuthProvider(authRepo, authService),
+              (_, authRepo, authService, localDb, previous) =>
+                  previous ?? AuthProvider(authRepo, authService, localDb),
         ),
         ChangeNotifierProxyProvider2<
           SessionRepository,

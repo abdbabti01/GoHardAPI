@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:isar/isar.dart';
 import '../../data/services/api_service.dart';
+import '../../data/services/auth_service.dart';
 import '../../data/local/services/local_database_service.dart';
 import '../../data/local/models/local_session.dart';
 import '../../data/local/models/local_exercise.dart';
@@ -13,6 +14,7 @@ import 'connectivity_service.dart';
 class SyncService {
   static SyncService? _instance;
   final ApiService _apiService;
+  final AuthService _authService;
   final LocalDatabaseService _localDb;
   final ConnectivityService _connectivity;
 
@@ -29,15 +31,21 @@ class SyncService {
   Timer? _debounceTimer;
 
   /// Private constructor for singleton pattern
-  SyncService._(this._apiService, this._localDb, this._connectivity);
+  SyncService._(
+    this._apiService,
+    this._authService,
+    this._localDb,
+    this._connectivity,
+  );
 
   /// Factory constructor to create/get singleton instance
   factory SyncService({
     required ApiService apiService,
+    required AuthService authService,
     required LocalDatabaseService localDb,
     required ConnectivityService connectivity,
   }) {
-    _instance ??= SyncService._(apiService, localDb, connectivity);
+    _instance ??= SyncService._(apiService, authService, localDb, connectivity);
     return _instance!;
   }
 
@@ -133,8 +141,20 @@ class SyncService {
 
   /// Sync all pending sessions
   Future<void> _syncSessions(Isar db) async {
+    // Get current user ID
+    final userId = await _authService.getUserId();
+    if (userId == null) {
+      debugPrint('  ⚠️ No authenticated user, skipping session sync');
+      return;
+    }
+
+    // Only sync sessions belonging to current user
     final pendingSessions =
-        await db.localSessions.filter().isSyncedEqualTo(false).findAll();
+        await db.localSessions
+            .filter()
+            .isSyncedEqualTo(false)
+            .userIdEqualTo(userId)
+            .findAll();
 
     if (pendingSessions.isEmpty) {
       debugPrint('  No pending sessions to sync');

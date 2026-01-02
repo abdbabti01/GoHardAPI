@@ -5,6 +5,7 @@ import '../../core/services/connectivity_service.dart';
 import '../models/session.dart';
 import '../models/exercise.dart';
 import '../services/api_service.dart';
+import '../services/auth_service.dart';
 import '../local/services/local_database_service.dart';
 import '../local/services/model_mapper.dart';
 import '../local/models/local_session.dart';
@@ -17,8 +18,14 @@ class SessionRepository {
   final ApiService _apiService;
   final LocalDatabaseService _localDb;
   final ConnectivityService _connectivity;
+  final AuthService _authService;
 
-  SessionRepository(this._apiService, this._localDb, this._connectivity);
+  SessionRepository(
+    this._apiService,
+    this._localDb,
+    this._connectivity,
+    this._authService,
+  );
 
   /// Get all sessions for the current user
   /// Offline-first: returns local cache, then tries to sync with server
@@ -34,9 +41,24 @@ class SessionRepository {
                 .map((json) => Session.fromJson(json as Map<String, dynamic>))
                 .toList();
 
+        // Get current user ID for filtering
+        final currentUserId = await _authService.getUserId();
+        if (currentUserId == null) {
+          debugPrint('⚠️ No authenticated user, skipping cache update');
+          return apiSessions;
+        }
+
         // Update local cache (sessions AND their exercises)
         await db.writeTxn(() async {
           for (final apiSession in apiSessions) {
+            // Only cache sessions belonging to current user
+            if (apiSession.userId != currentUserId) {
+              debugPrint(
+                '  ⏭️ Skipping session ${apiSession.id} - belongs to different user (${apiSession.userId} != $currentUserId)',
+              );
+              continue;
+            }
+
             // Check if session already exists locally
             final existingLocal =
                 await db.localSessions
@@ -127,7 +149,16 @@ class SessionRepository {
 
   /// Get sessions from local database with exercises
   Future<List<Session>> _getLocalSessions(Isar db) async {
-    final localSessions = await db.localSessions.where().findAll();
+    // Get current user ID to filter sessions
+    final userId = await _authService.getUserId();
+    if (userId == null) {
+      debugPrint('⚠️ No authenticated user, returning empty list');
+      return [];
+    }
+
+    // Filter sessions by current user only
+    final localSessions =
+        await db.localSessions.filter().userIdEqualTo(userId).findAll();
 
     final sessions = <Session>[];
     for (final localSession in localSessions) {
