@@ -107,10 +107,12 @@ class ConnectivityService extends ChangeNotifier {
   }
 
   /// Dispose resources
+  @override
   void dispose() {
     _connectivitySubscription?.cancel();
     _connectivityController.close();
     _isInitialized = false;
+    super.dispose();
   }
 
   /// Reset singleton (useful for testing)

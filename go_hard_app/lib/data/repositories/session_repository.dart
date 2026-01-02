@@ -108,7 +108,7 @@ class SessionRepository {
               exerciseCount++;
             }
             debugPrint(
-              '  📝 Cached ${exerciseCount} exercises for session ${apiSession.id}',
+              '  📝 Cached $exerciseCount exercises for session ${apiSession.id}',
             );
           }
         });
