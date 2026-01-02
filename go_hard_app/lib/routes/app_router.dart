@@ -11,6 +11,7 @@ import '../ui/screens/exercises/exercise_detail_screen.dart';
 import '../ui/screens/exercises/add_exercise_screen.dart';
 import '../ui/screens/exercises/log_sets_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
+import '../ui/screens/analytics/analytics_screen.dart';
 
 /// Central router for the application
 /// Handles route generation and navigation logic
@@ -120,6 +121,13 @@ class AppRouter {
       case RouteNames.profile:
         return MaterialPageRoute(
           builder: (_) => const ProfileScreen(),
+          settings: settings,
+        );
+
+      // Analytics routes
+      case RouteNames.analytics:
+        return MaterialPageRoute(
+          builder: (_) => const AnalyticsScreen(),
           settings: settings,
         );
 

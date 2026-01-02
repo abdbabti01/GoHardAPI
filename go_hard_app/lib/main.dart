@@ -8,6 +8,7 @@ import 'data/repositories/auth_repository.dart';
 import 'data/repositories/session_repository.dart';
 import 'data/repositories/exercise_repository.dart';
 import 'data/repositories/user_repository.dart';
+import 'data/repositories/analytics_repository.dart';
 import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
@@ -20,6 +21,7 @@ import 'providers/exercises_provider.dart';
 import 'providers/exercise_detail_provider.dart';
 import 'providers/log_sets_provider.dart';
 import 'providers/profile_provider.dart';
+import 'providers/analytics_provider.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized for async operations
@@ -84,6 +86,9 @@ void main() async {
         ),
         ProxyProvider<ApiService, UserRepository>(
           update: (_, apiService, __) => UserRepository(apiService),
+        ),
+        ProxyProvider<ApiService, AnalyticsRepository>(
+          update: (_, apiService, __) => AnalyticsRepository(apiService),
         ),
 
         // Sync Service
@@ -179,6 +184,14 @@ void main() async {
           update:
               (_, userRepo, authService, previous) =>
                   previous ?? ProfileProvider(userRepo, authService),
+        ),
+        ChangeNotifierProxyProvider<AnalyticsRepository, AnalyticsProvider>(
+          create:
+              (context) =>
+                  AnalyticsProvider(context.read<AnalyticsRepository>()),
+          update:
+              (_, analyticsRepo, previous) =>
+                  previous ?? AnalyticsProvider(analyticsRepo),
         ),
       ],
       child: const SyncServiceInitializer(child: MyApp()),

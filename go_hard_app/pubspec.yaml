@@ -61,6 +61,9 @@ dependencies:
   # UI Components
   cupertino_icons: ^1.0.8
 
+  # Charts & Data Visualization
+  fl_chart: ^0.68.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

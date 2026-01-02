@@ -25,6 +25,9 @@ class RouteNames {
   // Profile routes
   static const String profile = '/profile';
 
+  // Analytics routes
+  static const String analytics = '/analytics';
+
   // Initial route (shown when app starts)
   static const String initial = login;
 }
