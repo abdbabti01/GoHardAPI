@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../../providers/profile_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../routes/route_names.dart';
+import '../../../core/utils/unit_converter.dart';
+import 'edit_profile_screen.dart';
 
 /// Profile screen for viewing user information and settings
 /// Matches ProfilePage.xaml from MAUI app
@@ -69,6 +71,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: const Text('Profile'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const EditProfileScreen(),
+                ),
+              );
+              // Refresh after returning from edit screen
+              if (mounted) {
+                _handleRefresh();
+              }
+            },
+            tooltip: 'Edit Profile',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _handleRefresh,
@@ -185,19 +203,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader(BuildContext context, ProfileProvider provider) {
+    final user = provider.currentUser;
+
     return Column(
       children: [
-        // Avatar
+        // Avatar with profile photo
         CircleAvatar(
           radius: 50,
           backgroundColor: Theme.of(
             context,
           ).colorScheme.primary.withValues(alpha: 0.2),
-          child: Icon(
-            Icons.person,
-            size: 50,
-            color: Theme.of(context).colorScheme.primary,
-          ),
+          backgroundImage: user?.profilePhotoUrl != null
+              ? NetworkImage(user!.profilePhotoUrl!)
+              : null,
+          child: user?.profilePhotoUrl == null
+              ? Icon(
+                Icons.person,
+                size: 50,
+                color: Theme.of(context).colorScheme.primary,
+              )
+              : null,
         ),
         const SizedBox(height: 16),
 
@@ -233,6 +258,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildUserInfoCard(BuildContext context, ProfileProvider provider) {
     final user = provider.currentUser;
+    final unitPreference = user?.unitPreference ?? 'Metric';
 
     return Card(
       child: Padding(
@@ -241,12 +267,130 @@ class _ProfileScreenState extends State<ProfileScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'User Information',
+              'Profile Information',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
+
+            // Bio
+            if (user?.bio != null && user!.bio!.isNotEmpty) ...[
+              _buildInfoRow(context, Icons.info, 'Bio', user.bio!),
+              const Divider(height: 24),
+            ],
+
+            // Age & Date of Birth
+            if (user?.age != null) ...[
+              _buildInfoRow(
+                context,
+                Icons.cake,
+                'Age',
+                '${user!.age} years old',
+              ),
+              const Divider(height: 24),
+            ],
+
+            // Gender
+            if (user?.gender != null) ...[
+              _buildInfoRow(context, Icons.wc, 'Gender', user!.gender!),
+              const Divider(height: 24),
+            ],
+
+            // Height with unit conversion
+            if (user?.height != null) ...[
+              _buildInfoRow(
+                context,
+                Icons.height,
+                'Height',
+                UnitConverter.formatHeight(user!.height, unitPreference),
+              ),
+              const Divider(height: 24),
+            ],
+
+            // Weight with unit conversion
+            if (user?.weight != null) ...[
+              _buildInfoRow(
+                context,
+                Icons.monitor_weight,
+                'Current Weight',
+                UnitConverter.formatWeight(user!.weight, unitPreference),
+              ),
+              const Divider(height: 24),
+            ],
+
+            // Target Weight
+            if (user?.targetWeight != null) ...[
+              _buildInfoRow(
+                context,
+                Icons.flag,
+                'Target Weight',
+                UnitConverter.formatWeight(user!.targetWeight, unitPreference),
+              ),
+              const Divider(height: 24),
+            ],
+
+            // Body Fat Percentage
+            if (user?.bodyFatPercentage != null) ...[
+              _buildInfoRow(
+                context,
+                Icons.percent,
+                'Body Fat',
+                '${user!.bodyFatPercentage!.toStringAsFixed(1)}%',
+              ),
+              const Divider(height: 24),
+            ],
+
+            // BMI
+            if (user?.bmi != null) ...[
+              _buildInfoRow(
+                context,
+                Icons.analytics,
+                'BMI',
+                user!.bmi!.toStringAsFixed(1),
+              ),
+              const Divider(height: 24),
+            ],
+
+            // Experience Level
+            if (user?.experienceLevel != null) ...[
+              _buildInfoRow(
+                context,
+                Icons.star,
+                'Experience Level',
+                user!.experienceLevel!,
+              ),
+              const Divider(height: 24),
+            ],
+
+            // Primary Goal
+            if (user?.primaryGoal != null) ...[
+              _buildInfoRow(
+                context,
+                Icons.track_changes,
+                'Primary Goal',
+                user!.primaryGoal!,
+              ),
+              const Divider(height: 24),
+            ],
+
+            // Goals
+            if (user?.goals != null && user!.goals!.isNotEmpty) ...[
+              _buildInfoRow(context, Icons.description, 'Goals', user.goals!),
+              const Divider(height: 24),
+            ],
+
+            // Favorite Exercises
+            if (user?.favoriteExercises != null &&
+                user!.favoriteExercises!.isNotEmpty) ...[
+              _buildInfoRow(
+                context,
+                Icons.favorite,
+                'Favorite Exercises',
+                user.favoriteExercises!,
+              ),
+              const Divider(height: 24),
+            ],
 
             // Member since
             _buildInfoRow(
@@ -257,31 +401,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? _formatDate(user!.dateCreated)
                   : 'Unknown',
             ),
-
-            if (user?.height != null) ...[
-              const Divider(height: 24),
-              _buildInfoRow(
-                context,
-                Icons.height,
-                'Height',
-                '${user!.height} cm',
-              ),
-            ],
-
-            if (user?.weight != null) ...[
-              const Divider(height: 24),
-              _buildInfoRow(
-                context,
-                Icons.monitor_weight,
-                'Weight',
-                '${user!.weight} kg',
-              ),
-            ],
-
-            if (user?.goals != null && user!.goals!.isNotEmpty) ...[
-              const Divider(height: 24),
-              _buildInfoRow(context, Icons.flag, 'Goals', user.goals!),
-            ],
           ],
         ),
       ),
@@ -289,6 +408,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatsCard(BuildContext context, ProfileProvider provider) {
+    final user = provider.currentUser;
+    final stats = user?.stats;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -305,16 +427,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildStatItem(context, Icons.fitness_center, '-', 'Workouts'),
+                _buildStatItem(
+                  context,
+                  Icons.fitness_center,
+                  stats?.totalWorkouts.toString() ?? '-',
+                  'Workouts',
+                ),
                 Container(width: 1, height: 40, color: Colors.grey.shade300),
                 _buildStatItem(
                   context,
                   Icons.local_fire_department,
-                  '-',
+                  stats?.currentStreak.toString() ?? '-',
                   'Streak',
                 ),
                 Container(width: 1, height: 40, color: Colors.grey.shade300),
-                _buildStatItem(context, Icons.trending_up, '-', 'PR\'s'),
+                _buildStatItem(
+                  context,
+                  Icons.trending_up,
+                  stats?.personalRecords.toString() ?? '-',
+                  'PR\'s',
+                ),
               ],
             ),
           ],
