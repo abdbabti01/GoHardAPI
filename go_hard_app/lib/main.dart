@@ -12,6 +12,7 @@ import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
 import 'core/services/sync_service_initializer.dart';
+import 'core/utils/database_cleanup.dart';
 import 'providers/auth_provider.dart';
 import 'providers/sessions_provider.dart';
 import 'providers/active_workout_provider.dart';
@@ -31,6 +32,9 @@ void main() async {
   debugPrint('✅ Local database initialized successfully');
   debugPrint('📊 Database path: ${localDb.database.directory}');
   debugPrint('🔍 Isar Inspector enabled - use Isar Inspector app to view data');
+
+  // Clean up failed/corrupted sessions on startup
+  await DatabaseCleanup.cleanupFailedSessions(localDb.database);
 
   // Initialize connectivity service
   final connectivity = ConnectivityService.instance;

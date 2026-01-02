@@ -4,6 +4,8 @@ import 'package:isar/isar.dart';
 import '../../data/services/api_service.dart';
 import '../../data/local/services/local_database_service.dart';
 import '../../data/local/models/local_session.dart';
+import '../../data/local/models/local_exercise.dart';
+import '../../data/local/models/local_exercise_set.dart';
 import '../../core/constants/api_config.dart';
 import 'connectivity_service.dart';
 
@@ -118,7 +120,8 @@ class SyncService {
 
       // Sync in order: Sessions → Exercises → Sets
       await _syncSessions(db);
-      // TODO: Add exercise and set syncing in future phases
+      await _syncExercises(db);
+      await _syncExerciseSets(db);
 
       debugPrint('✅ Sync completed successfully');
     } catch (e) {
@@ -207,7 +210,16 @@ class SyncService {
   /// Sync a session that needs to be updated on the server
   Future<void> _syncUpdateSession(Isar db, LocalSession localSession) async {
     if (localSession.serverId == null) {
-      debugPrint('  ⚠️ Cannot update session without server ID');
+      debugPrint(
+        '  ⚠️ Session has pending_update but no serverId - converting to pending_create',
+      );
+      // Fix invalid state: convert to pending_create
+      await db.writeTxn(() async {
+        localSession.syncStatus = 'pending_create';
+        await db.localSessions.put(localSession);
+      });
+      // Now sync as create
+      await _syncCreateSession(db, localSession);
       return;
     }
 
@@ -285,10 +297,8 @@ class SyncService {
   /// Sync a session that needs to be deleted from the server
   Future<void> _syncDeleteSession(Isar db, LocalSession localSession) async {
     if (localSession.serverId == null) {
-      // Never synced to server - just delete locally
-      await db.writeTxn(() async {
-        await db.localSessions.delete(localSession.localId);
-      });
+      // Never synced to server - just delete locally (with related data)
+      await _deleteSessionAndRelatedData(db, localSession);
       debugPrint('  ✅ Local-only session deleted');
       return;
     }
@@ -299,15 +309,45 @@ class SyncService {
       // DELETE from server
       await _apiService.delete(ApiConfig.sessionById(localSession.serverId!));
 
-      // Delete from local database
-      await db.writeTxn(() async {
-        await db.localSessions.delete(localSession.localId);
-      });
+      // Delete from local database (including exercises and sets)
+      await _deleteSessionAndRelatedData(db, localSession);
 
       debugPrint('  ✅ Session deleted from server and locally');
     } catch (e) {
       rethrow;
     }
+  }
+
+  /// Delete session and all related exercises and sets
+  Future<void> _deleteSessionAndRelatedData(
+    Isar db,
+    LocalSession localSession,
+  ) async {
+    await db.writeTxn(() async {
+      // Delete all exercises for this session
+      final exercises =
+          await db.localExercises
+              .filter()
+              .sessionLocalIdEqualTo(localSession.localId)
+              .findAll();
+
+      for (final exercise in exercises) {
+        // Delete all sets for this exercise
+        await db.localExerciseSets
+            .filter()
+            .exerciseLocalIdEqualTo(exercise.localId)
+            .deleteAll();
+      }
+
+      // Delete all exercises
+      await db.localExercises
+          .filter()
+          .sessionLocalIdEqualTo(localSession.localId)
+          .deleteAll();
+
+      // Delete the session
+      await db.localSessions.delete(localSession.localId);
+    });
   }
 
   /// Mark sync error with exponential backoff
@@ -321,10 +361,16 @@ class SyncService {
       session.syncError = error;
       session.lastSyncAttempt = DateTime.now();
 
+      // Don't change syncStatus - keep it as pending_create/update/delete
+      // so it can be retried. The syncError and syncRetryCount fields
+      // already track the error state.
+
       if (session.syncRetryCount >= _maxRetries) {
-        session.syncStatus = 'sync_error';
         debugPrint(
           '  ❌ Session ${session.localId} failed after $_maxRetries attempts: $error',
+        );
+        debugPrint(
+          '  Will keep retrying on next sync (status: ${session.syncStatus})',
         );
       } else {
         debugPrint(
@@ -336,6 +382,232 @@ class SyncService {
     });
   }
 
+  /// Sync all pending exercises
+  Future<void> _syncExercises(Isar db) async {
+    final pendingExercises =
+        await db.localExercises.filter().isSyncedEqualTo(false).findAll();
+
+    if (pendingExercises.isEmpty) {
+      return;
+    }
+
+    debugPrint('  Syncing ${pendingExercises.length} exercises...');
+
+    for (final exercise in pendingExercises) {
+      // Skip if parent session doesn't have serverId yet
+      final parentSession =
+          await db.localSessions.get(exercise.sessionLocalId);
+      if (parentSession == null || parentSession.serverId == null) {
+        debugPrint(
+          '    ! Skipping exercise - parent session not synced yet',
+        );
+        continue;
+      }
+
+      try {
+        switch (exercise.syncStatus) {
+          case 'pending_create':
+            await _syncCreateExercise(db, exercise, parentSession);
+            break;
+          case 'pending_update':
+            await _syncUpdateExercise(db, exercise);
+            break;
+          case 'pending_delete':
+            await _syncDeleteExercise(db, exercise);
+            break;
+        }
+      } catch (e) {
+        debugPrint('    ⚠️ Exercise sync failed: $e');
+      }
+    }
+  }
+
+  Future<void> _syncCreateExercise(
+    Isar db,
+    LocalExercise exercise,
+    LocalSession parentSession,
+  ) async {
+    final response = await _apiService.post<Map<String, dynamic>>(
+      '${ApiConfig.sessions}/${parentSession.serverId}/exercises',
+      data: {
+        'name': exercise.name,
+        'duration': exercise.duration,
+        'restTime': exercise.restTime,
+        'notes': exercise.notes,
+        'exerciseTemplateId': exercise.exerciseTemplateId,
+      },
+    );
+
+    await db.writeTxn(() async {
+      exercise.serverId = response['id'] as int;
+      exercise.sessionServerId = parentSession.serverId;
+      exercise.isSynced = true;
+      exercise.syncStatus = 'synced';
+      await db.localExercises.put(exercise);
+    });
+
+    debugPrint('    ✅ Created exercise ${exercise.serverId}');
+  }
+
+  Future<void> _syncUpdateExercise(
+    Isar db,
+    LocalExercise exercise,
+  ) async {
+    if (exercise.serverId == null) {
+      // Convert to create
+      final parentSession =
+          await db.localSessions.get(exercise.sessionLocalId);
+      if (parentSession != null && parentSession.serverId != null) {
+        await _syncCreateExercise(db, exercise, parentSession);
+      }
+      return;
+    }
+
+    await _apiService.put<void>(
+      '${ApiConfig.exercises}/${exercise.serverId}',
+      data: {
+        'name': exercise.name,
+        'duration': exercise.duration,
+        'restTime': exercise.restTime,
+        'notes': exercise.notes,
+      },
+    );
+
+    await db.writeTxn(() async {
+      exercise.isSynced = true;
+      exercise.syncStatus = 'synced';
+      await db.localExercises.put(exercise);
+    });
+
+    debugPrint('    ✅ Updated exercise ${exercise.serverId}');
+  }
+
+  Future<void> _syncDeleteExercise(
+    Isar db,
+    LocalExercise exercise,
+  ) async {
+    if (exercise.serverId != null) {
+      await _apiService.delete('${ApiConfig.exercises}/${exercise.serverId}');
+    }
+
+    await db.writeTxn(() async {
+      await db.localExercises.delete(exercise.localId);
+    });
+
+    debugPrint('    ✅ Deleted exercise');
+  }
+
+  /// Sync all pending exercise sets
+  Future<void> _syncExerciseSets(Isar db) async {
+    final pendingSets =
+        await db.localExerciseSets.filter().isSyncedEqualTo(false).findAll();
+
+    if (pendingSets.isEmpty) {
+      return;
+    }
+
+    debugPrint('  Syncing ${pendingSets.length} exercise sets...');
+
+    for (final set in pendingSets) {
+      // Skip if parent exercise doesn't have serverId yet
+      final parentExercise = await db.localExercises.get(set.exerciseLocalId);
+      if (parentExercise == null || parentExercise.serverId == null) {
+        debugPrint('    ! Skipping set - parent exercise not synced yet');
+        continue;
+      }
+
+      try {
+        switch (set.syncStatus) {
+          case 'pending_create':
+            await _syncCreateSet(db, set, parentExercise);
+            break;
+          case 'pending_update':
+            await _syncUpdateSet(db, set);
+            break;
+          case 'pending_delete':
+            await _syncDeleteSet(db, set);
+            break;
+        }
+      } catch (e) {
+        debugPrint('    ⚠️ Set sync failed: $e');
+      }
+    }
+  }
+
+  Future<void> _syncCreateSet(
+    Isar db,
+    LocalExerciseSet set,
+    LocalExercise parentExercise,
+  ) async {
+    final response = await _apiService.post<Map<String, dynamic>>(
+      ApiConfig.exerciseSets,
+      data: {
+        'exerciseId': parentExercise.serverId,
+        'setNumber': set.setNumber,
+        'reps': set.reps,
+        'weight': set.weight,
+        'duration': set.duration,
+        'isCompleted': set.isCompleted,
+        'completedAt': set.completedAt?.toIso8601String(),
+        'notes': set.notes,
+      },
+    );
+
+    await db.writeTxn(() async {
+      set.serverId = response['id'] as int;
+      set.exerciseServerId = parentExercise.serverId;
+      set.isSynced = true;
+      set.syncStatus = 'synced';
+      await db.localExerciseSets.put(set);
+    });
+
+    debugPrint('    ✅ Created set ${set.serverId}');
+  }
+
+  Future<void> _syncUpdateSet(Isar db, LocalExerciseSet set) async {
+    if (set.serverId == null) {
+      // Convert to create
+      final parentExercise = await db.localExercises.get(set.exerciseLocalId);
+      if (parentExercise != null && parentExercise.serverId != null) {
+        await _syncCreateSet(db, set, parentExercise);
+      }
+      return;
+    }
+
+    await _apiService.put<void>(
+      '${ApiConfig.exerciseSets}/${set.serverId}',
+      data: {
+        'setNumber': set.setNumber,
+        'reps': set.reps,
+        'weight': set.weight,
+        'duration': set.duration,
+        'isCompleted': set.isCompleted,
+        'completedAt': set.completedAt?.toIso8601String(),
+        'notes': set.notes,
+      },
+    );
+
+    await db.writeTxn(() async {
+      set.isSynced = true;
+      set.syncStatus = 'synced';
+      await db.localExerciseSets.put(set);
+    });
+
+    debugPrint('    ✅ Updated set ${set.serverId}');
+  }
+
+  Future<void> _syncDeleteSet(Isar db, LocalExerciseSet set) async {
+    if (set.serverId != null) {
+      await _apiService.delete('${ApiConfig.exerciseSets}/${set.serverId}');
+    }
+
+    await db.writeTxn(() async {
+      await db.localExerciseSets.delete(set.localId);
+    });
+
+    debugPrint('    ✅ Deleted set');
+  }
+
   /// Get sync status summary
   Future<Map<String, dynamic>> getSyncStatus() async {
     final db = _localDb.database;
@@ -343,8 +615,12 @@ class SyncService {
     final pendingCount =
         await db.localSessions.filter().isSyncedEqualTo(false).count();
 
+    // Count sessions with sync errors (retry count >= 3)
     final errorCount =
-        await db.localSessions.filter().syncStatusEqualTo('sync_error').count();
+        await db.localSessions
+            .filter()
+            .syncRetryCountGreaterThan(_maxRetries - 1)
+            .count();
 
     final allSessions = await db.localSessions.where().findAll();
     final lastSyncAttempts =
@@ -371,17 +647,17 @@ class SyncService {
   Future<void> retryFailedSyncs() async {
     final db = _localDb.database;
 
-    // Reset retry count for failed items
+    // Reset retry count for failed items (retry count >= 3)
     final failedSessions =
         await db.localSessions
             .filter()
-            .syncStatusEqualTo('sync_error')
+            .syncRetryCountGreaterThan(_maxRetries - 1)
             .findAll();
 
     await db.writeTxn(() async {
       for (final session in failedSessions) {
         session.syncRetryCount = 0;
-        session.syncStatus = 'pending_update'; // Reset to pending
+        // Keep original syncStatus (pending_create/update/delete)
         session.syncError = null;
         await db.localSessions.put(session);
       }

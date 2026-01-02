@@ -60,6 +60,10 @@ namespace GoHardAPI.Controllers
         [HttpPost]
         public async Task<ActionResult<Session>> CreateSession(Session Session)
         {
+            // Ensure the session belongs to the current authenticated user
+            var userId = GetCurrentUserId();
+            Session.UserId = userId;
+
             _context.Sessions.Add(Session);
             await _context.SaveChangesAsync();
 

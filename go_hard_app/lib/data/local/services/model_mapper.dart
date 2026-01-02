@@ -18,7 +18,7 @@ class ModelMapper {
     int? localId,
     bool isSynced = true,
   }) {
-    return LocalSession(
+    final session = LocalSession(
       serverId: apiSession.id,
       userId: apiSession.userId,
       date: apiSession.date,
@@ -34,6 +34,13 @@ class ModelMapper {
       lastModifiedLocal: DateTime.now(),
       lastModifiedServer: DateTime.now(),
     );
+
+    // Preserve existing localId if updating an existing session
+    if (localId != null) {
+      session.localId = localId;
+    }
+
+    return session;
   }
 
   /// Convert LocalSession to API Session
@@ -68,7 +75,7 @@ class ModelMapper {
     int? localId,
     bool isSynced = true,
   }) {
-    return LocalExercise(
+    final exercise = LocalExercise(
       serverId: apiExercise.id,
       sessionLocalId: sessionLocalId,
       sessionServerId: sessionServerId ?? apiExercise.sessionId,
@@ -82,6 +89,13 @@ class ModelMapper {
       lastModifiedLocal: DateTime.now(),
       lastModifiedServer: DateTime.now(),
     );
+
+    // Preserve existing localId if updating an existing exercise
+    if (localId != null) {
+      exercise.localId = localId;
+    }
+
+    return exercise;
   }
 
   /// Convert LocalExercise to API Exercise
@@ -112,7 +126,7 @@ class ModelMapper {
     int? localId,
     bool isSynced = true,
   }) {
-    return LocalExerciseSet(
+    final set = LocalExerciseSet(
       serverId: apiSet.id,
       exerciseLocalId: exerciseLocalId,
       exerciseServerId: exerciseServerId ?? apiSet.exerciseId,
@@ -128,6 +142,13 @@ class ModelMapper {
       lastModifiedLocal: DateTime.now(),
       lastModifiedServer: DateTime.now(),
     );
+
+    // Preserve existing localId if updating an existing set
+    if (localId != null) {
+      set.localId = localId;
+    }
+
+    return set;
   }
 
   /// Convert LocalExerciseSet to API ExerciseSet

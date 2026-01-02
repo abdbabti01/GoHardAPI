@@ -9,6 +9,8 @@ import '../local/services/local_database_service.dart';
 import '../local/services/model_mapper.dart';
 import '../local/models/local_session.dart';
 import '../local/models/local_exercise.dart';
+import '../local/models/local_exercise_set.dart';
+import '../local/models/local_exercise_template.dart';
 
 /// Repository for session (workout) operations with offline support
 class SessionRepository {
@@ -42,6 +44,15 @@ class SessionRepository {
                     .serverIdEqualTo(apiSession.id)
                     .findFirst();
 
+            // Skip sessions marked for deletion - they should not be re-cached
+            if (existingLocal != null &&
+                existingLocal.syncStatus == 'pending_delete') {
+              debugPrint(
+                '  ⏭️ Skipping session ${apiSession.id} - marked for deletion',
+              );
+              continue;
+            }
+
             LocalSession savedSession;
             if (existingLocal != null) {
               // Update existing local session
@@ -60,6 +71,7 @@ class SessionRepository {
             }
 
             // Save exercises for this session
+            int exerciseCount = 0;
             for (final apiExercise in apiSession.exercises) {
               // Check if exercise already exists locally
               final existingExercise =
@@ -77,15 +89,23 @@ class SessionRepository {
                   isSynced: true,
                 );
                 await db.localExercises.put(updated);
+                debugPrint(
+                  '    ✏️ Updated exercise ${updated.serverId}, sessionLocalId=${updated.sessionLocalId}',
+                );
               } else {
                 // Create new
                 final localExercise = ModelMapper.exerciseToLocal(
                   apiExercise,
                   sessionLocalId: savedSession.localId,
                 );
-                await db.localExercises.put(localExercise);
+                final savedExerciseId = await db.localExercises.put(localExercise);
+                debugPrint(
+                  '    ➕ Created exercise ${localExercise.serverId}, localId=$savedExerciseId, sessionLocalId=${localExercise.sessionLocalId}',
+                );
               }
+              exerciseCount++;
             }
+            debugPrint('  📝 Cached ${exerciseCount} exercises for session ${apiSession.id}');
           }
         });
 
@@ -107,6 +127,11 @@ class SessionRepository {
 
     final sessions = <Session>[];
     for (final localSession in localSessions) {
+      // Skip sessions marked for deletion
+      if (localSession.syncStatus == 'pending_delete') {
+        continue;
+      }
+
       // Load exercises for this session
       final localExercises = await db.localExercises
           .filter()
@@ -127,6 +152,17 @@ class SessionRepository {
   /// Offline-first: returns local cache, then tries to sync with server
   Future<Session> getSession(int id) async {
     final Isar db = _localDb.database;
+
+    // Check if there's a local version with pending changes
+    var localSession =
+        await db.localSessions.filter().serverIdEqualTo(id).findFirst();
+    localSession ??= await db.localSessions.get(id);
+
+    // If local session has pending changes, return it instead of fetching from server
+    if (localSession != null && !localSession.isSynced) {
+      debugPrint('📝 Session has pending changes, returning local version');
+      return await _getLocalSession(db, id);
+    }
 
     if (_connectivity.isOnline) {
       try {
@@ -218,6 +254,10 @@ class SessionRepository {
     final exercises = localExercises
         .map((localEx) => ModelMapper.localToExercise(localEx))
         .toList();
+
+    debugPrint(
+      '  📦 Loaded session ${localSession.serverId ?? localSession.localId} from cache with ${exercises.length} exercises',
+    );
 
     return ModelMapper.localToSession(localSession, exercises: exercises);
   }
@@ -351,7 +391,11 @@ class SessionRepository {
       localSession.status = status;
       localSession.lastModifiedLocal = DateTime.now();
       localSession.isSynced = false;
-      localSession.syncStatus = 'pending_update';
+      // Only mark as pending_update if session already exists on server
+      // If no serverId, keep it as pending_create
+      if (localSession.serverId != null) {
+        localSession.syncStatus = 'pending_update';
+      }
       await db.localSessions.put(localSession);
     });
   }
@@ -385,7 +429,11 @@ class SessionRepository {
       localSession.lastModifiedLocal = DateTime.now();
       if (!_connectivity.isOnline || localSession.serverId == null) {
         localSession.isSynced = false;
-        localSession.syncStatus = 'pending_update';
+        // Only mark as pending_update if session already exists on server
+        // If no serverId, keep it as pending_create
+        if (localSession.serverId != null) {
+          localSession.syncStatus = 'pending_update';
+        }
       }
       await db.localSessions.put(localSession);
     });
@@ -422,7 +470,11 @@ class SessionRepository {
       localSession.lastModifiedLocal = DateTime.now();
       if (!_connectivity.isOnline || localSession.serverId == null) {
         localSession.isSynced = false;
-        localSession.syncStatus = 'pending_update';
+        // Only mark as pending_update if session already exists on server
+        // If no serverId, keep it as pending_create
+        if (localSession.serverId != null) {
+          localSession.syncStatus = 'pending_update';
+        }
       }
       await db.localSessions.put(localSession);
     });
@@ -450,10 +502,8 @@ class SessionRepository {
         );
 
         if (success) {
-          // Delete from local database
-          await db.writeTxn(() async {
-            await db.localSessions.delete(localSession!.localId);
-          });
+          // Delete from local database (including exercises and sets)
+          await _deleteSessionAndRelatedData(db, localSession);
           debugPrint('✅ Deleted session from server: ${localSession.serverId}');
           return true;
         }
@@ -472,30 +522,144 @@ class SessionRepository {
 
   /// Mark session for deletion (to be synced later)
   Future<void> _markForDeletion(Isar db, LocalSession localSession) async {
-    await db.writeTxn(() async {
-      if (localSession.serverId == null) {
-        // Never synced to server - safe to delete immediately
-        await db.localSessions.delete(localSession.localId);
-      } else {
-        // Synced before - mark for deletion
+    if (localSession.serverId == null) {
+      // Never synced to server - safe to delete immediately (with related data)
+      await _deleteSessionAndRelatedData(db, localSession);
+    } else {
+      // Synced before - mark for deletion
+      await db.writeTxn(() async {
         localSession.isSynced = false;
         localSession.syncStatus = 'pending_delete';
         localSession.lastModifiedLocal = DateTime.now();
         await db.localSessions.put(localSession);
+      });
+    }
+  }
+
+  /// Delete session and all related exercises and sets
+  Future<void> _deleteSessionAndRelatedData(
+    Isar db,
+    LocalSession localSession,
+  ) async {
+    await db.writeTxn(() async {
+      // Delete all exercises for this session
+      final exercises =
+          await db.localExercises
+              .filter()
+              .sessionLocalIdEqualTo(localSession.localId)
+              .findAll();
+
+      for (final exercise in exercises) {
+        // Delete all sets for this exercise
+        await db.localExerciseSets
+            .filter()
+            .exerciseLocalIdEqualTo(exercise.localId)
+            .deleteAll();
       }
+
+      // Delete all exercises
+      await db.localExercises
+          .filter()
+          .sessionLocalIdEqualTo(localSession.localId)
+          .deleteAll();
+
+      // Delete the session
+      await db.localSessions.delete(localSession.localId);
     });
   }
 
   /// Add exercise to session
+  /// Works offline by creating locally and syncing later
   Future<Exercise> addExerciseToSession(
     int sessionId,
     int exerciseTemplateId,
   ) async {
-    // Send exerciseTemplateId as object with 'exerciseTemplateId' property
-    final data = await _apiService.post<Map<String, dynamic>>(
-      ApiConfig.sessionExercises(sessionId),
-      data: {'exerciseTemplateId': exerciseTemplateId},
+    final Isar db = _localDb.database;
+
+    // Find the local session
+    var localSession =
+        await db.localSessions.filter().serverIdEqualTo(sessionId).findFirst();
+    localSession ??= await db.localSessions.get(sessionId);
+
+    if (localSession == null) {
+      throw Exception('Session not found: $sessionId');
+    }
+
+    if (_connectivity.isOnline && localSession.serverId != null) {
+      try {
+        // Try API first
+        final data = await _apiService.post<Map<String, dynamic>>(
+          ApiConfig.sessionExercises(localSession.serverId!),
+          data: {'exerciseTemplateId': exerciseTemplateId},
+        );
+        final apiExercise = Exercise.fromJson(data);
+
+        // Cache the exercise locally
+        await db.writeTxn(() async {
+          final localExercise = ModelMapper.exerciseToLocal(
+            apiExercise,
+            sessionLocalId: localSession!.localId,
+            isSynced: true,
+          );
+          await db.localExercises.put(localExercise);
+        });
+
+        return apiExercise;
+      } catch (e) {
+        debugPrint('⚠️ Add exercise API failed, creating locally: $e');
+        // Fall through to offline creation
+      }
+    }
+
+    // Create exercise locally (offline or API failed)
+    // Get exercise template name from local cache
+    String exerciseName = 'Exercise'; // Default name
+    try {
+      final templates = await db.collection<LocalExerciseTemplate>().where().findAll();
+      final template = templates.firstWhere(
+        (t) => t.serverId == exerciseTemplateId,
+        orElse: () => templates.first,
+      );
+      exerciseName = template.name;
+    } catch (e) {
+      debugPrint('⚠️ Could not find exercise template $exerciseTemplateId: $e');
+    }
+
+    int localId = 0;
+
+    await db.writeTxn(() async {
+      final tempExercise = Exercise(
+        id: 0, // Temporary, will be replaced
+        sessionId: sessionId,
+        name: exerciseName,
+        exerciseTemplateId: exerciseTemplateId,
+        duration: null,
+        restTime: null,
+        notes: null,
+        exerciseSets: [],
+      );
+
+      final localExercise = ModelMapper.exerciseToLocal(
+        tempExercise,
+        sessionLocalId: localSession!.localId,
+        isSynced: false,
+      );
+      localId = await db.localExercises.put(localExercise);
+    });
+
+    // Return exercise with local ID and name
+    final newExercise = Exercise(
+      id: localId, // Use local ID temporarily
+      sessionId: sessionId,
+      name: exerciseName,
+      exerciseTemplateId: exerciseTemplateId,
+      duration: null,
+      restTime: null,
+      notes: null,
+      exerciseSets: [],
     );
-    return Exercise.fromJson(data);
+
+    debugPrint('➕ Created exercise "$exerciseName" locally (offline), id=$localId, will sync later');
+    return newExercise;
   }
 }
