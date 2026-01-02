@@ -24,12 +24,14 @@ class SessionsProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   /// Load all sessions for current user
-  Future<void> loadSessions() async {
+  Future<void> loadSessions({bool showLoading = true}) async {
     if (_isLoading) return;
 
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+    if (showLoading) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       final sessionList = await _sessionRepository.getSessions();
@@ -40,7 +42,9 @@ class SessionsProvider extends ChangeNotifier {
           'Failed to load sessions: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load sessions error: $e');
     } finally {
-      _isLoading = false;
+      if (showLoading) {
+        _isLoading = false;
+      }
       notifyListeners();
     }
   }
@@ -110,8 +114,9 @@ class SessionsProvider extends ChangeNotifier {
   }
 
   /// Refresh sessions (pull-to-refresh)
+  /// Don't show loading indicator for smooth UX
   Future<void> refresh() async {
-    await loadSessions();
+    await loadSessions(showLoading: false);
   }
 
   /// Clear error message

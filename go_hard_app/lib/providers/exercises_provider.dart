@@ -29,12 +29,14 @@ class ExercisesProvider extends ChangeNotifier {
   String? get selectedMuscleGroup => _selectedMuscleGroup;
 
   /// Load all exercise templates
-  Future<void> loadExercises() async {
+  Future<void> loadExercises({bool showLoading = true}) async {
     if (_isLoading) return;
 
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+    if (showLoading) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       _exercises = await _exerciseRepository.getExerciseTemplates();
@@ -44,7 +46,9 @@ class ExercisesProvider extends ChangeNotifier {
           'Failed to load exercises: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Load exercises error: $e');
     } finally {
-      _isLoading = false;
+      if (showLoading) {
+        _isLoading = false;
+      }
       notifyListeners();
     }
   }
@@ -83,8 +87,9 @@ class ExercisesProvider extends ChangeNotifier {
   }
 
   /// Refresh exercises (pull-to-refresh)
+  /// Don't show loading indicator for smooth UX
   Future<void> refresh() async {
-    await loadExercises();
+    await loadExercises(showLoading: false);
   }
 
   /// Clear filters
