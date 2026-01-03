@@ -48,10 +48,15 @@ class _SessionsScreenState extends State<SessionsScreen> {
     final session = await provider.startNewWorkout();
 
     if (session != null && mounted) {
-      // Navigate to active workout screen
-      Navigator.of(
+      // Navigate to active workout screen and reload sessions when returning
+      await Navigator.of(
         context,
       ).pushNamed(RouteNames.activeWorkout, arguments: session.id);
+
+      // Reload sessions to reflect any status changes
+      if (mounted) {
+        await provider.loadSessions();
+      }
     }
   }
 
@@ -59,12 +64,17 @@ class _SessionsScreenState extends State<SessionsScreen> {
     await context.read<SessionsProvider>().deleteSession(sessionId);
   }
 
-  void _handleSessionTap(int sessionId, String status) {
+  Future<void> _handleSessionTap(int sessionId, String status) async {
     if (status == 'in_progress' || status == 'draft') {
       // Navigate to active workout screen for in-progress/draft sessions
-      Navigator.of(
+      await Navigator.of(
         context,
       ).pushNamed(RouteNames.activeWorkout, arguments: sessionId);
+
+      // Reload sessions to reflect any status changes
+      if (mounted) {
+        await context.read<SessionsProvider>().loadSessions();
+      }
     } else {
       // Navigate to detail screen for completed sessions
       Navigator.of(

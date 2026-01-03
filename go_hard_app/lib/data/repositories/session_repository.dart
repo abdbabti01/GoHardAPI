@@ -308,30 +308,50 @@ class SessionRepository {
   Future<Session> createSession(Session session) async {
     final db = _localDb.database;
 
+    // ALWAYS create locally first for instant response
+    final localResult = await _createLocalSession(session, db, isPending: true);
+
+    // Then sync to server in background if online (don't block)
     if (_connectivity.isOnline) {
-      try {
-        // Try API first when online
-        final data = await _apiService.post<Map<String, dynamic>>(
-          ApiConfig.sessions,
-          data: session.toJson(),
-        );
-        final apiSession = Session.fromJson(data);
-
-        // Save to local cache with synced status
-        await db.writeTxn(() async {
-          final localSession = ModelMapper.sessionToLocal(apiSession);
-          await db.localSessions.put(localSession);
-        });
-
-        debugPrint('✅ Created session on server: ${apiSession.id}');
-        return apiSession;
-      } catch (e) {
-        debugPrint('⚠️ API failed, saving locally: $e');
-        return await _createLocalSession(session, db, isPending: true);
-      }
+      _syncCreateSessionToServer(session, db, localResult.id)
+          .then((_) {
+            debugPrint('✅ Background sync: Created session on server');
+          })
+          .catchError((e) {
+            debugPrint('⚠️ Background sync failed, will retry later: $e');
+          });
     } else {
-      debugPrint('📴 Offline - saving session locally');
-      return await _createLocalSession(session, db, isPending: true);
+      debugPrint('📴 Offline - session will sync later');
+    }
+
+    return localResult;
+  }
+
+  /// Background sync: Create session on server
+  Future<void> _syncCreateSessionToServer(
+    Session session,
+    Isar db,
+    int localId,
+  ) async {
+    try {
+      final data = await _apiService.post<Map<String, dynamic>>(
+        ApiConfig.sessions,
+        data: session.toJson(),
+      );
+      final apiSession = Session.fromJson(data);
+
+      // Update local session with server ID
+      await db.writeTxn(() async {
+        final localSession = await db.localSessions.get(localId);
+        if (localSession != null) {
+          localSession.serverId = apiSession.id;
+          localSession.isSynced = true;
+          localSession.syncStatus = 'synced';
+          await db.localSessions.put(localSession);
+        }
+      });
+    } catch (e) {
+      rethrow; // Let caller handle error
     }
   }
 
@@ -390,36 +410,53 @@ class SessionRepository {
       throw Exception('Session not found: $id');
     }
 
+    // ALWAYS update locally first for instant response
+    await _updateLocalSessionStatus(db, localSession, status);
+
+    // Then sync to server in background if online (don't block)
     if (_connectivity.isOnline && localSession.serverId != null) {
-      try {
-        // Update on server
-        await _apiService.patch<void>(
-          ApiConfig.sessionStatus(localSession.serverId!),
-          data: {'status': status},
-        );
-
-        // Update local with synced status
-        await db.writeTxn(() async {
-          localSession!.status = status;
-          localSession.lastModifiedLocal = DateTime.now();
-          localSession.isSynced = true;
-          localSession.syncStatus = 'synced';
-          await db.localSessions.put(localSession);
-        });
-
-        debugPrint(
-          '✅ Updated session status on server: ${localSession.serverId}',
-        );
-      } catch (e) {
-        debugPrint('⚠️ API failed, updating locally: $e');
-        await _updateLocalSessionStatus(db, localSession, status);
-      }
+      _syncSessionStatusToServer(db, localSession.serverId!, status)
+          .then((_) {
+            debugPrint('✅ Background sync: Updated session status on server');
+          })
+          .catchError((e) {
+            debugPrint('⚠️ Background sync failed, will retry later: $e');
+          });
     } else {
-      debugPrint('📴 Offline - updating session status locally');
-      await _updateLocalSessionStatus(db, localSession, status);
+      debugPrint('📴 Offline - session status will sync later');
     }
 
     return ModelMapper.localToSession(localSession);
+  }
+
+  /// Background sync: Update session status on server
+  Future<void> _syncSessionStatusToServer(
+    Isar db,
+    int serverId,
+    String status,
+  ) async {
+    try {
+      await _apiService.patch<void>(
+        ApiConfig.sessionStatus(serverId),
+        data: {'status': status},
+      );
+
+      // Update sync status in local DB
+      await db.writeTxn(() async {
+        final localSession =
+            await db.localSessions
+                .filter()
+                .serverIdEqualTo(serverId)
+                .findFirst();
+        if (localSession != null) {
+          localSession.isSynced = true;
+          localSession.syncStatus = 'synced';
+          await db.localSessions.put(localSession);
+        }
+      });
+    } catch (e) {
+      rethrow; // Let caller handle error
+    }
   }
 
   /// Update session status in local database
@@ -453,33 +490,47 @@ class SessionRepository {
       throw Exception('Session not found: $id');
     }
 
-    if (_connectivity.isOnline && localSession.serverId != null) {
-      try {
-        await _apiService.patch<void>(
-          '${ApiConfig.sessions}/${localSession.serverId}/pause',
-          data: {},
-        );
-      } catch (e) {
-        debugPrint('⚠️ Pause API failed, will sync later: $e');
-      }
-    }
-
-    // Always update locally
+    // ALWAYS update locally first for instant response
     await db.writeTxn(() async {
       localSession!.pausedAt = DateTime.now();
       localSession.lastModifiedLocal = DateTime.now();
-      if (!_connectivity.isOnline || localSession.serverId == null) {
-        localSession.isSynced = false;
-        // Only mark as pending_update if session already exists on server
-        // If no serverId, keep it as pending_create
-        if (localSession.serverId != null) {
-          localSession.syncStatus = 'pending_update';
-        }
+      localSession.isSynced = false;
+      // Only mark as pending_update if session already exists on server
+      if (localSession.serverId != null) {
+        localSession.syncStatus = 'pending_update';
       }
       await db.localSessions.put(localSession);
     });
 
     debugPrint('⏸️ Session paused locally');
+
+    // Then sync to server in background if online (don't block)
+    if (_connectivity.isOnline && localSession.serverId != null) {
+      _apiService
+          .patch<void>(
+            '${ApiConfig.sessions}/${localSession.serverId}/pause',
+            data: {},
+          )
+          .then((_) {
+            debugPrint('✅ Background sync: Pause synced to server');
+            // Update sync status
+            db.writeTxn(() async {
+              final session =
+                  await db.localSessions
+                      .filter()
+                      .serverIdEqualTo(localSession!.serverId!)
+                      .findFirst();
+              if (session != null) {
+                session.isSynced = true;
+                session.syncStatus = 'synced';
+                await db.localSessions.put(session);
+              }
+            });
+          })
+          .catchError((e) {
+            debugPrint('⚠️ Background sync failed, will retry later: $e');
+          });
+    }
   }
 
   /// Resume session timer
@@ -494,33 +545,47 @@ class SessionRepository {
       throw Exception('Session not found: $id');
     }
 
-    if (_connectivity.isOnline && localSession.serverId != null) {
-      try {
-        await _apiService.patch<void>(
-          '${ApiConfig.sessions}/${localSession.serverId}/resume',
-          data: {},
-        );
-      } catch (e) {
-        debugPrint('⚠️ Resume API failed, will sync later: $e');
-      }
-    }
-
-    // Always update locally
+    // ALWAYS update locally first for instant response
     await db.writeTxn(() async {
       localSession!.pausedAt = null;
       localSession.lastModifiedLocal = DateTime.now();
-      if (!_connectivity.isOnline || localSession.serverId == null) {
-        localSession.isSynced = false;
-        // Only mark as pending_update if session already exists on server
-        // If no serverId, keep it as pending_create
-        if (localSession.serverId != null) {
-          localSession.syncStatus = 'pending_update';
-        }
+      localSession.isSynced = false;
+      // Only mark as pending_update if session already exists on server
+      if (localSession.serverId != null) {
+        localSession.syncStatus = 'pending_update';
       }
       await db.localSessions.put(localSession);
     });
 
     debugPrint('▶️ Session resumed locally');
+
+    // Then sync to server in background if online (don't block)
+    if (_connectivity.isOnline && localSession.serverId != null) {
+      _apiService
+          .patch<void>(
+            '${ApiConfig.sessions}/${localSession.serverId}/resume',
+            data: {},
+          )
+          .then((_) {
+            debugPrint('✅ Background sync: Resume synced to server');
+            // Update sync status
+            db.writeTxn(() async {
+              final session =
+                  await db.localSessions
+                      .filter()
+                      .serverIdEqualTo(localSession!.serverId!)
+                      .findFirst();
+              if (session != null) {
+                session.isSynced = true;
+                session.syncStatus = 'synced';
+                await db.localSessions.put(session);
+              }
+            });
+          })
+          .catchError((e) {
+            debugPrint('⚠️ Background sync failed, will retry later: $e');
+          });
+    }
   }
 
   /// Delete session
