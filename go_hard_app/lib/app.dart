@@ -4,6 +4,8 @@ import 'core/theme/app_theme.dart';
 import 'routes/app_router.dart';
 import 'routes/route_names.dart';
 import 'providers/auth_provider.dart';
+import 'ui/screens/main_screen.dart';
+import 'ui/screens/auth/login_screen.dart';
 
 /// Root application widget
 /// Configures navigation, theming, and auth guard
@@ -23,9 +25,11 @@ class MyApp extends StatelessWidget {
           darkTheme: AppTheme.darkTheme,
           themeMode: ThemeMode.system,
 
-          // Navigation configuration
+          // Use home with conditional rendering instead of initialRoute
+          home: _buildHome(authProvider),
+
+          // Route generator for named navigation
           onGenerateRoute: AppRouter.generateRoute,
-          initialRoute: _getInitialRoute(authProvider),
 
           // Navigator observers for debugging (can be removed in production)
           navigatorObservers: [_RouteObserver()],
@@ -34,13 +38,54 @@ class MyApp extends StatelessWidget {
     );
   }
 
-  /// Determines initial route based on authentication status
-  /// If user is authenticated, go to main screen; otherwise, show login
-  String _getInitialRoute(AuthProvider authProvider) {
-    if (authProvider.isAuthenticated) {
-      return RouteNames.main;
+  /// Build the appropriate home screen based on auth state
+  Widget _buildHome(AuthProvider authProvider) {
+    // Show splash screen while checking authentication
+    if (authProvider.isInitializing) {
+      return const _SplashScreen();
     }
-    return RouteNames.login;
+
+    // Navigate to main or login based on authentication status
+    if (authProvider.isAuthenticated) {
+      return const MainScreen();
+    }
+
+    return const LoginScreen();
+  }
+}
+
+/// Splash screen shown while checking authentication status
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // App logo
+            Image.asset(
+              'assets/logo.png',
+              width: 120,
+              height: 120,
+            ),
+            const SizedBox(height: 24),
+            // App name
+            Text(
+              'GoHard',
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 48),
+            // Loading indicator
+            const CircularProgressIndicator(),
+          ],
+        ),
+      ),
+    );
   }
 }
 

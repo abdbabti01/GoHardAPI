@@ -25,6 +25,7 @@ class AuthProvider extends ChangeNotifier {
   // UI state
   bool _isLoading = false;
   String _errorMessage = '';
+  bool _isInitializing = true; // Track if initial auth check is in progress
 
   // Authentication state
   bool _isAuthenticated = false;
@@ -45,6 +46,7 @@ class AuthProvider extends ChangeNotifier {
   String get signupConfirmPassword => _signupConfirmPassword;
   bool get isLoading => _isLoading;
   String get errorMessage => _errorMessage;
+  bool get isInitializing => _isInitializing;
   bool get isAuthenticated => _isAuthenticated;
   int? get currentUserId => _currentUserId;
   String? get currentUserName => _currentUserName;
@@ -83,13 +85,17 @@ class AuthProvider extends ChangeNotifier {
 
   /// Check if user is already authenticated on app start
   Future<void> _checkAuthStatus() async {
-    _isAuthenticated = await _authService.isAuthenticated();
-    if (_isAuthenticated) {
-      _currentUserId = await _authService.getUserId();
-      _currentUserName = await _authService.getUserName();
-      _currentUserEmail = await _authService.getUserEmail();
+    try {
+      _isAuthenticated = await _authService.isAuthenticated();
+      if (_isAuthenticated) {
+        _currentUserId = await _authService.getUserId();
+        _currentUserName = await _authService.getUserName();
+        _currentUserEmail = await _authService.getUserEmail();
+      }
+    } finally {
+      _isInitializing = false;
+      notifyListeners();
     }
-    notifyListeners();
   }
 
   /// Login user
