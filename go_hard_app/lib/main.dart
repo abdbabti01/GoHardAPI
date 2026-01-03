@@ -23,6 +23,7 @@ import 'providers/exercise_detail_provider.dart';
 import 'providers/log_sets_provider.dart';
 import 'providers/profile_provider.dart';
 import 'providers/analytics_provider.dart';
+import 'providers/music_player_provider.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized for async operations
@@ -198,6 +199,9 @@ void main() async {
           update:
               (_, analyticsRepo, previous) =>
                   previous ?? AnalyticsProvider(analyticsRepo),
+        ),
+        ChangeNotifierProvider<MusicPlayerProvider>(
+          create: (_) => MusicPlayerProvider(),
         ),
       ],
       child: const SyncServiceInitializer(child: MyApp()),

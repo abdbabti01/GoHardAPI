@@ -69,4 +69,33 @@ class Session {
   }
 
   Map<String, dynamic> toJson() => _$SessionToJson(this);
+
+  /// Create a copy of this Session with some fields replaced
+  Session copyWith({
+    int? id,
+    int? userId,
+    DateTime? date,
+    int? duration,
+    String? notes,
+    String? type,
+    String? status,
+    DateTime? startedAt,
+    DateTime? completedAt,
+    DateTime? pausedAt,
+    List<Exercise>? exercises,
+  }) {
+    return Session(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      date: date ?? this.date,
+      duration: duration ?? this.duration,
+      notes: notes ?? this.notes,
+      type: type ?? this.type,
+      status: status ?? this.status,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      pausedAt: pausedAt ?? this.pausedAt,
+      exercises: exercises ?? this.exercises,
+    );
+  }
 }

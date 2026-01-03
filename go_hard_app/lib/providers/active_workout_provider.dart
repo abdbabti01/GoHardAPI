@@ -125,9 +125,16 @@ class ActiveWorkoutProvider extends ChangeNotifier {
 
     try {
       await _sessionRepository.pauseSession(_currentSession!.id);
-      // Reload session to get updated pausedAt timestamp
-      // Don't show loading indicator for smooth UX
-      await loadSession(_currentSession!.id, showLoading: false);
+
+      // Update local state immediately - no need to reload from DB
+      _stopTimer();
+      // Update session with pausedAt timestamp
+      _currentSession = _currentSession!.copyWith(
+        pausedAt: DateTime.now().toUtc(),
+      );
+      notifyListeners();
+
+      debugPrint('⏸️ Timer paused');
     } catch (e) {
       _errorMessage =
           'Failed to pause: ${e.toString().replaceAll('Exception: ', '')}';
@@ -142,9 +149,26 @@ class ActiveWorkoutProvider extends ChangeNotifier {
 
     try {
       await _sessionRepository.resumeSession(_currentSession!.id);
-      // Reload session to get updated state (pausedAt cleared, startedAt adjusted)
-      // Don't show loading indicator for smooth UX
-      await loadSession(_currentSession!.id, showLoading: false);
+
+      // Update local state immediately - no need to reload from DB
+      // Adjust startedAt to account for pause duration
+      final now = DateTime.now().toUtc();
+      final pauseDuration =
+          _currentSession!.pausedAt != null
+              ? now.difference(_currentSession!.pausedAt!)
+              : Duration.zero;
+      final newStartedAt = _currentSession!.startedAt!.add(pauseDuration);
+
+      _currentSession = _currentSession!.copyWith(
+        startedAt: newStartedAt,
+        pausedAt: null, // Clear pausedAt
+      );
+
+      // Resume timer
+      _startTimer();
+      notifyListeners();
+
+      debugPrint('▶️ Timer resumed');
     } catch (e) {
       _errorMessage =
           'Failed to resume: ${e.toString().replaceAll('Exception: ', '')}';

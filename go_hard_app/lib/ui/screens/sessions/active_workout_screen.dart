@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/active_workout_provider.dart';
+import '../../../providers/music_player_provider.dart';
 import '../../../routes/route_names.dart';
 import '../../widgets/common/sync_status_indicator.dart';
 import '../../widgets/common/offline_banner.dart';
+import '../../widgets/music/music_control_widget.dart';
 
 /// Active workout screen with timer and exercise management
 /// Matches ActiveWorkoutPage.xaml from MAUI app
@@ -24,6 +26,12 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<ActiveWorkoutProvider>();
       provider.loadSession(widget.sessionId);
+
+      // Initialize music player for workout
+      final musicProvider = context.read<MusicPlayerProvider>();
+      if (!musicProvider.isInitialized) {
+        musicProvider.initialize();
+      }
     });
   }
 
@@ -222,6 +230,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
 
     return Column(
       children: [
+        // Music player controls
+        const MusicControlWidget(),
+
         // Timer card
         _buildTimerCard(provider),
 

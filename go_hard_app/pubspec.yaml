@@ -67,6 +67,11 @@ dependencies:
   # Image Picker
   image_picker: ^1.0.7
 
+  # Audio Player for Workout Music
+  just_audio: ^0.9.36
+  audio_service: ^0.18.12
+  permission_handler: ^11.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -99,6 +104,7 @@ flutter:
   # App assets
   assets:
     - assets/logo.png
+    - assets/music/
 
 # App launcher icons configuration
 flutter_launcher_icons:
