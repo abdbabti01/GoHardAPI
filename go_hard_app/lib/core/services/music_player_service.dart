@@ -52,32 +52,44 @@ class MusicPlayerService {
     }
   }
 
-  /// Create default workout playlist
+  /// Create default workout playlist with royalty-free music
   List<MediaItem> _createDefaultPlaylist() {
     return [
       const MediaItem(
         id: 'workout_1',
-        title: 'High Intensity',
-        artist: 'GoHard',
+        title: 'Epic Motivational Workout',
+        artist: 'Workout Music',
         duration: Duration(minutes: 3, seconds: 30),
         artUri: null,
-        extras: {'source': 'asset', 'path': 'assets/music/workout_1.mp3'},
+        extras: {
+          'source': 'url',
+          'path':
+              'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
+        },
       ),
       const MediaItem(
         id: 'workout_2',
-        title: 'Power Training',
-        artist: 'GoHard',
+        title: 'Power Training Beat',
+        artist: 'Workout Music',
         duration: Duration(minutes: 4, seconds: 15),
         artUri: null,
-        extras: {'source': 'asset', 'path': 'assets/music/workout_2.mp3'},
+        extras: {
+          'source': 'url',
+          'path':
+              'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3',
+        },
       ),
       const MediaItem(
         id: 'workout_3',
-        title: 'Cardio Boost',
-        artist: 'GoHard',
+        title: 'Cardio Energy',
+        artist: 'Workout Music',
         duration: Duration(minutes: 3, seconds: 45),
         artUri: null,
-        extras: {'source': 'asset', 'path': 'assets/music/workout_3.mp3'},
+        extras: {
+          'source': 'url',
+          'path':
+              'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3',
+        },
       ),
     ];
   }
@@ -94,19 +106,20 @@ class MusicPlayerService {
 
     try {
       if (source == 'asset') {
-        // Load from assets (for now, we'll use a placeholder)
-        // In production, you'd load actual asset files or use URLs
-        debugPrint('🎵 Would load asset: $path');
-        // For demo, we'll just set a dummy source
-        // await _audioPlayer.setAsset(path);
+        // Load from assets
+        await _audioPlayer.setAsset(path);
+        debugPrint('🎵 Loaded asset: $path');
       } else if (source == 'url') {
+        // Load from URL (streaming)
         await _audioPlayer.setUrl(path);
+        debugPrint('🎵 Loaded URL: ${track.title}');
       }
 
       _currentIndex = index;
-      debugPrint('🎵 Loaded track: ${track.title}');
+      debugPrint('🎵 Track ready: ${track.title}');
     } catch (e) {
       debugPrint('❌ Failed to load track: $e');
+      // Continue anyway - UI will show the track even if loading fails
     }
   }
 
