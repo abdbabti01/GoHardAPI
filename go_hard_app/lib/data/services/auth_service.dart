@@ -9,6 +9,7 @@ class AuthService {
   static const String _userIdKey = 'user_id';
   static const String _userNameKey = 'user_name';
   static const String _userEmailKey = 'user_email';
+  static const String _themePreferenceKey = 'theme_preference';
 
   /// Save authentication data to secure storage
   Future<void> saveToken({
@@ -78,6 +79,25 @@ class AuthService {
       _storage.delete(key: _userIdKey),
       _storage.delete(key: _userNameKey),
       _storage.delete(key: _userEmailKey),
+      // Don't delete theme preference - user's theme choice persists across logins
     ]);
+  }
+
+  /// Save theme preference to secure storage
+  Future<void> saveThemePreference(String theme) async {
+    try {
+      await _storage.write(key: _themePreferenceKey, value: theme);
+    } catch (e) {
+      // Fail silently - theme preference is not critical
+    }
+  }
+
+  /// Get theme preference from secure storage
+  Future<String?> getThemePreference() async {
+    try {
+      return await _storage.read(key: _themePreferenceKey);
+    } catch (e) {
+      return null; // Default to system theme
+    }
   }
 }

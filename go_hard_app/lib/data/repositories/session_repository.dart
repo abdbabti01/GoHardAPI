@@ -28,122 +28,135 @@ class SessionRepository {
   );
 
   /// Get all sessions for the current user
-  /// Offline-first: returns local cache, then tries to sync with server
+  /// Offline-first: returns local cache immediately, syncs with server in background
   Future<List<Session>> getSessions() async {
     final Isar db = _localDb.database;
 
+    // ALWAYS load from cache first for instant response
+    final cachedSessions = await _getLocalSessions(db);
+
+    // Then sync with server in background if online (don't block)
     if (_connectivity.isOnline) {
-      try {
-        // Fetch from API
-        final data = await _apiService.get<List<dynamic>>(ApiConfig.sessions);
-        final apiSessions =
-            data
-                .map((json) => Session.fromJson(json as Map<String, dynamic>))
-                .toList();
+      _syncSessionsFromServer(db)
+          .then((_) {
+            debugPrint('✅ Background sync: Sessions synced from server');
+          })
+          .catchError((e) {
+            debugPrint('⚠️ Background sync failed: $e');
+          });
+    }
 
-        // Get current user ID for filtering
-        final currentUserId = await _authService.getUserId();
-        if (currentUserId == null) {
-          debugPrint('⚠️ No authenticated user, skipping cache update');
-          return apiSessions;
-        }
+    return cachedSessions;
+  }
 
-        // Update local cache (sessions AND their exercises)
-        await db.writeTxn(() async {
-          for (final apiSession in apiSessions) {
-            // Only cache sessions belonging to current user
-            if (apiSession.userId != currentUserId) {
-              debugPrint(
-                '  ⏭️ Skipping session ${apiSession.id} - belongs to different user (${apiSession.userId} != $currentUserId)',
-              );
-              continue;
-            }
+  /// Background sync: Fetch sessions from server and update cache
+  Future<void> _syncSessionsFromServer(Isar db) async {
+    try {
+      // Fetch from API
+      final data = await _apiService.get<List<dynamic>>(ApiConfig.sessions);
+      final apiSessions =
+          data
+              .map((json) => Session.fromJson(json as Map<String, dynamic>))
+              .toList();
 
-            // Check if session already exists locally
-            final existingLocal =
-                await db.localSessions
+      // Get current user ID for filtering
+      final currentUserId = await _authService.getUserId();
+      if (currentUserId == null) {
+        debugPrint('⚠️ No authenticated user, skipping cache update');
+        return; // Exit background sync, cache already returned to caller
+      }
+
+      // Update local cache (sessions AND their exercises)
+      await db.writeTxn(() async {
+        for (final apiSession in apiSessions) {
+          // Only cache sessions belonging to current user
+          if (apiSession.userId != currentUserId) {
+            debugPrint(
+              '  ⏭️ Skipping session ${apiSession.id} - belongs to different user (${apiSession.userId} != $currentUserId)',
+            );
+            continue;
+          }
+
+          // Check if session already exists locally
+          final existingLocal =
+              await db.localSessions
+                  .filter()
+                  .serverIdEqualTo(apiSession.id)
+                  .findFirst();
+
+          // Skip sessions marked for deletion - they should not be re-cached
+          if (existingLocal != null &&
+              existingLocal.syncStatus == 'pending_delete') {
+            debugPrint(
+              '  ⏭️ Skipping session ${apiSession.id} - marked for deletion',
+            );
+            continue;
+          }
+
+          LocalSession savedSession;
+          if (existingLocal != null) {
+            // Update existing local session
+            final updated = ModelMapper.sessionToLocal(
+              apiSession,
+              localId: existingLocal.localId,
+              isSynced: true,
+            );
+            await db.localSessions.put(updated);
+            savedSession = updated;
+          } else {
+            // Create new local session
+            final localSession = ModelMapper.sessionToLocal(apiSession);
+            await db.localSessions.put(localSession);
+            savedSession = localSession;
+          }
+
+          // Save exercises for this session
+          int exerciseCount = 0;
+          for (final apiExercise in apiSession.exercises) {
+            // Check if exercise already exists locally
+            final existingExercise =
+                await db.localExercises
                     .filter()
-                    .serverIdEqualTo(apiSession.id)
+                    .serverIdEqualTo(apiExercise.id)
                     .findFirst();
 
-            // Skip sessions marked for deletion - they should not be re-cached
-            if (existingLocal != null &&
-                existingLocal.syncStatus == 'pending_delete') {
-              debugPrint(
-                '  ⏭️ Skipping session ${apiSession.id} - marked for deletion',
-              );
-              continue;
-            }
-
-            LocalSession savedSession;
-            if (existingLocal != null) {
-              // Update existing local session
-              final updated = ModelMapper.sessionToLocal(
-                apiSession,
-                localId: existingLocal.localId,
+            if (existingExercise != null) {
+              // Update existing
+              final updated = ModelMapper.exerciseToLocal(
+                apiExercise,
+                sessionLocalId: savedSession.localId,
+                localId: existingExercise.localId,
                 isSynced: true,
               );
-              await db.localSessions.put(updated);
-              savedSession = updated;
+              await db.localExercises.put(updated);
+              debugPrint(
+                '    ✏️ Updated exercise ${updated.serverId}, sessionLocalId=${updated.sessionLocalId}',
+              );
             } else {
-              // Create new local session
-              final localSession = ModelMapper.sessionToLocal(apiSession);
-              await db.localSessions.put(localSession);
-              savedSession = localSession;
+              // Create new
+              final localExercise = ModelMapper.exerciseToLocal(
+                apiExercise,
+                sessionLocalId: savedSession.localId,
+              );
+              final savedExerciseId = await db.localExercises.put(
+                localExercise,
+              );
+              debugPrint(
+                '    ➕ Created exercise ${localExercise.serverId}, localId=$savedExerciseId, sessionLocalId=${localExercise.sessionLocalId}',
+              );
             }
-
-            // Save exercises for this session
-            int exerciseCount = 0;
-            for (final apiExercise in apiSession.exercises) {
-              // Check if exercise already exists locally
-              final existingExercise =
-                  await db.localExercises
-                      .filter()
-                      .serverIdEqualTo(apiExercise.id)
-                      .findFirst();
-
-              if (existingExercise != null) {
-                // Update existing
-                final updated = ModelMapper.exerciseToLocal(
-                  apiExercise,
-                  sessionLocalId: savedSession.localId,
-                  localId: existingExercise.localId,
-                  isSynced: true,
-                );
-                await db.localExercises.put(updated);
-                debugPrint(
-                  '    ✏️ Updated exercise ${updated.serverId}, sessionLocalId=${updated.sessionLocalId}',
-                );
-              } else {
-                // Create new
-                final localExercise = ModelMapper.exerciseToLocal(
-                  apiExercise,
-                  sessionLocalId: savedSession.localId,
-                );
-                final savedExerciseId = await db.localExercises.put(
-                  localExercise,
-                );
-                debugPrint(
-                  '    ➕ Created exercise ${localExercise.serverId}, localId=$savedExerciseId, sessionLocalId=${localExercise.sessionLocalId}',
-                );
-              }
-              exerciseCount++;
-            }
-            debugPrint(
-              '  📝 Cached $exerciseCount exercises for session ${apiSession.id}',
-            );
+            exerciseCount++;
           }
-        });
+          debugPrint(
+            '  📝 Cached $exerciseCount exercises for session ${apiSession.id}',
+          );
+        }
+      });
 
-        debugPrint('✅ Synced ${apiSessions.length} sessions from server');
-        return apiSessions;
-      } catch (e) {
-        debugPrint('⚠️ API failed, falling back to local cache: $e');
-        return await _getLocalSessions(db);
-      }
-    } else {
-      debugPrint('📴 Offline - returning cached sessions');
-      return await _getLocalSessions(db);
+      debugPrint('✅ Synced ${apiSessions.length} sessions from server');
+    } catch (e) {
+      // Sync failed - but that's okay, we already returned cached data
+      rethrow; // Let the caller handle the error
     }
   }
 

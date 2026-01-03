@@ -16,8 +16,18 @@ class ProfileProvider extends ChangeNotifier {
   bool _isUpdating = false;
   bool _isUploadingPhoto = false;
   String? _errorMessage;
+  String? _cachedThemePreference; // Theme loaded from local storage
 
-  ProfileProvider(this._profileRepository, this._authService);
+  ProfileProvider(this._profileRepository, this._authService) {
+    // Load theme from local storage on init
+    _loadCachedTheme();
+  }
+
+  /// Load theme preference from local storage (fast, offline-first)
+  Future<void> _loadCachedTheme() async {
+    _cachedThemePreference = await _authService.getThemePreference();
+    notifyListeners();
+  }
 
   // Getters
   User? get currentUser => _currentUser;
@@ -27,8 +37,10 @@ class ProfileProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   /// Get current theme mode based on user preference
+  /// Uses cached theme from local storage first (offline-first)
   ThemeMode get themeMode {
-    final preference = _currentUser?.themePreference;
+    // First check cached theme (from local storage - fast!)
+    final preference = _cachedThemePreference ?? _currentUser?.themePreference;
     switch (preference?.toLowerCase()) {
       case 'light':
         return ThemeMode.light;
@@ -47,6 +59,12 @@ class ProfileProvider extends ChangeNotifier {
 
     try {
       _currentUser = await _profileRepository.getProfile();
+
+      // Save theme preference to local storage for offline access
+      if (_currentUser?.themePreference != null) {
+        _cachedThemePreference = _currentUser!.themePreference;
+        await _authService.saveThemePreference(_currentUser!.themePreference!);
+      }
     } catch (e) {
       _errorMessage =
           'Failed to load profile: ${e.toString().replaceAll('Exception: ', '')}';
@@ -65,6 +83,13 @@ class ProfileProvider extends ChangeNotifier {
 
     try {
       _currentUser = await _profileRepository.updateProfile(request);
+
+      // Save theme preference to local storage if updated
+      if (_currentUser?.themePreference != null) {
+        _cachedThemePreference = _currentUser!.themePreference;
+        await _authService.saveThemePreference(_currentUser!.themePreference!);
+      }
+
       _isUpdating = false;
       notifyListeners();
       return true;

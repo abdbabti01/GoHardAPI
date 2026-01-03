@@ -48,10 +48,12 @@ class ApiConfig {
   }
 
   /// Connection timeout duration
-  static const Duration connectTimeout = Duration(seconds: 10);
+  /// Reduced to 3 seconds for faster offline detection
+  static const Duration connectTimeout = Duration(seconds: 3);
 
   /// Receive timeout duration
-  static const Duration receiveTimeout = Duration(seconds: 10);
+  /// Reduced to 5 seconds for faster offline detection
+  static const Duration receiveTimeout = Duration(seconds: 5);
 
   /// API endpoints
   static const String authLogin = 'auth/login';
