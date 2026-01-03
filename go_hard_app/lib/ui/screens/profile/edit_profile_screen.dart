@@ -124,14 +124,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
 
         // Upload immediately
+        // Get provider reference before async operation
+        if (!mounted) return;
         final provider = context.read<ProfileProvider>();
         final success = await provider.uploadProfilePhoto(_selectedImage!);
 
-        if (success && mounted) {
+        if (!mounted) return;
+        if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Profile photo updated successfully')),
           );
-        } else if (!success && mounted) {
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(provider.errorMessage ?? 'Failed to upload photo'),

@@ -177,22 +177,19 @@ void main() async {
               (_, exerciseRepo, previous) =>
                   previous ?? LogSetsProvider(exerciseRepo),
         ),
-        ChangeNotifierProxyProvider3<
-          UserRepository,
+        ChangeNotifierProxyProvider2<
           ProfileRepository,
           AuthService,
           ProfileProvider
         >(
           create:
               (context) => ProfileProvider(
-                context.read<UserRepository>(),
                 context.read<ProfileRepository>(),
                 context.read<AuthService>(),
               ),
           update:
-              (_, userRepo, profileRepo, authService, previous) =>
-                  previous ??
-                  ProfileProvider(userRepo, profileRepo, authService),
+              (_, profileRepo, authService, previous) =>
+                  previous ?? ProfileProvider(profileRepo, authService),
         ),
         ChangeNotifierProxyProvider<AnalyticsRepository, AnalyticsProvider>(
           create:

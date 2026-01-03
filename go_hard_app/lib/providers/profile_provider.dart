@@ -2,14 +2,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../data/models/user.dart';
 import '../data/models/profile_update_request.dart';
-import '../data/repositories/user_repository.dart';
 import '../data/repositories/profile_repository.dart';
 import '../data/services/auth_service.dart';
 
 /// Provider for user profile management
 /// Replaces ProfileViewModel from MAUI app
 class ProfileProvider extends ChangeNotifier {
-  final UserRepository _userRepository;
   final ProfileRepository _profileRepository;
   final AuthService _authService;
 
@@ -19,11 +17,7 @@ class ProfileProvider extends ChangeNotifier {
   bool _isUploadingPhoto = false;
   String? _errorMessage;
 
-  ProfileProvider(
-    this._userRepository,
-    this._profileRepository,
-    this._authService,
-  );
+  ProfileProvider(this._profileRepository, this._authService);
 
   // Getters
   User? get currentUser => _currentUser;
@@ -78,7 +72,7 @@ class ProfileProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final photoUrl = await _profileRepository.uploadProfilePhoto(imageFile);
+      await _profileRepository.uploadProfilePhoto(imageFile);
 
       // Reload profile to get updated photo URL
       await loadUserProfile();
