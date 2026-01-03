@@ -96,7 +96,6 @@ class _SessionsScreenState extends State<SessionsScreen> {
             },
             tooltip: 'Analytics',
           ),
-          const SyncStatusIndicator(),
         ],
       ),
       body: Column(

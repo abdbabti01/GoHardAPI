@@ -123,7 +123,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             appBar: AppBar(
               title: const Text('Active Workout'),
               actions: [
-                const SyncStatusIndicator(),
                 IconButton(
                   icon: const Icon(Icons.check_circle),
                   onPressed: _handleFinishWorkout,

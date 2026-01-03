@@ -70,7 +70,7 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
     return Icon(
       isOnline ? Icons.cloud_done : Icons.cloud_off,
       size: 20,
-      color: isOnline ? Colors.green : Colors.orange,
+      color: isOnline ? Colors.green : Colors.grey,
     );
   }
 
@@ -78,6 +78,7 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
     final pendingCount = _syncStatus?['pendingCount'] ?? 0;
     final errorCount = _syncStatus?['errorCount'] ?? 0;
     final isSyncing = _syncStatus?['isSyncing'] ?? false;
+    final isOnline = _syncStatus?['isOnline'] ?? false;
 
     String text;
     Color color;
@@ -90,7 +91,8 @@ class _SyncStatusIndicatorState extends State<SyncStatusIndicator> {
       color = Colors.red;
     } else if (pendingCount > 0) {
       text = '$pendingCount pending';
-      color = Colors.orange;
+      // Use grey when offline (expected), orange when online (unexpected)
+      color = isOnline ? Colors.orange : Colors.grey;
     } else {
       text = 'Synced';
       color = Colors.green;
@@ -129,7 +131,7 @@ class _SyncStatusDialog extends StatelessWidget {
         children: [
           Icon(
             isOnline ? Icons.cloud_done : Icons.cloud_off,
-            color: isOnline ? Colors.green : Colors.orange,
+            color: isOnline ? Colors.green : Colors.grey,
           ),
           const SizedBox(width: 8),
           Text(isOnline ? 'Online' : 'Offline'),
@@ -149,14 +151,16 @@ class _SyncStatusDialog extends StatelessWidget {
             isSyncing
                 ? Colors.blue
                 : pendingCount > 0
-                ? Colors.orange
+                ? (isOnline ? Colors.orange : Colors.grey)
                 : Colors.green,
           ),
           const SizedBox(height: 8),
           _buildStatusRow(
             'Pending items',
             '$pendingCount',
-            pendingCount > 0 ? Colors.orange : Colors.grey,
+            pendingCount > 0
+                ? (isOnline ? Colors.orange : Colors.grey)
+                : Colors.grey,
           ),
           const SizedBox(height: 8),
           _buildStatusRow(

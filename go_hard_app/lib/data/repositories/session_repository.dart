@@ -426,7 +426,19 @@ class SessionRepository {
       debugPrint('📴 Offline - session status will sync later');
     }
 
-    return ModelMapper.localToSession(localSession);
+    // Load exercises to include in returned session
+    final localExercises =
+        await db.localExercises
+            .filter()
+            .sessionLocalIdEqualTo(localSession.localId)
+            .findAll();
+
+    final exercises =
+        localExercises
+            .map((localEx) => ModelMapper.localToExercise(localEx))
+            .toList();
+
+    return ModelMapper.localToSession(localSession, exercises: exercises);
   }
 
   /// Background sync: Update session status on server
@@ -466,9 +478,24 @@ class SessionRepository {
     String status,
   ) async {
     await db.writeTxn(() async {
+      final now = DateTime.now();
       localSession.status = status;
-      localSession.lastModifiedLocal = DateTime.now();
+      localSession.lastModifiedLocal = now;
       localSession.isSynced = false;
+
+      // Set startedAt when status changes to 'in_progress'
+      if (status == 'in_progress' && localSession.startedAt == null) {
+        localSession.startedAt = now;
+        localSession.pausedAt = null; // Clear any pause state
+        debugPrint('🏋️ Set startedAt in DB: $now');
+      }
+
+      // Set completedAt when status changes to 'completed'
+      if (status == 'completed' && localSession.completedAt == null) {
+        localSession.completedAt = now;
+        debugPrint('✅ Set completedAt in DB: $now');
+      }
+
       // Only mark as pending_update if session already exists on server
       // If no serverId, keep it as pending_create
       if (localSession.serverId != null) {

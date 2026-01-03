@@ -103,14 +103,18 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     if (_currentSession == null) return;
 
     try {
-      await _sessionRepository.updateSessionStatus(
+      // Update DB and get session with correct timestamps
+      final updatedSession = await _sessionRepository.updateSessionStatus(
         _currentSession!.id,
         'in_progress',
       );
 
-      // Reload session to get updated state with all exercises
-      // Don't show loading indicator for smooth UX
-      await loadSession(_currentSession!.id, showLoading: false);
+      // Use the session from DB to ensure timestamps match
+      _currentSession = updatedSession;
+      _elapsedTime = Duration.zero;
+      _startTimer();
+      debugPrint('🏋️ Workout started with DB timestamps');
+      notifyListeners();
     } catch (e) {
       _errorMessage =
           'Failed to start workout: ${e.toString().replaceAll('Exception: ', '')}';
@@ -123,58 +127,64 @@ class ActiveWorkoutProvider extends ChangeNotifier {
   Future<void> pauseTimer() async {
     if (_currentSession == null) return;
 
-    try {
-      await _sessionRepository.pauseSession(_currentSession!.id);
+    // If session hasn't started yet, start it first
+    if (_currentSession!.startedAt == null) {
+      await startWorkout();
+      return;
+    }
 
-      // Update local state immediately - no need to reload from DB
-      _stopTimer();
-      // Update session with pausedAt timestamp
-      _currentSession = _currentSession!.copyWith(
-        pausedAt: DateTime.now().toUtc(),
-      );
-      notifyListeners();
+    // Update UI IMMEDIATELY - don't wait for anything
+    _stopTimer();
+    _currentSession = _currentSession!.copyWith(
+      pausedAt: DateTime.now().toUtc(),
+    );
+    notifyListeners();
+    debugPrint('⏸️ Timer paused (UI updated)');
 
-      debugPrint('⏸️ Timer paused');
-    } catch (e) {
+    // Then save to DB in background (don't block UI)
+    _sessionRepository.pauseSession(_currentSession!.id).catchError((e) {
       _errorMessage =
           'Failed to pause: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Pause error: $e');
       notifyListeners();
-    }
+    });
   }
 
   /// Resume the timer (continues from current elapsed time)
   Future<void> resumeTimer() async {
     if (_currentSession == null) return;
 
-    try {
-      await _sessionRepository.resumeSession(_currentSession!.id);
+    // If session hasn't started yet, start it instead of resuming
+    if (_currentSession!.startedAt == null) {
+      await startWorkout();
+      return;
+    }
 
-      // Update local state immediately - no need to reload from DB
-      // Adjust startedAt to account for pause duration
-      final now = DateTime.now().toUtc();
-      final pauseDuration =
-          _currentSession!.pausedAt != null
-              ? now.difference(_currentSession!.pausedAt!)
-              : Duration.zero;
-      final newStartedAt = _currentSession!.startedAt!.add(pauseDuration);
+    // Update UI IMMEDIATELY - don't wait for anything
+    final now = DateTime.now().toUtc();
+    final pauseDuration =
+        _currentSession!.pausedAt != null
+            ? now.difference(_currentSession!.pausedAt!)
+            : Duration.zero;
+    final newStartedAt = _currentSession!.startedAt!.add(pauseDuration);
 
-      _currentSession = _currentSession!.copyWith(
-        startedAt: newStartedAt,
-        pausedAt: null, // Clear pausedAt
-      );
+    _currentSession = _currentSession!.copyWith(
+      startedAt: newStartedAt,
+      pausedAt: null, // Clear pausedAt
+    );
 
-      // Resume timer
-      _startTimer();
-      notifyListeners();
+    // Resume timer
+    _startTimer();
+    notifyListeners();
+    debugPrint('▶️ Timer resumed (UI updated)');
 
-      debugPrint('▶️ Timer resumed');
-    } catch (e) {
+    // Then save to DB in background (don't block UI)
+    _sessionRepository.resumeSession(_currentSession!.id).catchError((e) {
       _errorMessage =
           'Failed to resume: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Resume error: $e');
       notifyListeners();
-    }
+    });
   }
 
   /// Finish workout (update status to completed)
@@ -203,13 +213,18 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     if (_currentSession == null) return;
 
     try {
-      await _sessionRepository.addExerciseToSession(
+      // Add exercise and get the new exercise object
+      final newExercise = await _sessionRepository.addExerciseToSession(
         _currentSession!.id,
         exerciseTemplateId,
       );
 
-      // Reload session to get updated exercises
-      await loadSession(_currentSession!.id);
+      // Add exercise to current session's list (don't reload entire session)
+      final updatedExercises = [..._currentSession!.exercises, newExercise];
+      _currentSession = _currentSession!.copyWith(exercises: updatedExercises);
+
+      debugPrint('✅ Exercise added to session (timer preserved)');
+      notifyListeners();
     } catch (e) {
       _errorMessage =
           'Failed to add exercise: ${e.toString().replaceAll('Exception: ', '')}';

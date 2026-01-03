@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/exercises_provider.dart';
 import '../../../providers/active_workout_provider.dart';
@@ -33,6 +34,9 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
   }
 
   void _toggleExerciseSelection(int exerciseId) {
+    // Haptic feedback for better UX
+    HapticFeedback.selectionClick();
+
     setState(() {
       if (_selectedExerciseIds.contains(exerciseId)) {
         _selectedExerciseIds.remove(exerciseId);
@@ -50,6 +54,9 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
       return;
     }
 
+    // Haptic feedback when adding
+    HapticFeedback.mediumImpact();
+
     setState(() {
       _isAdding = true;
     });
@@ -64,6 +71,30 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
       }
 
       if (mounted) {
+        // Success haptic feedback
+        HapticFeedback.heavyImpact();
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Text(
+                  '${_selectedExerciseIds.length} exercise${_selectedExerciseIds.length == 1 ? '' : 's'} added!',
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+
+        // Small delay for user to see the success message
+        await Future.delayed(const Duration(milliseconds: 300));
+
         // Return true to indicate exercises were added
         Navigator.of(context).pop(true);
       }
@@ -186,40 +217,83 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
       ),
       body: Column(
         children: [
-          // Selection counter
-          if (_selectedExerciseIds.isNotEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.1),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${_selectedExerciseIds.length} exercise${_selectedExerciseIds.length == 1 ? '' : 's'} selected',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _selectedExerciseIds.clear();
-                      });
-                    },
-                    child: const Text('Clear'),
-                  ),
-                ],
-              ),
+          // Selection counter with smooth animation
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return SizeTransition(
+                  sizeFactor: animation,
+                  child: FadeTransition(opacity: animation, child: child),
+                );
+              },
+              child:
+                  _selectedExerciseIds.isNotEmpty
+                      ? Container(
+                        key: const ValueKey('selection-banner'),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.1),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.primary.withValues(alpha: 0.2),
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child: Text(
+                                  '${_selectedExerciseIds.length} exercise${_selectedExerciseIds.length == 1 ? '' : 's'} selected',
+                                  key: ValueKey(_selectedExerciseIds.length),
+                                  style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                setState(() {
+                                  _selectedExerciseIds.clear();
+                                });
+                              },
+                              icon: const Icon(Icons.clear, size: 18),
+                              label: const Text('Clear'),
+                              style: TextButton.styleFrom(
+                                foregroundColor:
+                                    Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                      : const SizedBox(key: ValueKey('empty-banner')),
             ),
+          ),
 
           // Exercise list
           Expanded(
@@ -327,26 +401,122 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
           ),
         ],
       ),
-      floatingActionButton:
-          _selectedExerciseIds.isNotEmpty
-              ? FloatingActionButton.extended(
-                onPressed: _isAdding ? null : _handleAddExercises,
-                icon:
-                    _isAdding
-                        ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
+      floatingActionButton: AnimatedScale(
+        scale: _selectedExerciseIds.isNotEmpty ? 1.0 : 0.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.elasticOut,
+        child: AnimatedOpacity(
+          opacity: _selectedExerciseIds.isNotEmpty ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          child:
+              _selectedExerciseIds.isNotEmpty
+                  ? Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(30),
+                      gradient: LinearGradient(
+                        colors:
+                            _isAdding
+                                ? [Colors.grey.shade400, Colors.grey.shade500]
+                                : [
+                                  Theme.of(context).colorScheme.primary,
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withBlue(
+                                    (Theme.of(
+                                              context,
+                                            ).colorScheme.primary.blue *
+                                            1.3)
+                                        .clamp(0, 255)
+                                        .toInt(),
+                                  ),
+                                ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.4),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(30),
+                        onTap: _isAdding ? null : _handleAddExercises,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 16,
                           ),
-                        )
-                        : const Icon(Icons.add),
-                label: Text(
-                  'Add ${_selectedExerciseIds.length} Exercise${_selectedExerciseIds.length == 1 ? '' : 's'}',
-                ),
-              )
-              : null,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                child:
+                                    _isAdding
+                                        ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 3,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                        : Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(
+                                              alpha: 0.2,
+                                            ),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(
+                                            Icons.add_rounded,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                        ),
+                              ),
+                              const SizedBox(width: 12),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                transitionBuilder: (child, animation) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: ScaleTransition(
+                                      scale: animation,
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                                child: Text(
+                                  _isAdding
+                                      ? 'Adding...'
+                                      : 'Add ${_selectedExerciseIds.length} Exercise${_selectedExerciseIds.length == 1 ? '' : 's'}',
+                                  key: ValueKey(_isAdding),
+                                  style: const TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                  : const SizedBox.shrink(),
+        ),
+      ),
     );
   }
 }
