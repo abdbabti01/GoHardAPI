@@ -221,13 +221,17 @@ class _SessionsScreenState extends State<SessionsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
-                  Icon(Icons.fitness_center, color: Colors.white, size: 24),
-                  SizedBox(width: 12),
+                children: [
+                  Icon(
+                    Icons.fitness_center,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                    size: 24,
+                  ),
+                  const SizedBox(width: 12),
                   Text(
                     'New Workout',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5,

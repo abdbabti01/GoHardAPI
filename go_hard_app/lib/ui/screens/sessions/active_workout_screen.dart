@@ -163,17 +163,17 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
-                      children: const [
+                      children: [
                         Icon(
                           Icons.add_circle_outline,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onSecondary,
                           size: 24,
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Text(
                           'Add Exercise',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: Theme.of(context).colorScheme.onSecondary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.5,
@@ -259,13 +259,13 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             Icon(
               provider.isTimerRunning ? Icons.timer : Icons.timer_off,
               size: 48,
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onPrimary,
             ),
             const SizedBox(height: 8),
             Text(
               _formatElapsedTime(provider.elapsedTime),
               style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
                 fontWeight: FontWeight.bold,
                 fontFeatures: [const FontFeature.tabularFigures()],
               ),
@@ -274,7 +274,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
             Text(
               'Workout Duration',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.white.withValues(alpha: 0.9),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onPrimary.withValues(alpha: 0.9),
               ),
             ),
             const SizedBox(height: 16),
@@ -285,7 +287,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 icon: const Icon(Icons.play_arrow),
                 label: const Text('Start Workout'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.onPrimary,
                   foregroundColor: Theme.of(context).colorScheme.primary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
@@ -304,7 +306,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 ),
                 label: Text(provider.isTimerRunning ? 'Pause' : 'Resume'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
+                  backgroundColor: Theme.of(context).colorScheme.onPrimary,
                   foregroundColor: Theme.of(context).colorScheme.primary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 32,
