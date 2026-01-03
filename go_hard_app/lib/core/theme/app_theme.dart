@@ -15,13 +15,16 @@ class AppTheme {
       colorScheme: ColorScheme.light(
         primary: AppColors.goHardBlack,
         secondary: AppColors.iosSystemGreen,
+        tertiary: AppColors.goHardDarkGray,
         error: AppColors.errorRed,
         surface: AppColors.iosSystemBackground,
         surfaceContainerHighest: AppColors.iosGray1,
-        onPrimary: Colors.white,
-        onSecondary: Colors.white,
-        onError: Colors.white,
-        onSurface: AppColors.iosLabel,
+        onPrimary: AppColors.goHardWhite,
+        onSecondary: AppColors.goHardWhite,
+        onTertiary: AppColors.goHardWhite,
+        onError: AppColors.goHardWhite,
+        onSurface: AppColors.goHardBlack,
+        onSurfaceVariant: AppColors.goHardDarkGray,
       ),
 
       // Scaffold
@@ -169,13 +172,16 @@ class AppTheme {
       colorScheme: ColorScheme.dark(
         primary: AppColors.goHardWhite,
         secondary: AppColors.iosSystemGreen,
+        tertiary: AppColors.goHardSilver,
         error: AppColors.errorRed,
         surface: AppColors.goHardBlack,
         surfaceContainerHighest: AppColors.goHardDarkGray,
         onPrimary: AppColors.goHardBlack,
-        onSecondary: Colors.white,
-        onError: Colors.white,
-        onSurface: AppColors.iosDarkLabel,
+        onSecondary: AppColors.goHardBlack,
+        onTertiary: AppColors.goHardBlack,
+        onError: AppColors.goHardBlack,
+        onSurface: AppColors.goHardWhite,
+        onSurfaceVariant: AppColors.goHardSilver,
       ),
 
       // Scaffold

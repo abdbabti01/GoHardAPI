@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'routes/app_router.dart';
 import 'providers/auth_provider.dart';
+import 'providers/profile_provider.dart';
 import 'ui/screens/main_screen.dart';
 import 'ui/screens/auth/login_screen.dart';
 
@@ -13,16 +14,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, authProvider, child) {
+    return Consumer2<AuthProvider, ProfileProvider>(
+      builder: (context, authProvider, profileProvider, child) {
         return MaterialApp(
           title: 'GoHard - Workout Tracker',
           debugShowCheckedModeBanner: false,
 
-          // Theme configuration
+          // Theme configuration - uses user preference
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          themeMode: ThemeMode.system,
+          themeMode: profileProvider.themeMode,
 
           // Use home with conditional rendering instead of initialRoute
           home: _buildHome(authProvider),

@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../data/models/user.dart';
 import '../data/models/profile_update_request.dart';
 import '../data/repositories/profile_repository.dart';
@@ -25,6 +25,19 @@ class ProfileProvider extends ChangeNotifier {
   bool get isUpdating => _isUpdating;
   bool get isUploadingPhoto => _isUploadingPhoto;
   String? get errorMessage => _errorMessage;
+
+  /// Get current theme mode based on user preference
+  ThemeMode get themeMode {
+    final preference = _currentUser?.themePreference;
+    switch (preference?.toLowerCase()) {
+      case 'light':
+        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
+      default:
+        return ThemeMode.system;
+    }
+  }
 
   /// Load current user profile with stats
   Future<void> loadUserProfile() async {
