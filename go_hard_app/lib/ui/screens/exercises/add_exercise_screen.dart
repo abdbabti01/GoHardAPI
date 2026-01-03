@@ -96,7 +96,9 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
         await Future.delayed(const Duration(milliseconds: 300));
 
         // Return true to indicate exercises were added
-        Navigator.of(context).pop(true);
+        if (mounted) {
+          Navigator.of(context).pop(true);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -414,22 +416,15 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(30),
                       gradient: LinearGradient(
-                        colors:
-                            _isAdding
-                                ? [Colors.grey.shade400, Colors.grey.shade500]
-                                : [
-                                  Theme.of(context).colorScheme.primary,
-                                  Theme.of(
-                                    context,
-                                  ).colorScheme.primary.withBlue(
-                                    (Theme.of(
-                                              context,
-                                            ).colorScheme.primary.blue *
-                                            1.3)
-                                        .clamp(0, 255)
-                                        .toInt(),
-                                  ),
-                                ],
+                        colors: _isAdding
+                            ? [Colors.grey.shade400, Colors.grey.shade500]
+                            : [
+                                Theme.of(context).colorScheme.primary,
+                                Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.8),
+                              ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),

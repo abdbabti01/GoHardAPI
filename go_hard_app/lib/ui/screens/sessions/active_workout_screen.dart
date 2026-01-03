@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../../providers/active_workout_provider.dart';
 import '../../../providers/music_player_provider.dart';
 import '../../../routes/route_names.dart';
-import '../../widgets/common/sync_status_indicator.dart';
 import '../../widgets/common/offline_banner.dart';
 import '../../widgets/music/music_control_widget.dart';
 

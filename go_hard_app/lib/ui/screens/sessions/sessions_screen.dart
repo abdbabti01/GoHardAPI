@@ -5,7 +5,6 @@ import '../../../providers/exercises_provider.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/services/sync_service.dart';
 import '../../widgets/sessions/session_card.dart';
-import '../../widgets/common/sync_status_indicator.dart';
 import '../../widgets/common/offline_banner.dart';
 
 /// Sessions screen displaying list of workout sessions
