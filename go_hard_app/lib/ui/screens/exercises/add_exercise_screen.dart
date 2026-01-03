@@ -416,15 +416,15 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(30),
                       gradient: LinearGradient(
-                        colors: _isAdding
-                            ? [Colors.grey.shade400, Colors.grey.shade500]
-                            : [
-                                Theme.of(context).colorScheme.primary,
-                                Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.8),
-                              ],
+                        colors:
+                            _isAdding
+                                ? [Colors.grey.shade400, Colors.grey.shade500]
+                                : [
+                                  Theme.of(context).colorScheme.primary,
+                                  Theme.of(
+                                    context,
+                                  ).colorScheme.primary.withValues(alpha: 0.8),
+                                ],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
