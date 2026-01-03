@@ -87,11 +87,12 @@ class SessionsProvider extends ChangeNotifier {
         return null;
       }
 
-      // Create a new draft session
+      // Create a new draft session with today's date (no time conversion)
+      final now = DateTime.now();
       final newSession = Session(
         id: 0, // Will be assigned by server
         userId: userId,
-        date: DateTime.now().toUtc(),
+        date: DateTime(now.year, now.month, now.day),
         type: 'Workout',
         status: 'draft',
         notes: '',
