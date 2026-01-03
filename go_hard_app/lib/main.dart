@@ -133,19 +133,22 @@ void main() async {
               (_, authRepo, authService, localDb, previous) =>
                   previous ?? AuthProvider(authRepo, authService, localDb),
         ),
-        ChangeNotifierProxyProvider2<
+        ChangeNotifierProxyProvider3<
           SessionRepository,
           AuthService,
+          ConnectivityService,
           SessionsProvider
         >(
           create:
               (context) => SessionsProvider(
                 context.read<SessionRepository>(),
                 context.read<AuthService>(),
+                context.read<ConnectivityService>(),
               ),
           update:
-              (_, sessionRepo, authService, previous) =>
-                  previous ?? SessionsProvider(sessionRepo, authService),
+              (_, sessionRepo, authService, connectivity, previous) =>
+                  previous ??
+                  SessionsProvider(sessionRepo, authService, connectivity),
         ),
         ChangeNotifierProxyProvider<SessionRepository, ActiveWorkoutProvider>(
           create:

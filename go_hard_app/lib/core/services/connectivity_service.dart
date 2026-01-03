@@ -29,14 +29,14 @@ class ConnectivityService extends ChangeNotifier {
 
     // Check initial connectivity
     final initialResult = await _connectivity.checkConnectivity();
-    _isOnline = _hasInternetConnectivity([initialResult]);
+    _isOnline = _hasInternetConnectivity(initialResult);
 
     // Listen for connectivity changes
     _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
-      result,
+      results,
     ) {
       final wasOnline = _isOnline;
-      _isOnline = _hasInternetConnectivity([result]);
+      _isOnline = _hasInternetConnectivity(results);
 
       // Only emit if status changed
       if (wasOnline != _isOnline) {
@@ -101,8 +101,8 @@ class ConnectivityService extends ChangeNotifier {
 
   /// Manually check connectivity (useful for testing)
   Future<bool> checkConnectivity() async {
-    final result = await _connectivity.checkConnectivity();
-    _isOnline = _hasInternetConnectivity([result]);
+    final results = await _connectivity.checkConnectivity();
+    _isOnline = _hasInternetConnectivity(results);
     return _isOnline;
   }
 

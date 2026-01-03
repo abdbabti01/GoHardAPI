@@ -1,21 +1,39 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../data/models/session.dart';
 import '../data/repositories/session_repository.dart';
 import '../data/services/auth_service.dart';
+import '../core/services/connectivity_service.dart';
 
 /// Provider for sessions (workouts) management
 /// Replaces SessionsViewModel from MAUI app
 class SessionsProvider extends ChangeNotifier {
   final SessionRepository _sessionRepository;
   final AuthService _authService;
+  final ConnectivityService _connectivity;
 
   List<Session> _sessions = [];
   bool _isLoading = false;
   String? _errorMessage;
+  StreamSubscription<bool>? _connectivitySubscription;
 
-  SessionsProvider(this._sessionRepository, this._authService) {
+  SessionsProvider(
+    this._sessionRepository,
+    this._authService,
+    this._connectivity,
+  ) {
     // Auto-load sessions on initialization to cache them for offline use
     loadSessions();
+
+    // Listen for connectivity changes and refresh when going online
+    _connectivitySubscription = _connectivity.connectivityStream.listen((
+      isOnline,
+    ) {
+      if (isOnline) {
+        debugPrint('📡 Connection restored - refreshing sessions');
+        loadSessions(showLoading: false); // Refresh without loading indicator
+      }
+    });
   }
 
   // Getters
@@ -124,5 +142,11 @@ class SessionsProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 }
