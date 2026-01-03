@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/theme/app_theme.dart';
 import 'routes/app_router.dart';
-import 'routes/route_names.dart';
 import 'providers/auth_provider.dart';
 import 'ui/screens/main_screen.dart';
 import 'ui/screens/auth/login_screen.dart';
@@ -66,18 +65,14 @@ class _SplashScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // App logo
-            Image.asset(
-              'assets/logo.png',
-              width: 120,
-              height: 120,
-            ),
+            Image.asset('assets/logo.png', width: 120, height: 120),
             const SizedBox(height: 24),
             // App name
             Text(
               'GoHard',
-              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 48),
             // Loading indicator

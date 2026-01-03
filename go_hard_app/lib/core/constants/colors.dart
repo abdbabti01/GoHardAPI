@@ -4,7 +4,18 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._(); // Private constructor to prevent instantiation
 
-  // iOS System Colors
+  // GoHard Brand Colors - Monochrome from Logo
+  static const Color goHardBlack = Color(
+    0xFF000000,
+  ); // Pure black from logo background
+  static const Color goHardDarkGray = Color(0xFF1A1A1A); // Very dark gray
+  static const Color goHardWhite = Color(
+    0xFFFFFFFF,
+  ); // Pure white from logo text
+  static const Color goHardSilver = Color(0xFFB0B0B0); // Silver/gray from logo
+  static const Color goHardLightGray = Color(0xFFE5E5E5); // Light gray accent
+
+  // iOS System Colors (for compatibility)
   static const Color iosSystemBlue = Color(0xFF007AFF);
   static const Color iosSystemBlueLight = Color(0xFF5AC8FA);
   static const Color iosSystemBlueDark = Color(0xFF0051D5);
@@ -45,11 +56,13 @@ class AppColors {
   static const Color iosDarkGray3 = Color(0xFF38383A);
   static const Color iosDarkGray4 = Color(0xFF48484A);
 
-  // Primary Colors (aliased to iOS colors for compatibility)
-  static const Color primary = iosSystemBlue;
-  static const Color primaryDark = Color(0xFFAC99EA);
-  static const Color secondary = iosGray1;
-  static const Color tertiary = Color(0xFF2B0B98);
+  // Primary Colors - GoHard Brand (Monochrome from logo)
+  static const Color primary =
+      goHardBlack; // Black for light mode (matches logo background)
+  static const Color primaryDark =
+      goHardWhite; // White for dark mode (matches logo text)
+  static const Color secondary = goHardSilver; // Silver/gray accent
+  static const Color accent = goHardDarkGray; // Dark gray for accents
 
   // Basic Colors
   static const Color white = Colors.white;

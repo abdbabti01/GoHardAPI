@@ -11,9 +11,9 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.light,
 
-      // Color Scheme
+      // Color Scheme - GoHard Brand
       colorScheme: ColorScheme.light(
-        primary: AppColors.iosSystemBlue,
+        primary: AppColors.goHardBlack,
         secondary: AppColors.iosSystemGreen,
         error: AppColors.errorRed,
         surface: AppColors.iosSystemBackground,
@@ -51,7 +51,7 @@ class AppTheme {
       // Bottom Navigation Bar
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: AppColors.iosSystemBackground,
-        selectedItemColor: AppColors.iosSystemBlue,
+        selectedItemColor: AppColors.goHardBlack,
         unselectedItemColor: AppColors.iosGray6,
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
@@ -60,7 +60,7 @@ class AppTheme {
 
       // Floating Action Button
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.fitnessGradientStart,
+        backgroundColor: AppColors.goHardBlack,
         foregroundColor: Colors.white,
         elevation: 4,
         shape: CircleBorder(),
@@ -76,10 +76,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: AppColors.iosSystemBlue,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: AppColors.goHardBlack, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -94,7 +91,7 @@ class AppTheme {
       // Elevated Button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.iosSystemBlue,
+          backgroundColor: AppColors.goHardBlack,
           foregroundColor: Colors.white,
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
@@ -108,7 +105,7 @@ class AppTheme {
       // Text Button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.iosSystemBlue,
+          foregroundColor: AppColors.goHardBlack,
           textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
@@ -155,7 +152,7 @@ class AppTheme {
       // Chip
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.iosGray1,
-        selectedColor: AppColors.iosSystemBlue,
+        selectedColor: AppColors.goHardBlack,
         labelStyle: const TextStyle(color: AppColors.iosLabel),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -168,30 +165,30 @@ class AppTheme {
       useMaterial3: true,
       brightness: Brightness.dark,
 
-      // Color Scheme
+      // Color Scheme - GoHard Brand (Dark) - White on Black like logo
       colorScheme: ColorScheme.dark(
-        primary: AppColors.iosSystemBlue,
+        primary: AppColors.goHardWhite,
         secondary: AppColors.iosSystemGreen,
         error: AppColors.errorRed,
-        surface: AppColors.iosDarkSystemBackground,
-        surfaceContainerHighest: AppColors.iosDarkGray1,
-        onPrimary: Colors.white,
+        surface: AppColors.goHardBlack,
+        surfaceContainerHighest: AppColors.goHardDarkGray,
+        onPrimary: AppColors.goHardBlack,
         onSecondary: Colors.white,
         onError: Colors.white,
         onSurface: AppColors.iosDarkLabel,
       ),
 
       // Scaffold
-      scaffoldBackgroundColor: AppColors.iosDarkSystemBackground,
+      scaffoldBackgroundColor: AppColors.goHardBlack,
 
       // AppBar
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.iosDarkSystemBackground,
-        foregroundColor: AppColors.iosDarkLabel,
+        backgroundColor: AppColors.goHardBlack,
+        foregroundColor: AppColors.goHardWhite,
         elevation: 0,
         centerTitle: false,
         titleTextStyle: TextStyle(
-          color: AppColors.iosDarkLabel,
+          color: AppColors.goHardWhite,
           fontSize: 34,
           fontWeight: FontWeight.bold,
         ),
@@ -199,7 +196,7 @@ class AppTheme {
 
       // Card
       cardTheme: CardTheme(
-        color: AppColors.cardBackgroundDark,
+        color: AppColors.goHardDarkGray,
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -207,9 +204,9 @@ class AppTheme {
 
       // Bottom Navigation Bar
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.iosDarkSystemBackground,
-        selectedItemColor: AppColors.iosSystemBlue,
-        unselectedItemColor: AppColors.iosGray5,
+        backgroundColor: AppColors.goHardBlack,
+        selectedItemColor: AppColors.goHardWhite,
+        unselectedItemColor: AppColors.goHardSilver,
         showUnselectedLabels: true,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
@@ -217,8 +214,8 @@ class AppTheme {
 
       // Floating Action Button
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.fitnessGradientStart,
-        foregroundColor: Colors.white,
+        backgroundColor: AppColors.goHardWhite,
+        foregroundColor: AppColors.goHardBlack,
         elevation: 4,
         shape: CircleBorder(),
       ),
@@ -226,17 +223,14 @@ class AppTheme {
       // Input Decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.iosDarkGray2,
+        fillColor: AppColors.goHardDarkGray,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: AppColors.iosSystemBlue,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: AppColors.goHardWhite, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -251,8 +245,8 @@ class AppTheme {
       // Elevated Button
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.iosSystemBlue,
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.goHardWhite,
+          foregroundColor: AppColors.goHardBlack,
           elevation: 0,
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
           shape: RoundedRectangleBorder(
@@ -265,7 +259,7 @@ class AppTheme {
       // Text Button
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.iosSystemBlue,
+          foregroundColor: AppColors.goHardWhite,
           textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
@@ -275,27 +269,27 @@ class AppTheme {
         displayLarge: TextStyle(
           fontSize: 34,
           fontWeight: FontWeight.bold,
-          color: AppColors.iosDarkLabel,
+          color: AppColors.goHardWhite,
         ),
         displayMedium: TextStyle(
           fontSize: 28,
           fontWeight: FontWeight.bold,
-          color: AppColors.iosDarkLabel,
+          color: AppColors.goHardWhite,
         ),
         displaySmall: TextStyle(
           fontSize: 22,
           fontWeight: FontWeight.bold,
-          color: AppColors.iosDarkLabel,
+          color: AppColors.goHardWhite,
         ),
         headlineMedium: TextStyle(
           fontSize: 20,
           fontWeight: FontWeight.w600,
-          color: AppColors.iosDarkLabel,
+          color: AppColors.goHardWhite,
         ),
         titleLarge: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: AppColors.iosDarkLabel,
+          color: AppColors.goHardWhite,
         ),
         bodyLarge: TextStyle(fontSize: 17, color: AppColors.iosDarkLabel),
         bodyMedium: TextStyle(
@@ -317,9 +311,9 @@ class AppTheme {
 
       // Chip
       chipTheme: ChipThemeData(
-        backgroundColor: AppColors.iosDarkGray2,
-        selectedColor: AppColors.iosSystemBlue,
-        labelStyle: const TextStyle(color: AppColors.iosDarkLabel),
+        backgroundColor: AppColors.goHardDarkGray,
+        selectedColor: AppColors.goHardWhite,
+        labelStyle: const TextStyle(color: AppColors.goHardWhite),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
