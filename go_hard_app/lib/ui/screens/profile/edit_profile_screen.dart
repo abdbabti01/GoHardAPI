@@ -6,6 +6,7 @@ import '../../../providers/profile_provider.dart';
 import '../../../data/models/profile_update_request.dart';
 import '../../../core/enums/profile_enums.dart';
 import '../../../core/utils/unit_converter.dart';
+import '../../../core/constants/api_config.dart';
 
 /// Edit profile screen for updating user information
 class EditProfileScreen extends StatefulWidget {
@@ -396,7 +397,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 _selectedImage != null
                     ? FileImage(_selectedImage!)
                     : provider.currentUser?.profilePhotoUrl != null
-                    ? NetworkImage(provider.currentUser!.profilePhotoUrl!)
+                    ? NetworkImage(
+                      ApiConfig.getPhotoUrl(
+                        provider.currentUser!.profilePhotoUrl!,
+                      ),
+                    )
                     : null,
             child:
                 _selectedImage == null &&

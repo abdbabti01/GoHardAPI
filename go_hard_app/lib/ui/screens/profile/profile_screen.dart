@@ -4,6 +4,7 @@ import '../../../providers/profile_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/utils/unit_converter.dart';
+import '../../../core/constants/api_config.dart';
 import 'edit_profile_screen.dart';
 
 /// Profile screen for viewing user information and settings
@@ -215,7 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ).colorScheme.primary.withValues(alpha: 0.2),
           backgroundImage:
               user?.profilePhotoUrl != null
-                  ? NetworkImage(user!.profilePhotoUrl!)
+                  ? NetworkImage(ApiConfig.getPhotoUrl(user!.profilePhotoUrl!))
                   : null,
           child:
               user?.profilePhotoUrl == null

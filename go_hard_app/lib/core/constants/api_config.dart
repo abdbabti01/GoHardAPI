@@ -25,6 +25,28 @@ class ApiConfig {
     }
   }
 
+  /// Server URL without /api suffix (for static files like profile photos)
+  static String get serverUrl {
+    if (Platform.isIOS || Platform.isMacOS) {
+      return 'http://10.0.0.4:5121';
+    } else if (Platform.isAndroid) {
+      return 'http://10.0.2.2:5121';
+    } else {
+      return 'http://localhost:5121';
+    }
+  }
+
+  /// Get full URL for a profile photo
+  /// Converts relative paths like '/uploads/profiles/user_5.jpg'
+  /// to full URLs like 'http://10.0.2.2:5121/uploads/profiles/user_5.jpg'
+  static String getPhotoUrl(String? relativePath) {
+    if (relativePath == null || relativePath.isEmpty) return '';
+    // If it's already a full URL, return as-is
+    if (relativePath.startsWith('http')) return relativePath;
+    // Otherwise, prepend server URL
+    return '$serverUrl$relativePath';
+  }
+
   /// Connection timeout duration
   static const Duration connectTimeout = Duration(seconds: 10);
 
