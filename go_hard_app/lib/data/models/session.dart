@@ -52,11 +52,12 @@ class Session {
     // Parse the session using generated code
     final session = _$SessionFromJson(json);
 
-    // Reinterpret all datetimes as UTC (API sends UTC but JSON might parse as local)
+    // Reinterpret datetimes as UTC (API sends UTC but JSON might parse as local)
+    // NOTE: Do NOT convert the 'date' field - it's date-only and should stay in local timezone
     return Session(
       id: session.id,
       userId: session.userId,
-      date: _asUtc(session.date)!,
+      date: session.date,
       duration: session.duration,
       notes: session.notes,
       type: session.type,
