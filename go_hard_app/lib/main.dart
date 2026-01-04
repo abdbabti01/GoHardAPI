@@ -89,13 +89,31 @@ void main() async {
         ProxyProvider<ApiService, UserRepository>(
           update: (_, apiService, __) => UserRepository(apiService),
         ),
-        ProxyProvider2<ApiService, AuthService, ProfileRepository>(
+        ProxyProvider3<
+          ApiService,
+          AuthService,
+          ConnectivityService,
+          ProfileRepository
+        >(
           update:
-              (_, apiService, authService, __) =>
-                  ProfileRepository(apiService, authService),
+              (_, apiService, authService, connectivity, __) =>
+                  ProfileRepository(apiService, authService, connectivity),
         ),
-        ProxyProvider<ApiService, AnalyticsRepository>(
-          update: (_, apiService, __) => AnalyticsRepository(apiService),
+        ProxyProvider4<
+          ApiService,
+          LocalDatabaseService,
+          ConnectivityService,
+          AuthService,
+          AnalyticsRepository
+        >(
+          update:
+              (_, apiService, localDb, connectivity, authService, __) =>
+                  AnalyticsRepository(
+                    apiService,
+                    localDb,
+                    connectivity,
+                    authService,
+                  ),
         ),
 
         // Sync Service

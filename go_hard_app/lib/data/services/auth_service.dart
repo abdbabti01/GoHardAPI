@@ -10,6 +10,7 @@ class AuthService {
   static const String _userNameKey = 'user_name';
   static const String _userEmailKey = 'user_email';
   static const String _themePreferenceKey = 'theme_preference';
+  static const String _cachedProfileKey = 'cached_user_profile';
 
   /// Save authentication data to secure storage
   Future<void> saveToken({
@@ -98,6 +99,24 @@ class AuthService {
       return await _storage.read(key: _themePreferenceKey);
     } catch (e) {
       return null; // Default to system theme
+    }
+  }
+
+  /// Save user profile JSON to secure storage for offline access
+  Future<void> saveCachedProfile(String profileJson) async {
+    try {
+      await _storage.write(key: _cachedProfileKey, value: profileJson);
+    } catch (e) {
+      // Fail silently - cache is not critical
+    }
+  }
+
+  /// Get cached user profile JSON from secure storage
+  Future<String?> getCachedProfile() async {
+    try {
+      return await _storage.read(key: _cachedProfileKey);
+    } catch (e) {
+      return null;
     }
   }
 }
