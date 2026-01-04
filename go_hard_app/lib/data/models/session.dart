@@ -52,19 +52,20 @@ class Session {
     // Parse the session using generated code
     final session = _$SessionFromJson(json);
 
-    // Reinterpret datetimes as UTC (API sends UTC but JSON might parse as local)
+    // Reinterpret timestamp fields as UTC (API sends UTC but JSON might parse as local)
     // NOTE: Do NOT convert the 'date' field - it's date-only and should stay in local timezone
+    // Timestamps (startedAt, completedAt, pausedAt) MUST be UTC for proper time calculations
     return Session(
       id: session.id,
       userId: session.userId,
-      date: session.date,
+      date: session.date, // Keep in local timezone (date-only field)
       duration: session.duration,
       notes: session.notes,
       type: session.type,
       status: session.status,
-      startedAt: _asUtc(session.startedAt),
-      completedAt: _asUtc(session.completedAt),
-      pausedAt: _asUtc(session.pausedAt),
+      startedAt: _asUtc(session.startedAt), // Convert to UTC (timestamp)
+      completedAt: _asUtc(session.completedAt), // Convert to UTC (timestamp)
+      pausedAt: _asUtc(session.pausedAt), // Convert to UTC (timestamp)
       exercises: session.exercises,
     );
   }

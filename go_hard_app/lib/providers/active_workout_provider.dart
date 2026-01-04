@@ -3,11 +3,13 @@ import 'package:flutter/foundation.dart';
 import '../data/models/session.dart';
 import '../data/models/exercise.dart';
 import '../data/repositories/session_repository.dart';
+import '../core/services/connectivity_service.dart';
 
 /// Provider for active workout session with timer
 /// Replaces ActiveWorkoutViewModel from MAUI app
 class ActiveWorkoutProvider extends ChangeNotifier {
   final SessionRepository _sessionRepository;
+  final ConnectivityService? _connectivity;
 
   Session? _currentSession;
   bool _isLoading = false;
@@ -18,7 +20,22 @@ class ActiveWorkoutProvider extends ChangeNotifier {
   Duration _elapsedTime = Duration.zero;
   bool _isTimerRunning = false;
 
-  ActiveWorkoutProvider(this._sessionRepository);
+  // Connectivity subscription
+  StreamSubscription<bool>? _connectivitySubscription;
+
+  ActiveWorkoutProvider(this._sessionRepository, [this._connectivity]) {
+    // Listen for connectivity changes and refresh session when going online
+    _connectivitySubscription = _connectivity?.connectivityStream.listen((
+      isOnline,
+    ) {
+      if (isOnline && _currentSession != null) {
+        debugPrint(
+          '📡 Connection restored - refreshing active workout (ID: ${_currentSession!.id})',
+        );
+        loadSession(_currentSession!.id, showLoading: false);
+      }
+    });
+  }
 
   // Getters
   Session? get currentSession => _currentSession;
@@ -242,6 +259,7 @@ class ActiveWorkoutProvider extends ChangeNotifier {
   @override
   void dispose() {
     _stopTimer();
+    _connectivitySubscription?.cancel();
     super.dispose();
   }
 }

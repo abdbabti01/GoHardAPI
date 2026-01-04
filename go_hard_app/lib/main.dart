@@ -150,13 +150,19 @@ void main() async {
                   previous ??
                   SessionsProvider(sessionRepo, authService, connectivity),
         ),
-        ChangeNotifierProxyProvider<SessionRepository, ActiveWorkoutProvider>(
+        ChangeNotifierProxyProvider2<
+          SessionRepository,
+          ConnectivityService,
+          ActiveWorkoutProvider
+        >(
           create:
-              (context) =>
-                  ActiveWorkoutProvider(context.read<SessionRepository>()),
+              (context) => ActiveWorkoutProvider(
+                context.read<SessionRepository>(),
+                context.read<ConnectivityService>(),
+              ),
           update:
-              (_, sessionRepo, previous) =>
-                  previous ?? ActiveWorkoutProvider(sessionRepo),
+              (_, sessionRepo, connectivity, previous) =>
+                  previous ?? ActiveWorkoutProvider(sessionRepo, connectivity),
         ),
         ChangeNotifierProxyProvider<ExerciseRepository, ExercisesProvider>(
           create:
