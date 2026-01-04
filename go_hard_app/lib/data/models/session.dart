@@ -11,6 +11,7 @@ class Session {
   final int? duration;
   final String? notes;
   final String? type;
+  final String? name;
   final String status;
   final DateTime? startedAt;
   final DateTime? completedAt;
@@ -24,6 +25,7 @@ class Session {
     this.duration,
     this.notes,
     this.type,
+    this.name,
     this.status = 'draft',
     this.startedAt,
     this.completedAt,
@@ -73,6 +75,7 @@ class Session {
     int? duration,
     String? notes,
     String? type,
+    String? name,
     String? status,
     DateTime? startedAt,
     DateTime? completedAt,
@@ -86,6 +89,7 @@ class Session {
       duration: duration ?? this.duration,
       notes: notes ?? this.notes,
       type: type ?? this.type,
+      name: name ?? this.name,
       status: status ?? this.status,
       startedAt: startedAt ?? this.startedAt,
       completedAt: completedAt ?? this.completedAt,

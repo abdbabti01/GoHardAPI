@@ -76,6 +76,52 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     }
   }
 
+  Future<void> _handleEditWorkoutName() async {
+    final provider = context.read<ActiveWorkoutProvider>();
+    final currentName = provider.currentSession?.name;
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Edit Workout Name'),
+            content: TextField(
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Workout Name',
+                hintText: 'e.g., Push Day, Leg Day',
+              ),
+              controller: TextEditingController(text: currentName),
+              textCapitalization: TextCapitalization.words,
+              onSubmitted: (value) => Navigator.of(context).pop(value),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  // Get the text from the controller in the dialog
+                  final controller =
+                      (context
+                                  .findAncestorWidgetOfExactType<AlertDialog>()
+                                  ?.content
+                              as TextField?)
+                          ?.controller;
+                  Navigator.of(context).pop(controller?.text);
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+    );
+
+    if (newName != null && newName.trim().isNotEmpty && mounted) {
+      await provider.updateWorkoutName(newName.trim());
+    }
+  }
+
   void _handleExerciseTap(int exerciseId) {
     Navigator.of(context).pushNamed(RouteNames.logSets, arguments: exerciseId);
   }
@@ -120,7 +166,21 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
           },
           child: Scaffold(
             appBar: AppBar(
-              title: const Text('Active Workout'),
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      provider.currentSession?.name ?? 'Active Workout',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit, size: 20),
+                    onPressed: _handleEditWorkoutName,
+                    tooltip: 'Edit Workout Name',
+                  ),
+                ],
+              ),
               actions: [
                 IconButton(
                   icon: const Icon(Icons.check_circle),

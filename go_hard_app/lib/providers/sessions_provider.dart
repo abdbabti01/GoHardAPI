@@ -95,7 +95,7 @@ class SessionsProvider extends ChangeNotifier {
   }
 
   /// Start a new workout session
-  Future<Session?> startNewWorkout() async {
+  Future<Session?> startNewWorkout({String? name}) async {
     try {
       // Get current user ID
       final userId = await _authService.getUserId();
@@ -114,6 +114,7 @@ class SessionsProvider extends ChangeNotifier {
         type: 'Workout',
         status: 'draft',
         notes: '',
+        name: name, // Set the workout name
       );
 
       final createdSession = await _sessionRepository.createSession(newSession);

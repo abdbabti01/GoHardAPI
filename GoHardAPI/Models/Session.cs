@@ -20,6 +20,9 @@ namespace GoHardAPI.Models
         [MaxLength(50)]
         public string? Type { get; set; } // e.g., "Strength", "Cardio", "Mixed"
 
+        [MaxLength(100)]
+        public string? Name { get; set; } // Custom workout name e.g., "Pull Day", "Leg Day"
+
         [MaxLength(20)]
         public string Status { get; set; } = "draft";  // "draft", "in_progress", "completed"
 

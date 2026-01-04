@@ -381,6 +381,7 @@ class SessionRepository {
       duration: session.duration,
       notes: session.notes,
       type: session.type,
+      name: session.name,
       status: session.status,
       startedAt: session.startedAt,
       completedAt: session.completedAt,
@@ -402,6 +403,7 @@ class SessionRepository {
       duration: localSession.duration,
       notes: localSession.notes,
       type: localSession.type,
+      name: localSession.name,
       status: localSession.status,
       startedAt: localSession.startedAt,
       completedAt: localSession.completedAt,
@@ -712,6 +714,103 @@ class SessionRepository {
       // Delete the session
       await db.localSessions.delete(localSession.localId);
     });
+  }
+
+  /// Update session name
+  /// Optimistic update: updates locally first, syncs to server if online
+  Future<Session> updateSessionName(int id, String name) async {
+    final Isar db = _localDb.database;
+
+    // Find local session (id could be localId or serverId)
+    var localSession = await db.localSessions.get(id);
+    localSession ??=
+        await db.localSessions.filter().serverIdEqualTo(id).findFirst();
+
+    if (localSession == null) {
+      throw Exception('Session not found: $id');
+    }
+
+    // ALWAYS update locally first for instant response
+    await db.writeTxn(() async {
+      localSession!.name = name;
+      localSession.lastModifiedLocal = DateTime.now();
+      localSession.isSynced = false;
+      // Only mark as pending_update if session already exists on server
+      if (localSession.serverId != null) {
+        localSession.syncStatus = 'pending_update';
+      }
+      await db.localSessions.put(localSession);
+    });
+
+    debugPrint('✏️ Session name updated locally to: $name');
+
+    // Then sync to server in background if online (don't block)
+    if (_connectivity.isOnline && localSession.serverId != null) {
+      _syncSessionNameToServer(db, localSession.serverId!, name)
+          .then((_) {
+            debugPrint('✅ Background sync: Updated session name on server');
+          })
+          .catchError((e) {
+            debugPrint('⚠️ Background sync failed, will retry later: $e');
+          });
+    } else {
+      debugPrint('📴 Offline - session name will sync later');
+    }
+
+    // Load exercises to include in returned session
+    final localExercises =
+        await db.localExercises
+            .filter()
+            .sessionLocalIdEqualTo(localSession.localId)
+            .findAll();
+
+    final exercises =
+        localExercises
+            .map((localEx) => ModelMapper.localToExercise(localEx))
+            .toList();
+
+    return ModelMapper.localToSession(localSession, exercises: exercises);
+  }
+
+  /// Background sync: Update session name on server
+  Future<void> _syncSessionNameToServer(
+    Isar db,
+    int serverId,
+    String name,
+  ) async {
+    try {
+      // Fetch the current session to send full data (required by PUT)
+      final session =
+          await db.localSessions.filter().serverIdEqualTo(serverId).findFirst();
+
+      if (session == null) return;
+
+      // Convert to API model
+      final apiSession = ModelMapper.localToSession(session);
+      final updateData = apiSession.toJson();
+      updateData['name'] = name; // Ensure name is updated
+
+      await _apiService.put<void>(
+        ApiConfig.sessionById(serverId),
+        data: updateData,
+      );
+
+      // Update sync status in local DB
+      await db.writeTxn(() async {
+        final localSession =
+            await db.localSessions
+                .filter()
+                .serverIdEqualTo(serverId)
+                .findFirst();
+        if (localSession != null) {
+          localSession.isSynced = true;
+          localSession.syncStatus = 'synced';
+          await db.localSessions.put(localSession);
+        }
+      });
+    } catch (e) {
+      rethrow; // Let caller handle error
+    }
   }
 
   /// Add exercise to session

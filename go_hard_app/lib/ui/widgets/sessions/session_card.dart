@@ -41,25 +41,41 @@ class SessionCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header row with date and status
+                // Header row with name/date and status
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Date
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 16,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _formatDate(session.date),
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                      ],
+                    // Name and date
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Workout name
+                          Text(
+                            session.name ?? _getDefaultName(),
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 4),
+                          // Date
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.calendar_today,
+                                size: 14,
+                                color: Colors.grey.shade600,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _formatDate(session.date),
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                     // Status badge
                     StatusBadge(status: session.status),
@@ -187,6 +203,27 @@ class SessionCard extends StatelessWidget {
             ],
           ),
     );
+  }
+
+  String _getDefaultName() {
+    // Generate default name based on date
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final sessionDate = DateTime(
+      session.date.year,
+      session.date.month,
+      session.date.day,
+    );
+
+    final daysDifference = today.difference(sessionDate).inDays;
+
+    if (daysDifference == 0) {
+      return 'Today\'s Workout';
+    } else if (daysDifference == 1) {
+      return 'Yesterday\'s Workout';
+    } else {
+      return 'Workout';
+    }
   }
 
   String _formatDate(DateTime date) {

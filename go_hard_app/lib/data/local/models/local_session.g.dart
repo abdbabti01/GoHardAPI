@@ -40,36 +40,37 @@ const LocalSessionSchema = CollectionSchema(
       name: r'lastSyncAttempt',
       type: IsarType.dateTime,
     ),
-    r'notes': PropertySchema(id: 7, name: r'notes', type: IsarType.string),
+    r'name': PropertySchema(id: 7, name: r'name', type: IsarType.string),
+    r'notes': PropertySchema(id: 8, name: r'notes', type: IsarType.string),
     r'pausedAt': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'pausedAt',
       type: IsarType.dateTime,
     ),
-    r'serverId': PropertySchema(id: 9, name: r'serverId', type: IsarType.long),
+    r'serverId': PropertySchema(id: 10, name: r'serverId', type: IsarType.long),
     r'startedAt': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'startedAt',
       type: IsarType.dateTime,
     ),
-    r'status': PropertySchema(id: 11, name: r'status', type: IsarType.string),
+    r'status': PropertySchema(id: 12, name: r'status', type: IsarType.string),
     r'syncError': PropertySchema(
-      id: 12,
+      id: 13,
       name: r'syncError',
       type: IsarType.string,
     ),
     r'syncRetryCount': PropertySchema(
-      id: 13,
+      id: 14,
       name: r'syncRetryCount',
       type: IsarType.long,
     ),
     r'syncStatus': PropertySchema(
-      id: 14,
+      id: 15,
       name: r'syncStatus',
       type: IsarType.string,
     ),
-    r'type': PropertySchema(id: 15, name: r'type', type: IsarType.string),
-    r'userId': PropertySchema(id: 16, name: r'userId', type: IsarType.long),
+    r'type': PropertySchema(id: 16, name: r'type', type: IsarType.string),
+    r'userId': PropertySchema(id: 17, name: r'userId', type: IsarType.long),
   },
   estimateSize: _localSessionEstimateSize,
   serialize: _localSessionSerialize,
@@ -145,6 +146,12 @@ int _localSessionEstimateSize(
 ) {
   var bytesCount = offsets.last;
   {
+    final value = object.name;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
     final value = object.notes;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
@@ -180,16 +187,17 @@ void _localSessionSerialize(
   writer.writeDateTime(offsets[4], object.lastModifiedLocal);
   writer.writeDateTime(offsets[5], object.lastModifiedServer);
   writer.writeDateTime(offsets[6], object.lastSyncAttempt);
-  writer.writeString(offsets[7], object.notes);
-  writer.writeDateTime(offsets[8], object.pausedAt);
-  writer.writeLong(offsets[9], object.serverId);
-  writer.writeDateTime(offsets[10], object.startedAt);
-  writer.writeString(offsets[11], object.status);
-  writer.writeString(offsets[12], object.syncError);
-  writer.writeLong(offsets[13], object.syncRetryCount);
-  writer.writeString(offsets[14], object.syncStatus);
-  writer.writeString(offsets[15], object.type);
-  writer.writeLong(offsets[16], object.userId);
+  writer.writeString(offsets[7], object.name);
+  writer.writeString(offsets[8], object.notes);
+  writer.writeDateTime(offsets[9], object.pausedAt);
+  writer.writeLong(offsets[10], object.serverId);
+  writer.writeDateTime(offsets[11], object.startedAt);
+  writer.writeString(offsets[12], object.status);
+  writer.writeString(offsets[13], object.syncError);
+  writer.writeLong(offsets[14], object.syncRetryCount);
+  writer.writeString(offsets[15], object.syncStatus);
+  writer.writeString(offsets[16], object.type);
+  writer.writeLong(offsets[17], object.userId);
 }
 
 LocalSession _localSessionDeserialize(
@@ -206,16 +214,17 @@ LocalSession _localSessionDeserialize(
     lastModifiedLocal: reader.readDateTime(offsets[4]),
     lastModifiedServer: reader.readDateTimeOrNull(offsets[5]),
     lastSyncAttempt: reader.readDateTimeOrNull(offsets[6]),
-    notes: reader.readStringOrNull(offsets[7]),
-    pausedAt: reader.readDateTimeOrNull(offsets[8]),
-    serverId: reader.readLongOrNull(offsets[9]),
-    startedAt: reader.readDateTimeOrNull(offsets[10]),
-    status: reader.readStringOrNull(offsets[11]) ?? 'draft',
-    syncError: reader.readStringOrNull(offsets[12]),
-    syncRetryCount: reader.readLongOrNull(offsets[13]) ?? 0,
-    syncStatus: reader.readStringOrNull(offsets[14]) ?? 'pending_create',
-    type: reader.readStringOrNull(offsets[15]),
-    userId: reader.readLong(offsets[16]),
+    name: reader.readStringOrNull(offsets[7]),
+    notes: reader.readStringOrNull(offsets[8]),
+    pausedAt: reader.readDateTimeOrNull(offsets[9]),
+    serverId: reader.readLongOrNull(offsets[10]),
+    startedAt: reader.readDateTimeOrNull(offsets[11]),
+    status: reader.readStringOrNull(offsets[12]) ?? 'draft',
+    syncError: reader.readStringOrNull(offsets[13]),
+    syncRetryCount: reader.readLongOrNull(offsets[14]) ?? 0,
+    syncStatus: reader.readStringOrNull(offsets[15]) ?? 'pending_create',
+    type: reader.readStringOrNull(offsets[16]),
+    userId: reader.readLong(offsets[17]),
   );
   object.localId = id;
   return object;
@@ -245,22 +254,24 @@ P _localSessionDeserializeProp<P>(
     case 7:
       return (reader.readStringOrNull(offset)) as P;
     case 8:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 9:
-      return (reader.readLongOrNull(offset)) as P;
-    case 10:
       return (reader.readDateTimeOrNull(offset)) as P;
+    case 10:
+      return (reader.readLongOrNull(offset)) as P;
     case 11:
-      return (reader.readStringOrNull(offset) ?? 'draft') as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 12:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readStringOrNull(offset) ?? 'draft') as P;
     case 13:
-      return (reader.readLongOrNull(offset) ?? 0) as P;
-    case 14:
-      return (reader.readStringOrNull(offset) ?? 'pending_create') as P;
-    case 15:
       return (reader.readStringOrNull(offset)) as P;
+    case 14:
+      return (reader.readLongOrNull(offset) ?? 0) as P;
+    case 15:
+      return (reader.readStringOrNull(offset) ?? 'pending_create') as P;
     case 16:
+      return (reader.readStringOrNull(offset)) as P;
+    case 17:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1114,6 +1125,170 @@ extension LocalSessionQueryFilter
           upper: upper,
           includeUpper: includeUpper,
         ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition> nameIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'name'),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition>
+  nameIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'name'),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition> nameEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'name',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition>
+  nameGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'name',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition> nameLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'name',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition> nameBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'name',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition>
+  nameStartsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'name',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition> nameEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'name',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition> nameContains(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'name',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition> nameMatches(
+    String pattern, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'name',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition>
+  nameIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'name', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterFilterCondition>
+  nameIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'name', value: ''),
       );
     });
   }
@@ -2320,6 +2495,18 @@ extension LocalSessionQuerySortBy
     });
   }
 
+  QueryBuilder<LocalSession, LocalSession, QAfterSortBy> sortByName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'name', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterSortBy> sortByNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'name', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalSession, LocalSession, QAfterSortBy> sortByNotes() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'notes', Sort.asc);
@@ -2549,6 +2736,18 @@ extension LocalSessionQuerySortThenBy
     });
   }
 
+  QueryBuilder<LocalSession, LocalSession, QAfterSortBy> thenByName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'name', Sort.asc);
+    });
+  }
+
+  QueryBuilder<LocalSession, LocalSession, QAfterSortBy> thenByNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'name', Sort.desc);
+    });
+  }
+
   QueryBuilder<LocalSession, LocalSession, QAfterSortBy> thenByNotes() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'notes', Sort.asc);
@@ -2720,6 +2919,14 @@ extension LocalSessionQueryWhereDistinct
     });
   }
 
+  QueryBuilder<LocalSession, LocalSession, QDistinct> distinctByName({
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'name', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<LocalSession, LocalSession, QDistinct> distinctByNotes({
     bool caseSensitive = true,
   }) {
@@ -2843,6 +3050,12 @@ extension LocalSessionQueryProperty
   lastSyncAttemptProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'lastSyncAttempt');
+    });
+  }
+
+  QueryBuilder<LocalSession, String?, QQueryOperations> nameProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'name');
     });
   }
 

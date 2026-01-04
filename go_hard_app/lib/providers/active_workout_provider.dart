@@ -225,6 +225,26 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     }
   }
 
+  /// Update workout name
+  Future<bool> updateWorkoutName(String name) async {
+    if (_currentSession == null) return false;
+
+    try {
+      _currentSession = await _sessionRepository.updateSessionName(
+        _currentSession!.id,
+        name,
+      );
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage =
+          'Failed to update workout name: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Update workout name error: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Add exercise to current session
   Future<void> addExercise(int exerciseTemplateId) async {
     if (_currentSession == null) return;

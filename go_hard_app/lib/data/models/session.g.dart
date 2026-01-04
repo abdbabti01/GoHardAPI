@@ -13,6 +13,7 @@ Session _$SessionFromJson(Map<String, dynamic> json) => Session(
   duration: (json['duration'] as num?)?.toInt(),
   notes: json['notes'] as String?,
   type: json['type'] as String?,
+  name: json['name'] as String?,
   status: json['status'] as String? ?? 'draft',
   startedAt:
       json['startedAt'] == null
@@ -40,6 +41,7 @@ Map<String, dynamic> _$SessionToJson(Session instance) => <String, dynamic>{
   'duration': instance.duration,
   'notes': instance.notes,
   'type': instance.type,
+  'name': instance.name,
   'status': instance.status,
   'startedAt': instance.startedAt?.toIso8601String(),
   'completedAt': instance.completedAt?.toIso8601String(),

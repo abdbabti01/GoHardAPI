@@ -29,6 +29,9 @@ class LocalSession {
   /// Type of workout (e.g., 'strength', 'cardio')
   String? type;
 
+  /// Custom workout name (e.g., 'Pull Day', 'Leg Day')
+  String? name;
+
   /// Session status: 'draft', 'in_progress', 'completed'
   @Index()
   String status;
@@ -75,6 +78,7 @@ class LocalSession {
     this.duration,
     this.notes,
     this.type,
+    this.name,
     this.status = 'draft',
     this.startedAt,
     this.completedAt,

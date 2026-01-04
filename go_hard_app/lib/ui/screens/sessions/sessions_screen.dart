@@ -4,7 +4,9 @@ import '../../../providers/sessions_provider.dart';
 import '../../../providers/exercises_provider.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/services/sync_service.dart';
+import '../../../core/utils/date_utils.dart';
 import '../../widgets/sessions/session_card.dart';
+import '../../widgets/sessions/workout_name_dialog.dart';
 import '../../widgets/common/offline_banner.dart';
 
 /// Sessions screen displaying list of workout sessions
@@ -43,8 +45,13 @@ class _SessionsScreenState extends State<SessionsScreen> {
   }
 
   Future<void> _handleStartNewWorkout() async {
+    // Show dialog to select workout name
+    final workoutName = await _showWorkoutNameDialog();
+
+    if (workoutName == null || !mounted) return; // User cancelled or unmounted
+
     final provider = context.read<SessionsProvider>();
-    final session = await provider.startNewWorkout();
+    final session = await provider.startNewWorkout(name: workoutName);
 
     if (session != null && mounted) {
       // Navigate to active workout screen and reload sessions when returning
@@ -57,6 +64,13 @@ class _SessionsScreenState extends State<SessionsScreen> {
         await provider.loadSessions();
       }
     }
+  }
+
+  Future<String?> _showWorkoutNameDialog() async {
+    return showDialog<String>(
+      context: context,
+      builder: (context) => const WorkoutNameDialog(),
+    );
   }
 
   Future<void> _handleDeleteSession(int sessionId) async {
@@ -80,6 +94,66 @@ class _SessionsScreenState extends State<SessionsScreen> {
         context,
       ).pushNamed(RouteNames.sessionDetail, arguments: sessionId);
     }
+  }
+
+  /// Calculate total items in the grouped list (headers + sessions)
+  int _calculateTotalItems(
+    Map<String, List<dynamic>> grouped,
+    List<String> labels,
+  ) {
+    int total = 0;
+    for (final label in labels) {
+      total += 1; // Header
+      total += grouped[label]!.length; // Sessions in this week
+    }
+    return total;
+  }
+
+  /// Build list item for grouped display (header or session card)
+  Widget _buildGroupedListItem(
+    int index,
+    Map<String, List<dynamic>> grouped,
+    List<String> labels,
+  ) {
+    int currentIndex = 0;
+
+    for (final label in labels) {
+      // Check if this index is the header
+      if (index == currentIndex) {
+        return _buildWeekHeader(label);
+      }
+      currentIndex++;
+
+      // Check if this index is a session in this week
+      final sessionsInWeek = grouped[label]!;
+      if (index < currentIndex + sessionsInWeek.length) {
+        final sessionIndex = index - currentIndex;
+        final session = sessionsInWeek[sessionIndex];
+        return SessionCard(
+          session: session,
+          onTap: () => _handleSessionTap(session.id, session.status),
+          onDelete: () => _handleDeleteSession(session.id),
+        );
+      }
+      currentIndex += sessionsInWeek.length;
+    }
+
+    // Fallback (should never reach here)
+    return const SizedBox.shrink();
+  }
+
+  /// Build week header widget
+  Widget _buildWeekHeader(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
   }
 
   @override
@@ -177,20 +251,28 @@ class _SessionsScreenState extends State<SessionsScreen> {
                   );
                 }
 
-                // Sessions list with pull-to-refresh
+                // Sessions list with pull-to-refresh (grouped by week)
+                final groupedSessions = DateGroupingUtils.groupSessionsByWeek(
+                  provider.sessions,
+                );
+                final weekLabels = DateGroupingUtils.getOrderedWeekLabels(
+                  groupedSessions,
+                );
+
                 return RefreshIndicator(
                   onRefresh: _handleRefresh,
                   child: ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: provider.sessions.length,
                     padding: const EdgeInsets.only(top: 8, bottom: 80),
+                    itemCount: _calculateTotalItems(
+                      groupedSessions,
+                      weekLabels,
+                    ),
                     itemBuilder: (context, index) {
-                      final session = provider.sessions[index];
-                      return SessionCard(
-                        session: session,
-                        onTap:
-                            () => _handleSessionTap(session.id, session.status),
-                        onDelete: () => _handleDeleteSession(session.id),
+                      return _buildGroupedListItem(
+                        index,
+                        groupedSessions,
+                        weekLabels,
                       );
                     },
                   ),
