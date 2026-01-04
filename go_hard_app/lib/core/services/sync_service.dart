@@ -198,6 +198,7 @@ class SyncService {
           'duration': localSession.duration,
           'notes': localSession.notes,
           'type': localSession.type,
+          'name': localSession.name,
           'status': localSession.status,
           'startedAt': localSession.startedAt?.toIso8601String(),
           'completedAt': localSession.completedAt?.toIso8601String(),
@@ -266,6 +267,7 @@ class SyncService {
           localSession.notes = serverData['notes'] as String?;
           localSession.duration = serverData['duration'] as int?;
           localSession.type = serverData['type'] as String?;
+          localSession.name = serverData['name'] as String?;
           localSession.startedAt =
               serverData['startedAt'] != null
                   ? DateTime.parse(serverData['startedAt'] as String)
@@ -291,10 +293,22 @@ class SyncService {
         return;
       }
 
-      // No conflict - update server with local changes
-      await _apiService.patch<void>(
-        ApiConfig.sessionStatus(localSession.serverId!),
-        data: {'status': localSession.status},
+      // No conflict - update server with local changes (full PUT)
+      await _apiService.put<void>(
+        ApiConfig.sessionById(localSession.serverId!),
+        data: {
+          'id': localSession.serverId!,
+          'userId': localSession.userId,
+          'date': localSession.date.toIso8601String(),
+          'duration': localSession.duration,
+          'notes': localSession.notes,
+          'type': localSession.type,
+          'name': localSession.name,
+          'status': localSession.status,
+          'startedAt': localSession.startedAt?.toIso8601String(),
+          'completedAt': localSession.completedAt?.toIso8601String(),
+          'pausedAt': localSession.pausedAt?.toIso8601String(),
+        },
       );
 
       // Mark as synced

@@ -79,6 +79,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   Future<void> _handleEditWorkoutName() async {
     final provider = context.read<ActiveWorkoutProvider>();
     final currentName = provider.currentSession?.name;
+    final controller = TextEditingController(text: currentName);
 
     final newName = await showDialog<String>(
       context: context,
@@ -91,9 +92,11 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 labelText: 'Workout Name',
                 hintText: 'e.g., Push Day, Leg Day',
               ),
-              controller: TextEditingController(text: currentName),
+              controller: controller,
               textCapitalization: TextCapitalization.words,
-              onSubmitted: (value) => Navigator.of(context).pop(value),
+              onSubmitted: (value) {
+                Navigator.of(context).pop(value);
+              },
             ),
             actions: [
               TextButton(
@@ -102,20 +105,16 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
               ),
               TextButton(
                 onPressed: () {
-                  // Get the text from the controller in the dialog
-                  final controller =
-                      (context
-                                  .findAncestorWidgetOfExactType<AlertDialog>()
-                                  ?.content
-                              as TextField?)
-                          ?.controller;
-                  Navigator.of(context).pop(controller?.text);
+                  Navigator.of(context).pop(controller.text);
                 },
                 child: const Text('Save'),
               ),
             ],
           ),
     );
+
+    // Dispose the controller
+    controller.dispose();
 
     if (newName != null && newName.trim().isNotEmpty && mounted) {
       await provider.updateWorkoutName(newName.trim());
