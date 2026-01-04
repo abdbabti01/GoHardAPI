@@ -1,15 +1,18 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../data/models/user.dart';
 import '../data/models/profile_update_request.dart';
 import '../data/repositories/profile_repository.dart';
 import '../data/services/auth_service.dart';
+import '../core/services/connectivity_service.dart';
 
 /// Provider for user profile management
 /// Replaces ProfileViewModel from MAUI app
 class ProfileProvider extends ChangeNotifier {
   final ProfileRepository _profileRepository;
   final AuthService _authService;
+  final ConnectivityService? _connectivity;
 
   User? _currentUser;
   bool _isLoading = false;
@@ -18,9 +21,25 @@ class ProfileProvider extends ChangeNotifier {
   String? _errorMessage;
   String? _cachedThemePreference; // Theme loaded from local storage
 
-  ProfileProvider(this._profileRepository, this._authService) {
+  StreamSubscription<bool>? _connectivitySubscription;
+
+  ProfileProvider(
+    this._profileRepository,
+    this._authService, [
+    this._connectivity,
+  ]) {
     // Load theme from local storage on init
     _loadCachedTheme();
+
+    // Listen for connectivity changes and refresh when going online
+    _connectivitySubscription = _connectivity?.connectivityStream.listen((
+      isOnline,
+    ) {
+      if (isOnline && _currentUser != null) {
+        debugPrint('📡 Connection restored - refreshing profile');
+        loadUserProfile();
+      }
+    });
   }
 
   /// Load theme preference from local storage (fast, offline-first)
@@ -179,5 +198,11 @@ class ProfileProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 }

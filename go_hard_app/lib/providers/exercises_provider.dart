@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../data/models/exercise_template.dart';
 import '../data/repositories/exercise_repository.dart';
+import '../core/services/connectivity_service.dart';
 
 /// Provider for exercise library browsing
 /// Replaces ExercisesViewModel from MAUI app
 class ExercisesProvider extends ChangeNotifier {
   final ExerciseRepository _exerciseRepository;
+  final ConnectivityService? _connectivity;
 
   List<ExerciseTemplate> _exercises = [];
   List<ExerciseTemplate> _filteredExercises = [];
@@ -15,9 +18,21 @@ class ExercisesProvider extends ChangeNotifier {
   String? _selectedCategory;
   String? _selectedMuscleGroup;
 
-  ExercisesProvider(this._exerciseRepository) {
+  StreamSubscription<bool>? _connectivitySubscription;
+
+  ExercisesProvider(this._exerciseRepository, [this._connectivity]) {
     // Auto-load exercises on initialization to cache them for offline use
     loadExercises();
+
+    // Listen for connectivity changes and refresh when going online
+    _connectivitySubscription = _connectivity?.connectivityStream.listen((
+      isOnline,
+    ) {
+      if (isOnline) {
+        debugPrint('📡 Connection restored - refreshing exercise library');
+        loadExercises(showLoading: false);
+      }
+    });
   }
 
   // Getters
@@ -103,5 +118,11 @@ class ExercisesProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _connectivitySubscription?.cancel();
+    super.dispose();
   }
 }

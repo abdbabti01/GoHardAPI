@@ -31,30 +31,23 @@ class Session {
     this.exercises = const [],
   });
 
-  // Helper method to reinterpret datetime as UTC (not convert)
-  static DateTime? _asUtc(DateTime? dt) {
+  // Helper method to ensure datetime is in UTC (proper conversion if needed)
+  static DateTime? _toUtc(DateTime? dt) {
     if (dt == null) return null;
+    // If already UTC, return as-is
     if (dt.isUtc) return dt;
-    // Reinterpret the same values as UTC instead of converting
-    return DateTime.utc(
-      dt.year,
-      dt.month,
-      dt.day,
-      dt.hour,
-      dt.minute,
-      dt.second,
-      dt.millisecond,
-      dt.microsecond,
-    );
+    // Convert local time to UTC (this preserves the actual moment in time)
+    return dt.toUtc();
   }
 
   factory Session.fromJson(Map<String, dynamic> json) {
     // Parse the session using generated code
     final session = _$SessionFromJson(json);
 
-    // Reinterpret timestamp fields as UTC (API sends UTC but JSON might parse as local)
+    // Convert timestamp fields to UTC using proper conversion
     // NOTE: Do NOT convert the 'date' field - it's date-only and should stay in local timezone
     // Timestamps (startedAt, completedAt, pausedAt) MUST be UTC for proper time calculations
+    // Using toUtc() instead of reinterpretation to handle JSON parser timezone conversions
     return Session(
       id: session.id,
       userId: session.userId,
@@ -63,9 +56,9 @@ class Session {
       notes: session.notes,
       type: session.type,
       status: session.status,
-      startedAt: _asUtc(session.startedAt), // Convert to UTC (timestamp)
-      completedAt: _asUtc(session.completedAt), // Convert to UTC (timestamp)
-      pausedAt: _asUtc(session.pausedAt), // Convert to UTC (timestamp)
+      startedAt: _toUtc(session.startedAt), // Convert to UTC (timestamp)
+      completedAt: _toUtc(session.completedAt), // Convert to UTC (timestamp)
+      pausedAt: _toUtc(session.pausedAt), // Convert to UTC (timestamp)
       exercises: session.exercises,
     );
   }

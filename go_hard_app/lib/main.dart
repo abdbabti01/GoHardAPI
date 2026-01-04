@@ -164,13 +164,19 @@ void main() async {
               (_, sessionRepo, connectivity, previous) =>
                   previous ?? ActiveWorkoutProvider(sessionRepo, connectivity),
         ),
-        ChangeNotifierProxyProvider<ExerciseRepository, ExercisesProvider>(
+        ChangeNotifierProxyProvider2<
+          ExerciseRepository,
+          ConnectivityService,
+          ExercisesProvider
+        >(
           create:
-              (context) =>
-                  ExercisesProvider(context.read<ExerciseRepository>()),
+              (context) => ExercisesProvider(
+                context.read<ExerciseRepository>(),
+                context.read<ConnectivityService>(),
+              ),
           update:
-              (_, exerciseRepo, previous) =>
-                  previous ?? ExercisesProvider(exerciseRepo),
+              (_, exerciseRepo, connectivity, previous) =>
+                  previous ?? ExercisesProvider(exerciseRepo, connectivity),
         ),
         ChangeNotifierProxyProvider<ExerciseRepository, ExerciseDetailProvider>(
           create:
@@ -187,19 +193,22 @@ void main() async {
               (_, exerciseRepo, previous) =>
                   previous ?? LogSetsProvider(exerciseRepo),
         ),
-        ChangeNotifierProxyProvider2<
+        ChangeNotifierProxyProvider3<
           ProfileRepository,
           AuthService,
+          ConnectivityService,
           ProfileProvider
         >(
           create:
               (context) => ProfileProvider(
                 context.read<ProfileRepository>(),
                 context.read<AuthService>(),
+                context.read<ConnectivityService>(),
               ),
           update:
-              (_, profileRepo, authService, previous) =>
-                  previous ?? ProfileProvider(profileRepo, authService),
+              (_, profileRepo, authService, connectivity, previous) =>
+                  previous ??
+                  ProfileProvider(profileRepo, authService, connectivity),
         ),
         ChangeNotifierProxyProvider<AnalyticsRepository, AnalyticsProvider>(
           create:
