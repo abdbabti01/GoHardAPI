@@ -65,6 +65,196 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     }
   }
 
+  Future<void> _saveWorkoutPlan() async {
+    final navigator = Navigator.of(context);
+    final chatProvider = context.read<ChatProvider>();
+
+    // Step 1: Show loading and fetch preview
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final preview = await chatProvider.previewSessionsFromPlan();
+
+    if (!mounted) return;
+    navigator.pop(); // Close loading
+
+    if (preview == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(chatProvider.errorMessage ?? 'Failed to load preview'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Step 2: Show preview dialog with start date picker
+    final result = await _showPreviewDialog(preview);
+
+    if (result == null || !mounted) return;
+
+    // Step 3: Create sessions with chosen start date
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final createResult = await chatProvider.createSessionsFromPlan(
+      startDate: result,
+    );
+
+    if (!mounted) return;
+    navigator.pop(); // Close loading
+
+    if (createResult != null) {
+      final sessionsCount = createResult['sessions']?.length ?? 0;
+      final matchedCount = createResult['matchedTemplates'] ?? 0;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Created $sessionsCount sessions ($matchedCount exercises matched)!',
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'View',
+            textColor: Colors.white,
+            onPressed: () {
+              navigator.popUntil((route) => route.isFirst);
+            },
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            chatProvider.errorMessage ?? 'Failed to create sessions',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<DateTime?> _showPreviewDialog(Map<String, dynamic> preview) async {
+    DateTime selectedDate = DateTime.now();
+    final sessions = (preview['sessions'] as List?) ?? [];
+
+    return showDialog<DateTime>(
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setState) => AlertDialog(
+                  title: const Text('Preview Workout Plan'),
+                  content: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${sessions.length} sessions will be created:',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        ...sessions.map((session) {
+                          final dayNum = session['dayNumber'] ?? 0;
+                          final name = session['name'] ?? 'Session';
+                          final exerciseCount = session['exerciseCount'] ?? 0;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 16,
+                                  child: Text('$dayNum'),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        '$exerciseCount exercises',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        const Divider(height: 24),
+                        const Text(
+                          'Start Date:',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: selectedDate,
+                              firstDate: DateTime.now().subtract(
+                                const Duration(days: 7),
+                              ),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
+                              ),
+                            );
+                            if (picked != null) {
+                              setState(() {
+                                selectedDate = picked;
+                              });
+                            }
+                          },
+                          icon: const Icon(Icons.calendar_today),
+                          label: Text(
+                            '${selectedDate.month}/${selectedDate.day}/${selectedDate.year}',
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Sessions will be spaced every 2 days',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, selectedDate),
+                      child: const Text('Create Sessions'),
+                    ),
+                  ],
+                ),
+          ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -79,6 +269,22 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
           },
         ),
         centerTitle: true,
+        actions: [
+          Consumer<ChatProvider>(
+            builder: (context, provider, child) {
+              // Only show "Save to Workouts" button for workout plan conversations
+              if (provider.currentConversation?.type != 'workout_plan') {
+                return const SizedBox.shrink();
+              }
+
+              return IconButton(
+                icon: const Icon(Icons.save),
+                tooltip: 'Save to My Workouts',
+                onPressed: provider.isOffline ? null : _saveWorkoutPlan,
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

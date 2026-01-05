@@ -673,5 +673,333 @@ Please provide:
                 return StatusCode(500, new { message = "Failed to analyze progress", error = ex.Message });
             }
         }
+
+        // GET: api/chat/conversations/5/preview-sessions
+        [HttpGet("conversations/{id}/preview-sessions")]
+        public async Task<ActionResult<object>> PreviewSessionsFromPlan(int id)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var workoutData = await ExtractWorkoutPlanData(id, userId);
+
+                if (workoutData == null)
+                {
+                    return BadRequest(new { message = "Could not extract workout plan structure" });
+                }
+
+                // Return preview without creating sessions
+                var preview = workoutData.Sessions?.Select((s, index) => new
+                {
+                    dayNumber = index + 1,
+                    name = s.Name,
+                    type = s.Type ?? "strength",
+                    exerciseCount = s.Exercises?.Count ?? 0,
+                    exercises = s.Exercises?.Select(e => new
+                    {
+                        name = e.Name,
+                        sets = e.Sets,
+                        reps = e.Reps,
+                        weight = e.Weight,
+                        restTime = e.RestTime
+                    }).ToList()
+                }).ToList();
+
+                return Ok(new
+                {
+                    sessionsCount = workoutData.Sessions?.Count ?? 0,
+                    sessions = preview
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error previewing sessions from workout plan");
+                return StatusCode(500, new { message = "Failed to preview sessions", error = ex.Message });
+            }
+        }
+
+        // POST: api/chat/conversations/5/create-sessions
+        [HttpPost("conversations/{id}/create-sessions")]
+        public async Task<ActionResult<IEnumerable<object>>> CreateSessionsFromPlan(int id, [FromBody] CreateSessionsRequest? request = null)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var workoutData = await ExtractWorkoutPlanData(id, userId);
+
+                if (workoutData == null)
+                {
+                    return BadRequest(new { message = "Could not extract workout plan structure" });
+                }
+
+                // Get all exercise templates for matching
+                var templates = await _context.ExerciseTemplates.ToListAsync();
+
+                // Use provided start date or default to today
+                var baseDate = request?.StartDate?.Date ?? DateTime.UtcNow.Date;
+
+                // Create sessions and exercises
+                var createdSessions = new List<object>();
+                var matchedTemplates = 0;
+
+                for (int i = 0; i < workoutData.Sessions.Count; i++)
+                {
+                    var sessionData = workoutData.Sessions[i];
+
+                    var session = new Models.Session
+                    {
+                        UserId = userId,
+                        Name = sessionData.Name,
+                        Type = sessionData.Type ?? "strength",
+                        Status = "planned",
+                        Date = baseDate.AddDays(i * 2), // Space out sessions every 2 days
+                        Notes = sessionData.Notes,
+                        Duration = 0
+                    };
+
+                    _context.Sessions.Add(session);
+                    await _context.SaveChangesAsync(); // Save to get session ID
+
+                    // Create exercises for this session
+                    if (sessionData.Exercises != null)
+                    {
+                        foreach (var exerciseData in sessionData.Exercises)
+                        {
+                            // Try to match with existing exercise template
+                            var matchedTemplate = FindBestMatchingTemplate(exerciseData.Name, templates);
+
+                            var exercise = new Exercise
+                            {
+                                SessionId = session.Id,
+                                Name = exerciseData.Name,
+                                ExerciseTemplateId = matchedTemplate?.Id,
+                                Notes = exerciseData.Notes,
+                                RestTime = exerciseData.RestTime ?? 60,
+                                Duration = 0
+                            };
+
+                            if (matchedTemplate != null)
+                            {
+                                matchedTemplates++;
+                                _logger.LogInformation($"Matched '{exerciseData.Name}' to template '{matchedTemplate.Name}'");
+                            }
+
+                            _context.Exercises.Add(exercise);
+                            await _context.SaveChangesAsync(); // Save to get exercise ID
+
+                            // Create exercise sets
+                            if (exerciseData.Sets > 0 && exerciseData.Reps > 0)
+                            {
+                                for (int setNum = 1; setNum <= exerciseData.Sets; setNum++)
+                                {
+                                    var exerciseSet = new ExerciseSet
+                                    {
+                                        ExerciseId = exercise.Id,
+                                        SetNumber = setNum,
+                                        Reps = exerciseData.Reps,
+                                        Weight = exerciseData.Weight ?? 0,
+                                        IsCompleted = false,
+                                        Duration = 0
+                                    };
+
+                                    _context.ExerciseSets.Add(exerciseSet);
+                                }
+                            }
+                        }
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    createdSessions.Add(new
+                    {
+                        id = session.Id,
+                        name = session.Name,
+                        date = session.Date,
+                        exerciseCount = sessionData.Exercises?.Count ?? 0
+                    });
+                }
+
+                return Ok(new
+                {
+                    message = $"Successfully created {createdSessions.Count} workout sessions",
+                    sessions = createdSessions,
+                    matchedTemplates = matchedTemplates,
+                    startDate = baseDate
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating sessions from workout plan");
+                return StatusCode(500, new { message = "Failed to create sessions", error = ex.Message });
+            }
+        }
+
+        // Helper method to extract workout plan data from conversation
+        private async Task<WorkoutPlanData?> ExtractWorkoutPlanData(int conversationId, int userId)
+        {
+            // Get the conversation
+            var conversation = await _context.ChatConversations
+                .Include(c => c.Messages)
+                .FirstOrDefaultAsync(c => c.Id == conversationId && c.UserId == userId);
+
+            if (conversation == null || conversation.Type != "workout_plan")
+            {
+                return null;
+            }
+
+            // Get the AI's workout plan message
+            var workoutPlanMessage = conversation.Messages
+                .Where(m => m.Role == "assistant")
+                .OrderBy(m => m.CreatedAt)
+                .FirstOrDefault();
+
+            if (workoutPlanMessage == null)
+            {
+                return null;
+            }
+
+            // Ask AI to extract structured workout data
+            var extractionPrompt = @"Extract the workout plan from the previous message into structured JSON format.
+Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
+{
+  ""sessions"": [
+    {
+      ""name"": ""Day 1: Chest & Triceps"",
+      ""type"": ""strength"",
+      ""notes"": ""Focus on form and progressive overload"",
+      ""exercises"": [
+        {
+          ""name"": ""Bench Press"",
+          ""sets"": 4,
+          ""reps"": 8,
+          ""restTime"": 90,
+          ""notes"": ""Warm up first""
+        }
+      ]
+    }
+  ]
+}";
+
+            var messages = new List<ChatMessage>
+            {
+                new ChatMessage
+                {
+                    Role = "assistant",
+                    Content = workoutPlanMessage.Content
+                }
+            };
+
+            var extractionResponse = await _aiService.SendMessageAsync(
+                extractionPrompt,
+                messages,
+                "workout_plan"
+            );
+
+            // Parse the JSON response
+            var jsonContent = extractionResponse.Content.Trim();
+
+            // Remove markdown code blocks if present
+            if (jsonContent.StartsWith("```"))
+            {
+                var lines = jsonContent.Split('\n');
+                jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+            }
+
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<WorkoutPlanData>(jsonContent);
+            }
+            catch
+            {
+                _logger.LogError("Failed to deserialize workout plan JSON: {json}", jsonContent);
+                return null;
+            }
+        }
+
+        // Helper method to find best matching exercise template
+        private ExerciseTemplate? FindBestMatchingTemplate(string exerciseName, List<ExerciseTemplate> templates)
+        {
+            if (string.IsNullOrWhiteSpace(exerciseName))
+            {
+                return null;
+            }
+
+            var normalizedName = exerciseName.ToLowerInvariant().Trim();
+
+            // Try exact match first
+            var exactMatch = templates.FirstOrDefault(t =>
+                t.Name.Equals(exerciseName, StringComparison.OrdinalIgnoreCase));
+
+            if (exactMatch != null)
+            {
+                return exactMatch;
+            }
+
+            // Try partial match (template name contains exercise name or vice versa)
+            var partialMatch = templates.FirstOrDefault(t =>
+                t.Name.ToLowerInvariant().Contains(normalizedName) ||
+                normalizedName.Contains(t.Name.ToLowerInvariant()));
+
+            if (partialMatch != null)
+            {
+                return partialMatch;
+            }
+
+            // Try matching common variations
+            var variations = new Dictionary<string, string[]>
+            {
+                { "Bench Press", new[] { "bench", "barbell bench", "flat bench" } },
+                { "Squat", new[] { "squat", "back squat", "barbell squat" } },
+                { "Deadlift", new[] { "deadlift", "conventional deadlift" } },
+                { "Pull-ups", new[] { "pullup", "pull up", "pullups" } },
+                { "Push-ups", new[] { "pushup", "push up", "pushups" } },
+                { "Overhead Press", new[] { "ohp", "shoulder press", "military press" } },
+                { "Bent-Over Row", new[] { "barbell row", "bent over row", "bb row" } }
+            };
+
+            foreach (var (templateName, aliases) in variations)
+            {
+                if (aliases.Any(alias => normalizedName.Contains(alias) || alias.Contains(normalizedName)))
+                {
+                    var match = templates.FirstOrDefault(t => t.Name.Equals(templateName, StringComparison.OrdinalIgnoreCase));
+                    if (match != null)
+                    {
+                        return match;
+                    }
+                }
+            }
+
+            return null;
+        }
+    }
+
+    // Request DTO for creating sessions
+    public class CreateSessionsRequest
+    {
+        public DateTime? StartDate { get; set; }
+    }
+
+    // Helper classes for JSON parsing
+    public class WorkoutPlanData
+    {
+        public List<SessionData>? Sessions { get; set; }
+    }
+
+    public class SessionData
+    {
+        public string Name { get; set; } = "";
+        public string? Type { get; set; }
+        public string? Notes { get; set; }
+        public List<ExerciseData>? Exercises { get; set; }
+    }
+
+    public class ExerciseData
+    {
+        public string Name { get; set; } = "";
+        public int Sets { get; set; }
+        public int Reps { get; set; }
+        public double? Weight { get; set; }
+        public int? RestTime { get; set; }
+        public string? Notes { get; set; }
     }
 }

@@ -573,4 +573,61 @@ class ChatRepository {
       rethrow;
     }
   }
+
+  /// Preview workout sessions from an AI-generated workout plan (without creating)
+  /// Requires online connection
+  Future<Map<String, dynamic>> previewSessionsFromPlan({
+    required int conversationId,
+  }) async {
+    if (!_connectivity.isOnline) {
+      throw Exception('Cannot preview sessions offline');
+    }
+
+    try {
+      final response = await _apiService.get<Map<String, dynamic>>(
+        ApiConfig.chatPreviewSessions(conversationId),
+      );
+
+      debugPrint(
+        '✅ Previewed ${response['sessionsCount']} sessions from workout plan',
+      );
+
+      return response;
+    } catch (e) {
+      debugPrint('❌ Error previewing sessions: $e');
+      rethrow;
+    }
+  }
+
+  /// Create workout sessions from an AI-generated workout plan
+  /// Requires online connection - cannot create sessions offline
+  Future<Map<String, dynamic>> createSessionsFromPlan({
+    required int conversationId,
+    DateTime? startDate,
+  }) async {
+    if (!_connectivity.isOnline) {
+      throw Exception('Cannot create sessions offline');
+    }
+
+    try {
+      final data = <String, dynamic>{};
+      if (startDate != null) {
+        data['startDate'] = startDate.toIso8601String();
+      }
+
+      final response = await _apiService.post<Map<String, dynamic>>(
+        ApiConfig.chatCreateSessions(conversationId),
+        data: data,
+      );
+
+      debugPrint(
+        '✅ Created ${response['sessions'].length} sessions from workout plan',
+      );
+
+      return response;
+    } catch (e) {
+      debugPrint('❌ Error creating sessions from plan: $e');
+      rethrow;
+    }
+  }
 }

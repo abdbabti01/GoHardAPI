@@ -89,4 +89,8 @@ class ApiConfig {
       '$chatConversations/$conversationId/messages';
   static String chatMessagesStream(int conversationId) =>
       '$chatConversations/$conversationId/messages/stream';
+  static String chatPreviewSessions(int conversationId) =>
+      '$chatConversations/$conversationId/preview-sessions';
+  static String chatCreateSessions(int conversationId) =>
+      '$chatConversations/$conversationId/create-sessions';
 }

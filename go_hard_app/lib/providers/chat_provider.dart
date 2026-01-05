@@ -387,6 +387,91 @@ class ChatProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Preview workout sessions from the current workout plan conversation
+  Future<Map<String, dynamic>?> previewSessionsFromPlan() async {
+    if (isOffline) {
+      _errorMessage = 'Cannot preview sessions offline';
+      notifyListeners();
+      return null;
+    }
+
+    if (_currentConversation == null) {
+      _errorMessage = 'No active conversation';
+      notifyListeners();
+      return null;
+    }
+
+    if (_currentConversation!.type != 'workout_plan') {
+      _errorMessage = 'This conversation is not a workout plan';
+      notifyListeners();
+      return null;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await _chatRepository.previewSessionsFromPlan(
+        conversationId: _currentConversation!.id,
+      );
+
+      return result;
+    } catch (e) {
+      _errorMessage =
+          'Failed to preview sessions: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Preview sessions error: $e');
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Create workout sessions from the current workout plan conversation
+  Future<Map<String, dynamic>?> createSessionsFromPlan({
+    DateTime? startDate,
+  }) async {
+    if (isOffline) {
+      _errorMessage = 'Cannot create sessions offline';
+      notifyListeners();
+      return null;
+    }
+
+    if (_currentConversation == null) {
+      _errorMessage = 'No active conversation';
+      notifyListeners();
+      return null;
+    }
+
+    if (_currentConversation!.type != 'workout_plan') {
+      _errorMessage = 'This conversation is not a workout plan';
+      notifyListeners();
+      return null;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await _chatRepository.createSessionsFromPlan(
+        conversationId: _currentConversation!.id,
+        startDate: startDate,
+      );
+
+      return result;
+    } catch (e) {
+      _errorMessage =
+          'Failed to create sessions: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Create sessions error: $e');
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   @override
   void dispose() {
     _connectivitySubscription?.cancel();
