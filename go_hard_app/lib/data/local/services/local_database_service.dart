@@ -5,6 +5,8 @@ import '../models/local_session.dart';
 import '../models/local_exercise.dart';
 import '../models/local_exercise_set.dart';
 import '../models/local_exercise_template.dart';
+import '../models/local_chat_conversation.dart';
+import '../models/local_chat_message.dart';
 
 /// Service for managing the local Isar database
 class LocalDatabaseService {
@@ -37,6 +39,8 @@ class LocalDatabaseService {
         LocalExerciseSchema,
         LocalExerciseSetSchema,
         LocalExerciseTemplateSchema,
+        LocalChatConversationSchema,
+        LocalChatMessageSchema,
       ],
       directory: dir.path,
       name: 'go_hard_local_db',
@@ -94,7 +98,21 @@ class LocalDatabaseService {
             .isSyncedEqualTo(false)
             .count();
 
-    return sessionCount + exerciseCount + setCount + templateCount;
+    final chatConversationCount =
+        await _isar!.localChatConversations
+            .filter()
+            .isSyncedEqualTo(false)
+            .count();
+
+    final chatMessageCount =
+        await _isar!.localChatMessages.filter().isSyncedEqualTo(false).count();
+
+    return sessionCount +
+        exerciseCount +
+        setCount +
+        templateCount +
+        chatConversationCount +
+        chatMessageCount;
   }
 
   /// Get last sync time across all collections
@@ -129,12 +147,28 @@ class LocalDatabaseService {
             .limit(1)
             .findAll();
 
+    final conversations =
+        await _isar!.localChatConversations
+            .where()
+            .sortByLastSyncAttemptDesc()
+            .limit(1)
+            .findAll();
+
+    final messages =
+        await _isar!.localChatMessages
+            .where()
+            .sortByLastSyncAttemptDesc()
+            .limit(1)
+            .findAll();
+
     final times =
         <DateTime?>[
           sessions.isNotEmpty ? sessions.first.lastSyncAttempt : null,
           exercises.isNotEmpty ? exercises.first.lastSyncAttempt : null,
           sets.isNotEmpty ? sets.first.lastSyncAttempt : null,
           templates.isNotEmpty ? templates.first.lastSyncAttempt : null,
+          conversations.isNotEmpty ? conversations.first.lastSyncAttempt : null,
+          messages.isNotEmpty ? messages.first.lastSyncAttempt : null,
         ].whereType<DateTime>();
 
     if (times.isEmpty) return null;

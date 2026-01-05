@@ -28,6 +28,12 @@ class RouteNames {
   // Analytics routes
   static const String analytics = '/analytics';
 
+  // Chat routes
+  static const String chatList = '/chat';
+  static const String chatConversation = '/chat/conversation';
+  static const String workoutPlanForm = '/chat/workout-plan';
+  static const String mealPlanForm = '/chat/meal-plan';
+
   // Initial route (shown when app starts)
   static const String initial = login;
 }

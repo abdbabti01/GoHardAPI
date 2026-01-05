@@ -12,6 +12,8 @@ namespace GoHardAPI.Data
         public DbSet<Exercise> Exercises { get; set; }
         public DbSet<ExerciseTemplate> ExerciseTemplates { get; set; }
         public DbSet<ExerciseSet> ExerciseSets { get; set; }
+        public DbSet<ChatConversation> ChatConversations { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -55,6 +57,27 @@ namespace GoHardAPI.Data
             // Add index for faster set queries
             modelBuilder.Entity<ExerciseSet>()
                 .HasIndex(es => new { es.ExerciseId, es.SetNumber });
+
+            // Configure ChatConversation-User relationship
+            modelBuilder.Entity<ChatConversation>()
+                .HasOne(c => c.User)
+                .WithMany()
+                .HasForeignKey(c => c.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure ChatMessage-ChatConversation relationship
+            modelBuilder.Entity<ChatMessage>()
+                .HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add indexes for chat queries
+            modelBuilder.Entity<ChatConversation>()
+                .HasIndex(c => new { c.UserId, c.CreatedAt });
+
+            modelBuilder.Entity<ChatMessage>()
+                .HasIndex(m => new { m.ConversationId, m.CreatedAt });
         }
     }
 }

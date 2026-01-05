@@ -10,6 +10,7 @@ import 'data/repositories/exercise_repository.dart';
 import 'data/repositories/user_repository.dart';
 import 'data/repositories/profile_repository.dart';
 import 'data/repositories/analytics_repository.dart';
+import 'data/repositories/chat_repository.dart';
 import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
@@ -23,6 +24,7 @@ import 'providers/exercise_detail_provider.dart';
 import 'providers/log_sets_provider.dart';
 import 'providers/profile_provider.dart';
 import 'providers/analytics_provider.dart';
+import 'providers/chat_provider.dart';
 import 'providers/music_player_provider.dart';
 
 void main() async {
@@ -109,6 +111,22 @@ void main() async {
           update:
               (_, apiService, localDb, connectivity, authService, __) =>
                   AnalyticsRepository(
+                    apiService,
+                    localDb,
+                    connectivity,
+                    authService,
+                  ),
+        ),
+        ProxyProvider4<
+          ApiService,
+          LocalDatabaseService,
+          ConnectivityService,
+          AuthService,
+          ChatRepository
+        >(
+          update:
+              (_, apiService, localDb, connectivity, authService, __) =>
+                  ChatRepository(
                     apiService,
                     localDb,
                     connectivity,
@@ -235,6 +253,20 @@ void main() async {
           update:
               (_, analyticsRepo, previous) =>
                   previous ?? AnalyticsProvider(analyticsRepo),
+        ),
+        ChangeNotifierProxyProvider2<
+          ChatRepository,
+          ConnectivityService,
+          ChatProvider
+        >(
+          create:
+              (context) => ChatProvider(
+                context.read<ChatRepository>(),
+                context.read<ConnectivityService>(),
+              ),
+          update:
+              (_, chatRepo, connectivity, previous) =>
+                  previous ?? ChatProvider(chatRepo, connectivity),
         ),
         ChangeNotifierProvider<MusicPlayerProvider>(
           create: (_) => MusicPlayerProvider(),

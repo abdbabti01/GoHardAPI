@@ -60,6 +60,7 @@ dependencies:
 
   # UI Components
   cupertino_icons: ^1.0.8
+  flutter_markdown: ^0.7.4+1
 
   # Charts & Data Visualization
   fl_chart: ^0.68.0

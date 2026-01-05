@@ -12,6 +12,10 @@ import '../ui/screens/exercises/add_exercise_screen.dart';
 import '../ui/screens/exercises/log_sets_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
 import '../ui/screens/analytics/analytics_screen.dart';
+import '../ui/screens/chat/chat_list_screen.dart';
+import '../ui/screens/chat/chat_conversation_screen.dart';
+import '../ui/screens/chat/workout_plan_form_screen.dart';
+import '../ui/screens/chat/meal_plan_form_screen.dart';
 
 /// Central router for the application
 /// Handles route generation and navigation logic
@@ -128,6 +132,39 @@ class AppRouter {
       case RouteNames.analytics:
         return MaterialPageRoute(
           builder: (_) => const AnalyticsScreen(),
+          settings: settings,
+        );
+
+      // Chat routes
+      case RouteNames.chatList:
+        return MaterialPageRoute(
+          builder: (_) => const ChatListScreen(),
+          settings: settings,
+        );
+
+      case RouteNames.chatConversation:
+        final conversationId = settings.arguments as int?;
+        if (conversationId == null) {
+          return MaterialPageRoute(
+            builder:
+                (_) => const _NotFoundScreen(routeName: 'chat-conversation'),
+          );
+        }
+        return MaterialPageRoute(
+          builder:
+              (_) => ChatConversationScreen(conversationId: conversationId),
+          settings: settings,
+        );
+
+      case RouteNames.workoutPlanForm:
+        return MaterialPageRoute(
+          builder: (_) => const WorkoutPlanFormScreen(),
+          settings: settings,
+        );
+
+      case RouteNames.mealPlanForm:
+        return MaterialPageRoute(
+          builder: (_) => const MealPlanFormScreen(),
           settings: settings,
         );
 

@@ -52,8 +52,8 @@ class ApiConfig {
   static const Duration connectTimeout = Duration(seconds: 3);
 
   /// Receive timeout duration
-  /// Reduced to 5 seconds for faster offline detection
-  static const Duration receiveTimeout = Duration(seconds: 5);
+  /// Set to 60 seconds to accommodate AI-generated responses (workout plans, etc.)
+  static const Duration receiveTimeout = Duration(seconds: 60);
 
   /// API endpoints
   static const String authLogin = 'auth/login';
@@ -65,6 +65,10 @@ class ApiConfig {
   static const String exerciseTemplates = 'exercisetemplates';
   static const String profile = 'profile';
   static const String profilePhoto = 'profile/photo';
+  static const String chatConversations = 'chat/conversations';
+  static const String chatWorkoutPlan = 'chat/workout-plan';
+  static const String chatMealPlan = 'chat/meal-plan';
+  static const String chatAnalyzeProgress = 'chat/analyze-progress';
 
   /// Helper methods for building endpoint URLs
   static String userById(int id) => '$users/$id';
@@ -80,4 +84,9 @@ class ApiConfig {
   static String exerciseTemplateCategories = '$exerciseTemplates/categories';
   static String exerciseTemplateMuscleGroups =
       '$exerciseTemplates/musclegroups';
+  static String chatConversationById(int id) => '$chatConversations/$id';
+  static String chatMessages(int conversationId) =>
+      '$chatConversations/$conversationId/messages';
+  static String chatMessagesStream(int conversationId) =>
+      '$chatConversations/$conversationId/messages/stream';
 }

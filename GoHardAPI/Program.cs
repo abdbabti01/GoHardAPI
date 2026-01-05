@@ -17,6 +17,15 @@ builder.Services.AddScoped<AuthService>();
 // Register FileUploadService
 builder.Services.AddScoped<FileUploadService>();
 
+// Register AI Services
+builder.Services.AddScoped<GoHardAPI.Services.AI.AnthropicProvider>();
+builder.Services.AddScoped<GoHardAPI.Services.AI.OpenAIProvider>();
+builder.Services.AddScoped<GoHardAPI.Services.AI.AIProviderFactory>();
+builder.Services.AddScoped<AIService>();
+
+// Add HttpClient for AI providers (required by Anthropic SDK)
+builder.Services.AddHttpClient();
+
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 builder.Services.AddAuthentication(options =>
