@@ -60,7 +60,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   leading: const Icon(Icons.analytics),
                   title: const Text('Analyze My Progress'),
                   onTap: () async {
-                    Navigator.pop(context);
+                    final navigator = Navigator.of(context);
+                    navigator.pop();
                     final provider = context.read<ChatProvider>();
 
                     // Show loading dialog
@@ -75,10 +76,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     final conversation = await provider.analyzeProgress();
 
                     if (mounted) {
-                      Navigator.pop(context); // Close loading dialog
+                      navigator.pop(); // Close loading dialog
 
                       if (conversation != null) {
-                        Navigator.of(context).pushNamed(
+                        navigator.pushNamed(
                           RouteNames.chatConversation,
                           arguments: conversation.id,
                         );
@@ -90,7 +91,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   leading: const Icon(Icons.chat),
                   title: const Text('New Chat'),
                   onTap: () async {
-                    Navigator.pop(context);
+                    final navigator = Navigator.of(context);
+                    navigator.pop();
                     final provider = context.read<ChatProvider>();
                     final conversation = await provider.createConversation(
                       title: 'New Chat',
@@ -98,7 +100,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     );
 
                     if (conversation != null && mounted) {
-                      Navigator.of(context).pushNamed(
+                      navigator.pushNamed(
                         RouteNames.chatConversation,
                         arguments: conversation.id,
                       );
