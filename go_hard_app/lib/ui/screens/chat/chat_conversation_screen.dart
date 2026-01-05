@@ -114,22 +114,28 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     if (createResult != null) {
       final sessionsCount = createResult['sessions']?.length ?? 0;
       final matchedCount = createResult['matchedTemplates'] ?? 0;
-      scaffoldMessenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            'Created $sessionsCount sessions ($matchedCount exercises matched)!',
+
+      // Delete the conversation after successful session creation
+      final conversationId = chatProvider.currentConversation?.id;
+      if (conversationId != null) {
+        await chatProvider.deleteConversation(conversationId);
+      }
+
+      // Navigate to sessions screen
+      if (mounted) {
+        navigator.popUntil((route) => route.isFirst);
+
+        // Show success message
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Created $sessionsCount sessions ($matchedCount exercises matched)!',
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
           ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 4),
-          action: SnackBarAction(
-            label: 'View',
-            textColor: Colors.white,
-            onPressed: () {
-              navigator.popUntil((route) => route.isFirst);
-            },
-          ),
-        ),
-      );
+        );
+      }
     } else {
       scaffoldMessenger.showSnackBar(
         SnackBar(
