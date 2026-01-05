@@ -229,15 +229,16 @@ class _SyncStatusDialog extends StatelessWidget {
   Future<void> _triggerManualSync(BuildContext context) async {
     try {
       final syncService = context.read<SyncService>();
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Starting sync...')));
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(content: Text('Starting sync...')),
+      );
 
       await syncService.sync();
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Sync completed successfully'),
             backgroundColor: Colors.green,
@@ -246,7 +247,8 @@ class _SyncStatusDialog extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('Sync failed: $e'),
             backgroundColor: Colors.red,
@@ -259,15 +261,16 @@ class _SyncStatusDialog extends StatelessWidget {
   Future<void> _retryFailedSyncs(BuildContext context) async {
     try {
       final syncService = context.read<SyncService>();
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Retrying failed syncs...')));
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(content: Text('Retrying failed syncs...')),
+      );
 
       await syncService.retryFailedSyncs();
 
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Retry completed'),
             backgroundColor: Colors.green,
@@ -276,7 +279,8 @@ class _SyncStatusDialog extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('Retry failed: $e'),
             backgroundColor: Colors.red,

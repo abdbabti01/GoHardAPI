@@ -133,6 +133,32 @@ class SessionsProvider extends ChangeNotifier {
     }
   }
 
+  /// Start a planned workout (change status from 'planned' to 'in_progress')
+  Future<bool> startPlannedWorkout(int sessionId) async {
+    try {
+      // Update session status via repository
+      final updatedSession = await _sessionRepository.updateSessionStatus(
+        sessionId,
+        'in_progress',
+      );
+
+      // Update local session in the list
+      final index = _sessions.indexWhere((s) => s.id == sessionId);
+      if (index != -1) {
+        _sessions[index] = updatedSession;
+        notifyListeners();
+      }
+
+      return true;
+    } catch (e) {
+      _errorMessage =
+          'Failed to start planned workout: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Start planned workout error: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Refresh sessions (pull-to-refresh)
   /// Don't show loading indicator for smooth UX
   Future<void> refresh() async {

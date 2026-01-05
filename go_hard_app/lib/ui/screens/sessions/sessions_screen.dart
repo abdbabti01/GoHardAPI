@@ -19,6 +19,9 @@ class SessionsScreen extends StatefulWidget {
 }
 
 class _SessionsScreenState extends State<SessionsScreen> {
+  bool _isPlannedExpanded =
+      false; // Track if planned workouts section is expanded
+
   @override
   void initState() {
     super.initState();
@@ -78,7 +81,27 @@ class _SessionsScreenState extends State<SessionsScreen> {
   }
 
   Future<void> _handleSessionTap(int sessionId, String status) async {
-    if (status == 'in_progress' || status == 'draft') {
+    if (status == 'planned') {
+      // Show dialog to start planned workout
+      final shouldStart = await _showStartPlannedWorkoutDialog();
+      if (shouldStart == true && mounted) {
+        // Start the planned workout (change status to in_progress)
+        final provider = context.read<SessionsProvider>();
+        final success = await provider.startPlannedWorkout(sessionId);
+
+        if (success && mounted) {
+          // Navigate to active workout screen
+          await Navigator.of(
+            context,
+          ).pushNamed(RouteNames.activeWorkout, arguments: sessionId);
+
+          // Reload sessions to reflect any status changes
+          if (mounted) {
+            await provider.loadSessions();
+          }
+        }
+      }
+    } else if (status == 'in_progress' || status == 'draft') {
       // Navigate to active workout screen for in-progress/draft sessions
       await Navigator.of(
         context,
@@ -96,27 +119,106 @@ class _SessionsScreenState extends State<SessionsScreen> {
     }
   }
 
-  /// Calculate total items in the grouped list (headers + sessions)
-  int _calculateTotalItems(
+  Future<bool?> _showStartPlannedWorkoutDialog() async {
+    return showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Start Workout'),
+            content: const Text(
+              'Do you want to start this planned workout now?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Start'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  /// Build week header widget
+  Widget _buildWeekHeader(String label) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+    );
+  }
+
+  /// Calculate total items including planned workouts section
+  int _calculateTotalItemsWithPlanned(
+    List<dynamic> plannedSessions,
     Map<String, List<dynamic>> grouped,
     List<String> labels,
   ) {
     int total = 0;
+
+    // Planned workouts section
+    if (plannedSessions.isNotEmpty) {
+      total += 1; // Header
+      // Only include planned sessions in count if expanded
+      if (_isPlannedExpanded) {
+        total += plannedSessions.length;
+      }
+    }
+
+    // Past sessions grouped by week
     for (final label in labels) {
       total += 1; // Header
       total += grouped[label]!.length; // Sessions in this week
     }
+
     return total;
   }
 
-  /// Build list item for grouped display (header or session card)
-  Widget _buildGroupedListItem(
+  /// Build list item including planned workouts section
+  Widget _buildListItemWithPlanned(
     int index,
+    List<dynamic> plannedSessions,
     Map<String, List<dynamic>> grouped,
     List<String> labels,
   ) {
     int currentIndex = 0;
 
+    // Planned workouts section
+    if (plannedSessions.isNotEmpty) {
+      // Header for planned workouts
+      if (index == currentIndex) {
+        return _buildSectionHeader(
+          'Planned Workouts',
+          Icons.event,
+          plannedSessions.length,
+        );
+      }
+      currentIndex++;
+
+      // Planned sessions (only if expanded)
+      if (_isPlannedExpanded) {
+        if (index < currentIndex + plannedSessions.length) {
+          final sessionIndex = index - currentIndex;
+          final session = plannedSessions[sessionIndex];
+          return SessionCard(
+            session: session,
+            onTap: () => _handleSessionTap(session.id, session.status),
+            onDelete: () => _handleDeleteSession(session.id),
+          );
+        }
+        currentIndex += plannedSessions.length;
+      }
+    }
+
+    // Past sessions grouped by week
     for (final label in labels) {
       // Check if this index is the header
       if (index == currentIndex) {
@@ -138,19 +240,57 @@ class _SessionsScreenState extends State<SessionsScreen> {
       currentIndex += sessionsInWeek.length;
     }
 
-    // Fallback (should never reach here)
+    // Fallback
     return const SizedBox.shrink();
   }
 
-  /// Build week header widget
-  Widget _buildWeekHeader(String label) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        label,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.bold,
-          color: Theme.of(context).colorScheme.primary,
+  /// Build section header widget (for planned workouts)
+  Widget _buildSectionHeader(String label, IconData icon, int count) {
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _isPlannedExpanded = !_isPlannedExpanded;
+        });
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            const Spacer(),
+            Icon(
+              _isPlannedExpanded
+                  ? Icons.keyboard_arrow_up
+                  : Icons.keyboard_arrow_down,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ],
         ),
       ),
     );
@@ -251,9 +391,19 @@ class _SessionsScreenState extends State<SessionsScreen> {
                   );
                 }
 
-                // Sessions list with pull-to-refresh (grouped by week)
+                // Separate planned and past sessions
+                final plannedSessions =
+                    provider.sessions
+                        .where((s) => s.status == 'planned')
+                        .toList();
+                final pastSessions =
+                    provider.sessions
+                        .where((s) => s.status != 'planned')
+                        .toList();
+
+                // Group past sessions by week
                 final groupedSessions = DateGroupingUtils.groupSessionsByWeek(
-                  provider.sessions,
+                  pastSessions,
                 );
                 final weekLabels = DateGroupingUtils.getOrderedWeekLabels(
                   groupedSessions,
@@ -264,13 +414,15 @@ class _SessionsScreenState extends State<SessionsScreen> {
                   child: ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(top: 8, bottom: 80),
-                    itemCount: _calculateTotalItems(
+                    itemCount: _calculateTotalItemsWithPlanned(
+                      plannedSessions,
                       groupedSessions,
                       weekLabels,
                     ),
                     itemBuilder: (context, index) {
-                      return _buildGroupedListItem(
+                      return _buildListItemWithPlanned(
                         index,
+                        plannedSessions,
                         groupedSessions,
                         weekLabels,
                       );

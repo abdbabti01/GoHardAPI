@@ -125,18 +125,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         });
 
         // Upload immediately
-        // Get provider reference before async operation
         if (!mounted) return;
         final provider = context.read<ProfileProvider>();
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+
         final success = await provider.uploadProfilePhoto(_selectedImage!);
 
         if (!mounted) return;
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             const SnackBar(content: Text('Profile photo updated successfully')),
           );
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             SnackBar(
               content: Text(provider.errorMessage ?? 'Failed to upload photo'),
               backgroundColor: Colors.red,
@@ -146,7 +147,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('Error picking image: $e'),
             backgroundColor: Colors.red,
@@ -294,15 +296,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     );
 
     final provider = context.read<ProfileProvider>();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     final success = await provider.updateProfile(request);
 
     if (success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(content: Text('Profile updated successfully')),
       );
-      Navigator.of(context).pop();
+      navigator.pop();
     } else if (!success && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(provider.errorMessage ?? 'Failed to update profile'),
           backgroundColor: Colors.red,

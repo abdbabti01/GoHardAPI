@@ -108,7 +108,7 @@ class ModelMapper {
     List<ExerciseSet> exerciseSets = const [],
   }) {
     return Exercise(
-      id: localExercise.serverId ?? 0,
+      id: localExercise.serverId ?? localExercise.localId,
       sessionId: localExercise.sessionServerId ?? 0,
       name: localExercise.name,
       duration: localExercise.duration,

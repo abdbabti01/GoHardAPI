@@ -42,6 +42,10 @@ class _MealPlanFormScreenState extends State<MealPlanFormScreen> {
       targetCalories = int.tryParse(_caloriesController.text.trim());
     }
 
+    // Capture context-dependent objects before async operation
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+
     // Show loading dialog
     showDialog(
       context: context,
@@ -67,17 +71,17 @@ class _MealPlanFormScreenState extends State<MealPlanFormScreen> {
     );
 
     if (mounted) {
-      Navigator.pop(context); // Close loading dialog
+      navigator.pop(); // Close loading dialog
 
       if (conversation != null) {
         // Navigate to conversation screen
-        Navigator.of(context).pushReplacementNamed(
+        navigator.pushReplacementNamed(
           RouteNames.chatConversation,
           arguments: conversation.id,
         );
       } else if (provider.errorMessage != null) {
         // Show error
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text(provider.errorMessage!),
             backgroundColor: Colors.red,

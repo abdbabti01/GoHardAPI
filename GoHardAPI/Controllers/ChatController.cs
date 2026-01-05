@@ -681,6 +681,21 @@ Please provide:
             try
             {
                 var userId = GetCurrentUserId();
+
+                // First check if conversation exists
+                var conversation = await _context.ChatConversations
+                    .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+
+                if (conversation == null)
+                {
+                    return NotFound(new { message = "Conversation not found" });
+                }
+
+                if (conversation.Type != "workout_plan")
+                {
+                    return BadRequest(new { message = "This is not a workout plan conversation" });
+                }
+
                 var workoutData = await ExtractWorkoutPlanData(id, userId);
 
                 if (workoutData == null)
@@ -725,11 +740,31 @@ Please provide:
             try
             {
                 var userId = GetCurrentUserId();
+
+                // First check if conversation exists
+                var conversation = await _context.ChatConversations
+                    .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+
+                if (conversation == null)
+                {
+                    return NotFound(new { message = "Conversation not found" });
+                }
+
+                if (conversation.Type != "workout_plan")
+                {
+                    return BadRequest(new { message = "This is not a workout plan conversation" });
+                }
+
                 var workoutData = await ExtractWorkoutPlanData(id, userId);
 
                 if (workoutData == null)
                 {
                     return BadRequest(new { message = "Could not extract workout plan structure" });
+                }
+
+                if (workoutData.Sessions == null || workoutData.Sessions.Count == 0)
+                {
+                    return BadRequest(new { message = "No workout sessions found in the plan" });
                 }
 
                 // Get all exercise templates for matching
@@ -788,15 +823,18 @@ Please provide:
                             await _context.SaveChangesAsync(); // Save to get exercise ID
 
                             // Create exercise sets
-                            if (exerciseData.Sets > 0 && exerciseData.Reps > 0)
+                            var sets = exerciseData.Sets ?? 3; // Default to 3 sets if not specified
+                            var reps = exerciseData.Reps ?? 10; // Default to 10 reps if not specified
+
+                            if (sets > 0 && reps > 0)
                             {
-                                for (int setNum = 1; setNum <= exerciseData.Sets; setNum++)
+                                for (int setNum = 1; setNum <= sets; setNum++)
                                 {
                                     var exerciseSet = new ExerciseSet
                                     {
                                         ExerciseId = exercise.Id,
                                         SetNumber = setNum,
-                                        Reps = exerciseData.Reps,
+                                        Reps = reps,
                                         Weight = exerciseData.Weight ?? 0,
                                         IsCompleted = false,
                                         Duration = 0
@@ -844,6 +882,7 @@ Please provide:
 
             if (conversation == null || conversation.Type != "workout_plan")
             {
+                _logger.LogWarning("Conversation not found or not a workout plan. Id: {id}, UserId: {userId}", conversationId, userId);
                 return null;
             }
 
@@ -855,8 +894,11 @@ Please provide:
 
             if (workoutPlanMessage == null)
             {
+                _logger.LogWarning("No assistant messages found in conversation {id}", conversationId);
                 return null;
             }
+
+            _logger.LogInformation("Found workout plan message with {length} characters", workoutPlanMessage.Content.Length);
 
             // Ask AI to extract structured workout data
             var extractionPrompt = @"Extract the workout plan from the previous message into structured JSON format.
@@ -878,7 +920,13 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
       ]
     }
   ]
-}";
+}
+
+IMPORTANT RULES:
+- sets and reps MUST be integers (numbers). Use null if not specified.
+- If reps says 'to failure' or similar, use null for reps
+- restTime must be an integer (seconds) or null
+- Do not use strings for numeric fields";
 
             var messages = new List<ChatMessage>
             {
@@ -895,6 +943,9 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
                 "workout_plan"
             );
 
+            _logger.LogInformation("AI extraction response length: {length}", extractionResponse.Content.Length);
+            _logger.LogInformation("AI extraction response: {content}", extractionResponse.Content);
+
             // Parse the JSON response
             var jsonContent = extractionResponse.Content.Trim();
 
@@ -905,13 +956,21 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
                 jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
             }
 
+            _logger.LogInformation("Cleaned JSON content: {json}", jsonContent);
+
             try
             {
-                return System.Text.Json.JsonSerializer.Deserialize<WorkoutPlanData>(jsonContent);
+                var options = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+                var result = System.Text.Json.JsonSerializer.Deserialize<WorkoutPlanData>(jsonContent, options);
+                _logger.LogInformation("Deserialization succeeded. Sessions count: {count}", result?.Sessions?.Count ?? 0);
+                return result;
             }
-            catch
+            catch (Exception ex)
             {
-                _logger.LogError("Failed to deserialize workout plan JSON: {json}", jsonContent);
+                _logger.LogError(ex, "Failed to deserialize workout plan JSON: {json}", jsonContent);
                 return null;
             }
         }
@@ -996,8 +1055,8 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
     public class ExerciseData
     {
         public string Name { get; set; } = "";
-        public int Sets { get; set; }
-        public int Reps { get; set; }
+        public int? Sets { get; set; }
+        public int? Reps { get; set; }
         public double? Weight { get; set; }
         public int? RestTime { get; set; }
         public string? Notes { get; set; }

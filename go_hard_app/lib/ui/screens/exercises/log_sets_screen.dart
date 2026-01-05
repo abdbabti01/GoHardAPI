@@ -58,6 +58,10 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
       return;
     }
 
+    // Capture context-dependent objects before async operation
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final focusScope = FocusScope.of(context);
+
     final success = await context.read<LogSetsProvider>().addSet(
       exerciseId: widget.exerciseId,
       reps: reps,
@@ -70,9 +74,9 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
       _weightController.clear();
 
       // Hide keyboard
-      FocusScope.of(context).unfocus();
+      focusScope.unfocus();
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         const SnackBar(
           content: Text('Set added successfully'),
           backgroundColor: Colors.green,
@@ -108,10 +112,13 @@ class _LogSetsScreenState extends State<LogSetsScreen> {
     );
 
     if (confirmed == true && mounted) {
-      final success = await context.read<LogSetsProvider>().deleteSet(set);
+      final provider = context.read<LogSetsProvider>();
+      final scaffoldMessenger = ScaffoldMessenger.of(context);
+
+      final success = await provider.deleteSet(set);
 
       if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('Set deleted'),
             duration: Duration(seconds: 1),

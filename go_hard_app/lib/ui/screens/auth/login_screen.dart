@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/sessions_provider.dart';
+import '../../../core/services/sync_service.dart';
 import '../../../routes/route_names.dart';
 
 /// Login screen with email/password authentication
@@ -43,6 +45,28 @@ class _LoginScreenState extends State<LoginScreen> {
     final success = await authProvider.login();
 
     if (success && mounted) {
+      // Trigger initial sync after successful login to fetch user's data
+      try {
+        final syncService = context.read<SyncService>();
+        final sessionsProvider = context.read<SessionsProvider>();
+
+        // Start sync in background (don't await - let it happen async)
+        syncService
+            .sync()
+            .then((_) {
+              debugPrint('✅ Post-login sync completed');
+              // Reload sessions after sync completes
+              if (mounted) {
+                sessionsProvider.loadSessions(showLoading: false);
+              }
+            })
+            .catchError((e) {
+              debugPrint('⚠️ Post-login sync failed: $e');
+            });
+      } catch (e) {
+        debugPrint('⚠️ Failed to trigger post-login sync: $e');
+      }
+
       // Navigate to main screen on success
       Navigator.of(
         context,

@@ -61,6 +61,10 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
       _isAdding = true;
     });
 
+    // Capture context-dependent objects before async operations
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+
     try {
       final provider = context.read<ActiveWorkoutProvider>();
 
@@ -75,7 +79,7 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
         HapticFeedback.heavyImpact();
 
         // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Row(
               children: [
@@ -97,12 +101,12 @@ class _AddExerciseScreenState extends State<AddExerciseScreen> {
 
         // Return true to indicate exercises were added
         if (mounted) {
-          Navigator.of(context).pop(true);
+          navigator.pop(true);
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('Error adding exercises: ${e.toString()}'),
             backgroundColor: Colors.red,

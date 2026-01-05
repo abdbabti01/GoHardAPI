@@ -79,42 +79,48 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   Future<void> _handleEditWorkoutName() async {
     final provider = context.read<ActiveWorkoutProvider>();
     final currentName = provider.currentSession?.name;
-    final controller = TextEditingController(text: currentName);
 
     final newName = await showDialog<String>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Edit Workout Name'),
-            content: TextField(
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Workout Name',
-                hintText: 'e.g., Push Day, Leg Day',
-              ),
-              controller: controller,
-              textCapitalization: TextCapitalization.words,
-              onSubmitted: (value) {
-                Navigator.of(context).pop(value);
-              },
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).pop(controller.text);
-                },
-                child: const Text('Save'),
-              ),
-            ],
-          ),
-    );
+      builder: (dialogContext) {
+        // Create controller inside builder so it's owned by dialog's lifecycle
+        final controller = TextEditingController(text: currentName);
 
-    // Dispose the controller
-    controller.dispose();
+        return AlertDialog(
+          title: const Text('Edit Workout Name'),
+          content: TextField(
+            autofocus: true,
+            decoration: const InputDecoration(
+              labelText: 'Workout Name',
+              hintText: 'e.g., Push Day, Leg Day',
+            ),
+            controller: controller,
+            textCapitalization: TextCapitalization.words,
+            onSubmitted: (value) {
+              controller.dispose();
+              Navigator.of(dialogContext).pop(value);
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                controller.dispose();
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final text = controller.text;
+                controller.dispose();
+                Navigator.of(dialogContext).pop(text);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
 
     if (newName != null && newName.trim().isNotEmpty && mounted) {
       await provider.updateWorkoutName(newName.trim());

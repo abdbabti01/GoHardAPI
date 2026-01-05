@@ -68,6 +68,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
   Future<void> _saveWorkoutPlan() async {
     final navigator = Navigator.of(context);
     final chatProvider = context.read<ChatProvider>();
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     // Step 1: Show loading and fetch preview
     showDialog(
@@ -82,7 +83,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     navigator.pop(); // Close loading
 
     if (preview == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(chatProvider.errorMessage ?? 'Failed to load preview'),
           backgroundColor: Colors.red,
@@ -113,7 +114,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     if (createResult != null) {
       final sessionsCount = createResult['sessions']?.length ?? 0;
       final matchedCount = createResult['matchedTemplates'] ?? 0;
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
             'Created $sessionsCount sessions ($matchedCount exercises matched)!',
@@ -130,7 +131,7 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      scaffoldMessenger.showSnackBar(
         SnackBar(
           content: Text(
             chatProvider.errorMessage ?? 'Failed to create sessions',
