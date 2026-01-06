@@ -225,6 +225,20 @@ class _SessionsScreenState extends State<SessionsScreen> {
         title: const Text('Workouts'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.people),
+            onPressed: () {
+              Navigator.pushNamed(context, RouteNames.community);
+            },
+            tooltip: 'Community',
+          ),
+          IconButton(
+            icon: const Icon(Icons.bookmark),
+            onPressed: () {
+              Navigator.pushNamed(context, RouteNames.templates);
+            },
+            tooltip: 'Templates',
+          ),
+          IconButton(
             icon: const Icon(Icons.analytics),
             onPressed: () {
               Navigator.pushNamed(context, RouteNames.analytics);

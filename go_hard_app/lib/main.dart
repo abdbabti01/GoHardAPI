@@ -11,6 +11,8 @@ import 'data/repositories/user_repository.dart';
 import 'data/repositories/profile_repository.dart';
 import 'data/repositories/analytics_repository.dart';
 import 'data/repositories/chat_repository.dart';
+import 'data/repositories/shared_workout_repository.dart';
+import 'data/repositories/workout_template_repository.dart';
 import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
@@ -25,6 +27,8 @@ import 'providers/log_sets_provider.dart';
 import 'providers/profile_provider.dart';
 import 'providers/analytics_provider.dart';
 import 'providers/chat_provider.dart';
+import 'providers/shared_workout_provider.dart';
+import 'providers/workout_template_provider.dart';
 import 'providers/music_player_provider.dart';
 
 void main() async {
@@ -127,6 +131,38 @@ void main() async {
           update:
               (_, apiService, localDb, connectivity, authService, __) =>
                   ChatRepository(
+                    apiService,
+                    localDb,
+                    connectivity,
+                    authService,
+                  ),
+        ),
+        ProxyProvider4<
+          ApiService,
+          LocalDatabaseService,
+          ConnectivityService,
+          AuthService,
+          SharedWorkoutRepository
+        >(
+          update:
+              (_, apiService, localDb, connectivity, authService, __) =>
+                  SharedWorkoutRepository(
+                    apiService,
+                    localDb,
+                    connectivity,
+                    authService,
+                  ),
+        ),
+        ProxyProvider4<
+          ApiService,
+          LocalDatabaseService,
+          ConnectivityService,
+          AuthService,
+          WorkoutTemplateRepository
+        >(
+          update:
+              (_, apiService, localDb, connectivity, authService, __) =>
+                  WorkoutTemplateRepository(
                     apiService,
                     localDb,
                     connectivity,
@@ -267,6 +303,36 @@ void main() async {
           update:
               (_, chatRepo, connectivity, previous) =>
                   previous ?? ChatProvider(chatRepo, connectivity),
+        ),
+        ChangeNotifierProxyProvider2<
+          SharedWorkoutRepository,
+          ConnectivityService,
+          SharedWorkoutProvider
+        >(
+          create:
+              (context) => SharedWorkoutProvider(
+                context.read<SharedWorkoutRepository>(),
+                context.read<ConnectivityService>(),
+              ),
+          update:
+              (_, sharedWorkoutRepo, connectivity, previous) =>
+                  previous ??
+                  SharedWorkoutProvider(sharedWorkoutRepo, connectivity),
+        ),
+        ChangeNotifierProxyProvider2<
+          WorkoutTemplateRepository,
+          ConnectivityService,
+          WorkoutTemplateProvider
+        >(
+          create:
+              (context) => WorkoutTemplateProvider(
+                context.read<WorkoutTemplateRepository>(),
+                context.read<ConnectivityService>(),
+              ),
+          update:
+              (_, workoutTemplateRepo, connectivity, previous) =>
+                  previous ??
+                  WorkoutTemplateProvider(workoutTemplateRepo, connectivity),
         ),
         ChangeNotifierProvider<MusicPlayerProvider>(
           create: (_) => MusicPlayerProvider(),

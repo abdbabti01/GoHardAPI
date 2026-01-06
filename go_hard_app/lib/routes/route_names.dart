@@ -34,6 +34,12 @@ class RouteNames {
   static const String workoutPlanForm = '/chat/workout-plan';
   static const String mealPlanForm = '/chat/meal-plan';
 
+  // Community routes
+  static const String community = '/community';
+
+  // Template routes
+  static const String templates = '/templates';
+
   // Initial route (shown when app starts)
   static const String initial = login;
 }

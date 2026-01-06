@@ -70,6 +70,8 @@ class ApiConfig {
   static const String chatWorkoutPlan = 'chat/workout-plan';
   static const String chatMealPlan = 'chat/meal-plan';
   static const String chatAnalyzeProgress = 'chat/analyze-progress';
+  static const String sharedWorkouts = 'sharedworkouts';
+  static const String workoutTemplates = 'workouttemplates';
 
   /// Helper methods for building endpoint URLs
   static String userById(int id) => '$users/$id';

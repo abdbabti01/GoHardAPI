@@ -16,6 +16,8 @@ import '../ui/screens/chat/chat_list_screen.dart';
 import '../ui/screens/chat/chat_conversation_screen.dart';
 import '../ui/screens/chat/workout_plan_form_screen.dart';
 import '../ui/screens/chat/meal_plan_form_screen.dart';
+import '../ui/screens/community/community_screen.dart';
+import '../ui/screens/templates/templates_screen.dart';
 
 /// Central router for the application
 /// Handles route generation and navigation logic
@@ -166,6 +168,20 @@ class AppRouter {
       case RouteNames.mealPlanForm:
         return MaterialPageRoute(
           builder: (_) => const MealPlanFormScreen(),
+          settings: settings,
+        );
+
+      // Community routes
+      case RouteNames.community:
+        return MaterialPageRoute(
+          builder: (_) => const CommunityScreen(),
+          settings: settings,
+        );
+
+      // Template routes
+      case RouteNames.templates:
+        return MaterialPageRoute(
+          builder: (_) => const TemplatesScreen(),
           settings: settings,
         );
 
