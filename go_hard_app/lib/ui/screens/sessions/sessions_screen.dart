@@ -7,6 +7,7 @@ import '../../../core/services/sync_service.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../widgets/sessions/session_card.dart';
 import '../../widgets/sessions/workout_name_dialog.dart';
+import '../../widgets/sessions/weekly_progress_card.dart';
 import '../../widgets/common/offline_banner.dart';
 
 /// Sessions screen displaying list of workout sessions
@@ -156,102 +157,19 @@ class _SessionsScreenState extends State<SessionsScreen> {
     );
   }
 
-  /// Calculate total items including planned workouts section
-  int _calculateTotalItemsWithPlanned(
-    List<dynamic> plannedSessions,
-    Map<String, List<dynamic>> grouped,
-    List<String> labels,
-  ) {
-    int total = 0;
+  /// Build section header widget
+  Widget _buildSectionHeader(String label, IconData icon, int? count) {
+    final isCollapsible = label == 'Upcoming';
 
-    // Planned workouts section
-    if (plannedSessions.isNotEmpty) {
-      total += 1; // Header
-      // Only include planned sessions in count if expanded
-      if (_isPlannedExpanded) {
-        total += plannedSessions.length;
-      }
-    }
-
-    // Past sessions grouped by week
-    for (final label in labels) {
-      total += 1; // Header
-      total += grouped[label]!.length; // Sessions in this week
-    }
-
-    return total;
-  }
-
-  /// Build list item including planned workouts section
-  Widget _buildListItemWithPlanned(
-    int index,
-    List<dynamic> plannedSessions,
-    Map<String, List<dynamic>> grouped,
-    List<String> labels,
-  ) {
-    int currentIndex = 0;
-
-    // Planned workouts section
-    if (plannedSessions.isNotEmpty) {
-      // Header for planned workouts
-      if (index == currentIndex) {
-        return _buildSectionHeader(
-          'Planned Workouts',
-          Icons.event,
-          plannedSessions.length,
-        );
-      }
-      currentIndex++;
-
-      // Planned sessions (only if expanded)
-      if (_isPlannedExpanded) {
-        if (index < currentIndex + plannedSessions.length) {
-          final sessionIndex = index - currentIndex;
-          final session = plannedSessions[sessionIndex];
-          return SessionCard(
-            session: session,
-            onTap: () => _handleSessionTap(session.id, session.status),
-            onDelete: () => _handleDeleteSession(session.id),
-          );
-        }
-        currentIndex += plannedSessions.length;
-      }
-    }
-
-    // Past sessions grouped by week
-    for (final label in labels) {
-      // Check if this index is the header
-      if (index == currentIndex) {
-        return _buildWeekHeader(label);
-      }
-      currentIndex++;
-
-      // Check if this index is a session in this week
-      final sessionsInWeek = grouped[label]!;
-      if (index < currentIndex + sessionsInWeek.length) {
-        final sessionIndex = index - currentIndex;
-        final session = sessionsInWeek[sessionIndex];
-        return SessionCard(
-          session: session,
-          onTap: () => _handleSessionTap(session.id, session.status),
-          onDelete: () => _handleDeleteSession(session.id),
-        );
-      }
-      currentIndex += sessionsInWeek.length;
-    }
-
-    // Fallback
-    return const SizedBox.shrink();
-  }
-
-  /// Build section header widget (for planned workouts)
-  Widget _buildSectionHeader(String label, IconData icon, int count) {
     return InkWell(
-      onTap: () {
-        setState(() {
-          _isPlannedExpanded = !_isPlannedExpanded;
-        });
-      },
+      onTap:
+          isCollapsible
+              ? () {
+                setState(() {
+                  _isPlannedExpanded = !_isPlannedExpanded;
+                });
+              }
+              : null,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
         child: Row(
@@ -265,31 +183,35 @@ class _SessionsScreenState extends State<SessionsScreen> {
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
-            const SizedBox(width: 4),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+            if (count != null) ...[
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
               ),
-            ),
-            const Spacer(),
-            Icon(
-              _isPlannedExpanded
-                  ? Icons.keyboard_arrow_up
-                  : Icons.keyboard_arrow_down,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            ],
+            if (isCollapsible) ...[
+              const Spacer(),
+              Icon(
+                _isPlannedExpanded
+                    ? Icons.keyboard_arrow_up
+                    : Icons.keyboard_arrow_down,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ],
           ],
         ),
       ),
@@ -391,42 +313,152 @@ class _SessionsScreenState extends State<SessionsScreen> {
                   );
                 }
 
-                // Separate planned and past sessions
+                // Organize sessions by time period
+                final now = DateTime.now();
+                final today = DateTime(now.year, now.month, now.day);
+                final weekStart = today.subtract(
+                  Duration(days: today.weekday - 1),
+                );
+
+                // Group sessions
+                final todaySessions =
+                    provider.sessions
+                        .where(
+                          (s) =>
+                              s.status != 'planned' &&
+                              DateTime(s.date.year, s.date.month, s.date.day) ==
+                                  today,
+                        )
+                        .toList();
+
+                final thisWeekSessions =
+                    provider.sessions
+                        .where(
+                          (s) =>
+                              s.status != 'planned' &&
+                              s.date.isAfter(
+                                weekStart.subtract(const Duration(days: 1)),
+                              ) &&
+                              s.date.isBefore(
+                                today.add(const Duration(days: 1)),
+                              ),
+                        )
+                        .toList();
+
                 final plannedSessions =
                     provider.sessions
                         .where((s) => s.status == 'planned')
                         .toList();
+
                 final pastSessions =
                     provider.sessions
-                        .where((s) => s.status != 'planned')
+                        .where(
+                          (s) =>
+                              s.status != 'planned' &&
+                              s.date.isBefore(weekStart),
+                        )
                         .toList();
 
                 // Group past sessions by week
-                final groupedSessions = DateGroupingUtils.groupSessionsByWeek(
+                final groupedPast = DateGroupingUtils.groupSessionsByWeek(
                   pastSessions,
                 );
-                final weekLabels = DateGroupingUtils.getOrderedWeekLabels(
-                  groupedSessions,
+                final pastWeekLabels = DateGroupingUtils.getOrderedWeekLabels(
+                  groupedPast,
                 );
 
                 return RefreshIndicator(
                   onRefresh: _handleRefresh,
-                  child: ListView.builder(
+                  child: ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(top: 8, bottom: 80),
-                    itemCount: _calculateTotalItemsWithPlanned(
-                      plannedSessions,
-                      groupedSessions,
-                      weekLabels,
-                    ),
-                    itemBuilder: (context, index) {
-                      return _buildListItemWithPlanned(
-                        index,
-                        plannedSessions,
-                        groupedSessions,
-                        weekLabels,
-                      );
-                    },
+                    padding: const EdgeInsets.only(bottom: 80),
+                    children: [
+                      // Weekly Progress Card
+                      if (thisWeekSessions.isNotEmpty)
+                        WeeklyProgressCard(thisWeekSessions: thisWeekSessions),
+
+                      // Today Section
+                      if (todaySessions.isNotEmpty) ...[
+                        _buildSectionHeader('Today', Icons.today, null),
+                        ...todaySessions.map(
+                          (session) => SessionCard(
+                            session: session,
+                            onTap:
+                                () => _handleSessionTap(
+                                  session.id,
+                                  session.status,
+                                ),
+                            onDelete: () => _handleDeleteSession(session.id),
+                          ),
+                        ),
+                      ],
+
+                      // This Week Section
+                      if (thisWeekSessions.isNotEmpty) ...[
+                        _buildSectionHeader('This Week', Icons.view_week, null),
+                        ...thisWeekSessions
+                            .where(
+                              (s) =>
+                                  DateTime(
+                                    s.date.year,
+                                    s.date.month,
+                                    s.date.day,
+                                  ) !=
+                                  today,
+                            )
+                            .map(
+                              (session) => SessionCard(
+                                session: session,
+                                onTap:
+                                    () => _handleSessionTap(
+                                      session.id,
+                                      session.status,
+                                    ),
+                                onDelete:
+                                    () => _handleDeleteSession(session.id),
+                              ),
+                            ),
+                      ],
+
+                      // Planned/Upcoming Section
+                      if (plannedSessions.isNotEmpty) ...[
+                        _buildSectionHeader(
+                          'Upcoming',
+                          Icons.event,
+                          plannedSessions.length,
+                        ),
+                        if (_isPlannedExpanded)
+                          ...plannedSessions.map(
+                            (session) => SessionCard(
+                              session: session,
+                              onTap:
+                                  () => _handleSessionTap(
+                                    session.id,
+                                    session.status,
+                                  ),
+                              onDelete: () => _handleDeleteSession(session.id),
+                            ),
+                          ),
+                      ],
+
+                      // Past Sessions
+                      if (pastSessions.isNotEmpty) ...[
+                        for (final label in pastWeekLabels) ...[
+                          _buildWeekHeader(label),
+                          ...groupedPast[label]!.map(
+                            (session) => SessionCard(
+                              session: session,
+                              onTap:
+                                  () => _handleSessionTap(
+                                    session.id,
+                                    session.status,
+                                  ),
+                              onDelete: () => _handleDeleteSession(session.id),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ],
                   ),
                 );
               },

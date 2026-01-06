@@ -50,15 +50,17 @@ class StatusBadge extends StatelessWidget {
       case 'in_progress':
         return _BadgeData(
           label: 'In Progress',
-          color: Colors.blue,
+          color: Colors.orange,
           icon: Icons.play_circle_filled,
         );
-      case 'draft':
+      case 'planned':
         return _BadgeData(
-          label: 'Draft',
-          color: Colors.orange,
-          icon: Icons.edit,
+          label: 'Planned',
+          color: Colors.blue,
+          icon: Icons.event,
         );
+      case 'draft':
+        return _BadgeData(label: 'Draft', color: Colors.grey, icon: Icons.edit);
       default:
         return _BadgeData(
           label: status,
