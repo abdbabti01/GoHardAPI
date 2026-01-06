@@ -173,25 +173,15 @@ void main() async {
                     authService,
                   ),
         ),
-        ProxyProvider3<
-          ApiService,
-          AuthService,
-          ConnectivityService,
-          GoalsRepository
-        >(
+        ProxyProvider2<ApiService, ConnectivityService, GoalsRepository>(
           update:
-              (_, apiService, authService, connectivity, __) =>
-                  GoalsRepository(apiService, authService, connectivity),
+              (_, apiService, connectivity, __) =>
+                  GoalsRepository(apiService, connectivity),
         ),
-        ProxyProvider3<
-          ApiService,
-          AuthService,
-          ConnectivityService,
-          BodyMetricsRepository
-        >(
+        ProxyProvider2<ApiService, ConnectivityService, BodyMetricsRepository>(
           update:
-              (_, apiService, authService, connectivity, __) =>
-                  BodyMetricsRepository(apiService, authService, connectivity),
+              (_, apiService, connectivity, __) =>
+                  BodyMetricsRepository(apiService, connectivity),
         ),
 
         // Sync Service

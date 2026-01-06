@@ -3,19 +3,13 @@ import '../../core/constants/api_config.dart';
 import '../../core/services/connectivity_service.dart';
 import '../models/body_metric.dart';
 import '../services/api_service.dart';
-import '../services/auth_service.dart';
 
 /// Repository for body metrics operations with offline caching
 class BodyMetricsRepository {
   final ApiService _apiService;
-  final AuthService _authService;
   final ConnectivityService? _connectivity;
 
-  BodyMetricsRepository(
-    this._apiService,
-    this._authService, [
-    this._connectivity,
-  ]);
+  BodyMetricsRepository(this._apiService, [this._connectivity]);
 
   /// Get body metrics for the current user
   /// Optional parameter: days (default 90 days)

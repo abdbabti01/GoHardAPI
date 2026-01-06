@@ -194,7 +194,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
         leading: const CircleAvatar(child: Icon(Icons.fitness_center)),
         title: Text(dateFormat.format(metric.recordedAt)),
         subtitle: _buildMetricSummary(metric),
-        trailing: PopupMenuButton(
+        trailing: PopupMenuButton<String>(
           itemBuilder:
               (context) => [
                 const PopupMenuItem(
@@ -218,7 +218,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
                   ),
                 ),
               ],
-          onSelected: (value) => _handleMetricAction(metric, value as String),
+          onSelected: (value) => _handleMetricAction(metric, value),
         ),
       ),
     );

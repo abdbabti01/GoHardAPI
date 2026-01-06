@@ -4,15 +4,13 @@ import '../../core/services/connectivity_service.dart';
 import '../models/goal.dart';
 import '../models/goal_progress.dart';
 import '../services/api_service.dart';
-import '../services/auth_service.dart';
 
 /// Repository for goals operations with offline caching
 class GoalsRepository {
   final ApiService _apiService;
-  final AuthService _authService;
   final ConnectivityService? _connectivity;
 
-  GoalsRepository(this._apiService, this._authService, [this._connectivity]);
+  GoalsRepository(this._apiService, [this._connectivity]);
 
   /// Get all goals for the current user
   /// Optional filter: isActive (true for active goals, false for inactive/completed)

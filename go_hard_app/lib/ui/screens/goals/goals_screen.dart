@@ -153,7 +153,7 @@ class _GoalsScreenState extends State<GoalsScreen>
                 if (goal.isCompleted)
                   const Icon(Icons.check_circle, color: Colors.green)
                 else
-                  PopupMenuButton(
+                  PopupMenuButton<String>(
                     itemBuilder:
                         (context) => [
                           const PopupMenuItem(
@@ -187,8 +187,7 @@ class _GoalsScreenState extends State<GoalsScreen>
                             ),
                           ),
                         ],
-                    onSelected:
-                        (value) => _handleGoalAction(goal, value as String),
+                    onSelected: (value) => _handleGoalAction(goal, value),
                   ),
               ],
             ),

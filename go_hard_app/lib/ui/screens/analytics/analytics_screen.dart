@@ -96,9 +96,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       return const Center(child: Text('No data available'));
     }
 
-    // Get muscle group data
-    final muscleGroupData = provider.muscleGroupVolume;
-
     // Get sessions for heatmap and streak counter
     final sessionsProvider = context.watch<SessionsProvider>();
     final sessions = sessionsProvider.sessions;
