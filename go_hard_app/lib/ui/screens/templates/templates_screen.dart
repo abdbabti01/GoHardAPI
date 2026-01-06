@@ -269,7 +269,7 @@ class _TemplatesScreenState extends State<TemplatesScreen>
                         children: [
                           const Icon(Icons.star, size: 14, color: Colors.amber),
                           const SizedBox(width: 4),
-                          Text('${template.rating!.toStringAsFixed(1)}'),
+                          Text(template.rating!.toStringAsFixed(1)),
                         ],
                       ),
                       visualDensity: VisualDensity.compact,
@@ -425,9 +425,10 @@ class _TemplatesScreenState extends State<TemplatesScreen>
               ElevatedButton(
                 onPressed: () async {
                   Navigator.pop(context);
+                  final messenger = ScaffoldMessenger.of(context);
                   final success = await provider.deleteTemplate(template.id);
                   if (success && mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       const SnackBar(content: Text('Template deleted')),
                     );
                   }
@@ -493,12 +494,13 @@ class _TemplatesScreenState extends State<TemplatesScreen>
               ElevatedButton(
                 onPressed: () async {
                   Navigator.pop(context);
+                  final messenger = ScaffoldMessenger.of(context);
                   final success = await provider.rateTemplate(
                     template.id,
                     rating,
                   );
                   if (success && mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       const SnackBar(content: Text('Rating submitted')),
                     );
                   }

@@ -428,11 +428,12 @@ class _CommunityScreenState extends State<CommunityScreen>
               ElevatedButton(
                 onPressed: () async {
                   Navigator.pop(context);
+                  final messenger = ScaffoldMessenger.of(context);
                   final success = await provider.deleteSharedWorkout(
                     workout.id,
                   );
                   if (success && mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       const SnackBar(content: Text('Workout deleted')),
                     );
                   }
