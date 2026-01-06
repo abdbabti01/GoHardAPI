@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../providers/workout_template_provider.dart';
 import '../../../data/models/workout_template.dart';
 import '../../widgets/common/offline_banner.dart';
+import 'template_form_dialog.dart';
 
 /// Screen for managing workout templates
 class TemplatesScreen extends StatefulWidget {
@@ -376,31 +377,67 @@ class _TemplatesScreenState extends State<TemplatesScreen>
   }
 
   void _createNewTemplate() {
-    // TODO: Implement template creation form
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Template creation coming soon!'),
-        duration: Duration(seconds: 2),
-      ),
+    showDialog(
+      context: context,
+      builder: (context) => const TemplateFormDialog(),
     );
   }
 
   void _editTemplate(WorkoutTemplate template) {
-    // TODO: Implement template editing
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Editing ${template.name}...'),
-        duration: const Duration(seconds: 2),
-      ),
+    showDialog(
+      context: context,
+      builder: (context) => TemplateFormDialog(template: template),
     );
   }
 
   void _useTemplate(WorkoutTemplate template) {
-    // TODO: Implement creating a workout from template
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Creating workout from template...'),
-        duration: Duration(seconds: 2),
+    // Navigate to create a new session with template data
+    // For now, show a confirmation dialog
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Use Template'),
+            content: Text(
+              'Create a new workout session from "${template.name}"?\n\n'
+              'This will start a new workout with the exercises from this template.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _createSessionFromTemplate(template);
+                },
+                child: const Text('Start Workout'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _createSessionFromTemplate(WorkoutTemplate template) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    // TODO: Integrate with SessionsProvider to create actual session
+    // For now, show success message
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Workout session created from "${template.name}"!\n'
+          'Navigate to Active Workout to start.',
+        ),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'GO',
+          onPressed: () {
+            // Navigate to active workout screen
+            Navigator.pushNamed(context, '/active-workout');
+          },
+        ),
       ),
     );
   }

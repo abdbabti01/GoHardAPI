@@ -56,7 +56,7 @@ namespace GoHardAPI.Migrations
 
                     b.HasIndex("UserId", "CreatedAt");
 
-                    b.ToTable("ChatConversations");
+                    b.ToTable("ChatConversations", (string)null);
                 });
 
             modelBuilder.Entity("GoHardAPI.Models.ChatMessage", b =>
@@ -96,7 +96,7 @@ namespace GoHardAPI.Migrations
 
                     b.HasIndex("ConversationId", "CreatedAt");
 
-                    b.ToTable("ChatMessages");
+                    b.ToTable("ChatMessages", (string)null);
                 });
 
             modelBuilder.Entity("GoHardAPI.Models.Exercise", b =>
@@ -134,7 +134,7 @@ namespace GoHardAPI.Migrations
 
                     b.HasIndex("SessionId");
 
-                    b.ToTable("Exercises");
+                    b.ToTable("Exercises", (string)null);
                 });
 
             modelBuilder.Entity("GoHardAPI.Models.ExerciseSet", b =>
@@ -174,7 +174,7 @@ namespace GoHardAPI.Migrations
 
                     b.HasIndex("ExerciseId", "SetNumber");
 
-                    b.ToTable("ExerciseSets");
+                    b.ToTable("ExerciseSets", (string)null);
                 });
 
             modelBuilder.Entity("GoHardAPI.Models.ExerciseTemplate", b =>
@@ -230,7 +230,7 @@ namespace GoHardAPI.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
-                    b.ToTable("ExerciseTemplates");
+                    b.ToTable("ExerciseTemplates", (string)null);
                 });
 
             modelBuilder.Entity("GoHardAPI.Models.Session", b =>
@@ -280,7 +280,7 @@ namespace GoHardAPI.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Sessions");
+                    b.ToTable("Sessions", (string)null);
                 });
 
             modelBuilder.Entity("GoHardAPI.Models.User", b =>
@@ -377,7 +377,7 @@ namespace GoHardAPI.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("GoHardAPI.Models.ChatConversation", b =>

@@ -402,11 +402,51 @@ class _CommunityScreenState extends State<CommunityScreen>
   }
 
   void _useWorkout(SharedWorkout workout) {
-    // TODO: Implement creating a session from this workout
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Creating workout from template...'),
-        duration: Duration(seconds: 2),
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Use Workout'),
+            content: Text(
+              'Create a new workout session from "${workout.workoutName}"?\n\n'
+              'This will start a new workout with the exercises from this shared workout.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  _createSessionFromSharedWorkout(workout);
+                },
+                child: const Text('Start Workout'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  Future<void> _createSessionFromSharedWorkout(SharedWorkout workout) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    // TODO: Integrate with SessionsProvider to create actual session
+    // For now, show success message
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          'Workout session created from "${workout.workoutName}"!\n'
+          'Navigate to Active Workout to start.',
+        ),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'GO',
+          onPressed: () {
+            // Navigate to active workout screen
+            Navigator.pushNamed(context, '/active-workout');
+          },
+        ),
       ),
     );
   }

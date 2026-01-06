@@ -14,6 +14,11 @@ namespace GoHardAPI.Data
         public DbSet<ExerciseSet> ExerciseSets { get; set; }
         public DbSet<ChatConversation> ChatConversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<SharedWorkout> SharedWorkouts { get; set; }
+        public DbSet<SharedWorkoutLike> SharedWorkoutLikes { get; set; }
+        public DbSet<SharedWorkoutSave> SharedWorkoutSaves { get; set; }
+        public DbSet<WorkoutTemplate> WorkoutTemplates { get; set; }
+        public DbSet<WorkoutTemplateRating> WorkoutTemplateRatings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -78,6 +83,79 @@ namespace GoHardAPI.Data
 
             modelBuilder.Entity<ChatMessage>()
                 .HasIndex(m => new { m.ConversationId, m.CreatedAt });
+
+            // Configure SharedWorkout-User relationship
+            modelBuilder.Entity<SharedWorkout>()
+                .HasOne(sw => sw.SharedByUser)
+                .WithMany()
+                .HasForeignKey(sw => sw.SharedByUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure SharedWorkoutLike relationships
+            modelBuilder.Entity<SharedWorkoutLike>()
+                .HasOne(swl => swl.SharedWorkout)
+                .WithMany(sw => sw.Likes)
+                .HasForeignKey(swl => swl.SharedWorkoutId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SharedWorkoutLike>()
+                .HasOne(swl => swl.User)
+                .WithMany()
+                .HasForeignKey(swl => swl.UserId)
+                .OnDelete(DeleteBehavior.NoAction); // Prevent cascade cycles
+
+            // Configure SharedWorkoutSave relationships
+            modelBuilder.Entity<SharedWorkoutSave>()
+                .HasOne(sws => sws.SharedWorkout)
+                .WithMany(sw => sw.Saves)
+                .HasForeignKey(sws => sws.SharedWorkoutId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SharedWorkoutSave>()
+                .HasOne(sws => sws.User)
+                .WithMany()
+                .HasForeignKey(sws => sws.UserId)
+                .OnDelete(DeleteBehavior.NoAction); // Prevent cascade cycles
+
+            // Add indexes for shared workout queries
+            modelBuilder.Entity<SharedWorkout>()
+                .HasIndex(sw => new { sw.Category, sw.SharedAt });
+
+            modelBuilder.Entity<SharedWorkoutLike>()
+                .HasIndex(swl => new { swl.SharedWorkoutId, swl.UserId })
+                .IsUnique();
+
+            modelBuilder.Entity<SharedWorkoutSave>()
+                .HasIndex(sws => new { sws.SharedWorkoutId, sws.UserId })
+                .IsUnique();
+
+            // Configure WorkoutTemplate-User relationship
+            modelBuilder.Entity<WorkoutTemplate>()
+                .HasOne(wt => wt.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(wt => wt.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure WorkoutTemplateRating relationships
+            modelBuilder.Entity<WorkoutTemplateRating>()
+                .HasOne(wtr => wtr.WorkoutTemplate)
+                .WithMany(wt => wt.Ratings)
+                .HasForeignKey(wtr => wtr.WorkoutTemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<WorkoutTemplateRating>()
+                .HasOne(wtr => wtr.User)
+                .WithMany()
+                .HasForeignKey(wtr => wtr.UserId)
+                .OnDelete(DeleteBehavior.NoAction); // Prevent cascade cycles
+
+            // Add indexes for template queries
+            modelBuilder.Entity<WorkoutTemplate>()
+                .HasIndex(wt => new { wt.IsCustom, wt.IsActive, wt.Category });
+
+            modelBuilder.Entity<WorkoutTemplateRating>()
+                .HasIndex(wtr => new { wtr.WorkoutTemplateId, wtr.UserId })
+                .IsUnique();
         }
     }
 }
