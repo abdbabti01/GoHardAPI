@@ -12,13 +12,13 @@ class ApiConfig {
   static String get baseUrl {
     if (Platform.isIOS || Platform.isMacOS) {
       // For physical iPhone on WiFi, use computer's IP address
-      return 'http://10.0.0.4:5121/api/';
+      return 'http://10.0.0.4:5121/api/'; // REPLACE 10.0.0.4 WITH YOUR IP
     } else if (Platform.isAndroid) {
       // IMPORTANT: Choose the correct URL based on your testing device:
       // - Android Emulator: use 10.0.2.2 (special alias to host machine's localhost)
       // - Physical Android Device: use your computer's WiFi IP address (e.g., 10.0.0.4, 192.168.x.x)
       //   To find your IP: Windows (ipconfig), Mac/Linux (ifconfig)
-      return 'http://10.0.2.2:5121/api/'; // Currently configured for emulator
+      return 'http://10.0.2.2:5121/api/'; // Configured for Android Emulator
     } else {
       // Windows, Linux, or other platforms
       return 'http://localhost:5121/api/';
@@ -28,9 +28,9 @@ class ApiConfig {
   /// Server URL without /api suffix (for static files like profile photos)
   static String get serverUrl {
     if (Platform.isIOS || Platform.isMacOS) {
-      return 'http://10.0.0.4:5121';
+      return 'http://localhost:5121';
     } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5121';
+      return 'http://10.0.2.2:5121'; // Configured for Android Emulator
     } else {
       return 'http://localhost:5121';
     }
@@ -72,6 +72,8 @@ class ApiConfig {
   static const String chatAnalyzeProgress = 'chat/analyze-progress';
   static const String sharedWorkouts = 'sharedworkouts';
   static const String workoutTemplates = 'workouttemplates';
+  static const String goals = 'goals';
+  static const String bodyMetrics = 'bodymetrics';
 
   /// Helper methods for building endpoint URLs
   static String userById(int id) => '$users/$id';
@@ -96,4 +98,11 @@ class ApiConfig {
       '$chatConversations/$conversationId/preview-sessions';
   static String chatCreateSessions(int conversationId) =>
       '$chatConversations/$conversationId/create-sessions';
+  static String goalById(int id) => '$goals/$id';
+  static String goalComplete(int id) => '$goals/$id/complete';
+  static String goalProgress(int id) => '$goals/$id/progress';
+  static String goalHistory(int id) => '$goals/$id/history';
+  static String bodyMetricById(int id) => '$bodyMetrics/$id';
+  static String bodyMetricsLatest = '$bodyMetrics/latest';
+  static String bodyMetricsChart = '$bodyMetrics/chart';
 }

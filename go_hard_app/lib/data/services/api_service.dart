@@ -112,9 +112,28 @@ class ApiService {
       return Exception('Network error - cannot connect to server');
     } else if (error.response != null) {
       final statusCode = error.response?.statusCode;
+      final data = error.response?.data;
+
+      // Extract validation errors for 400 Bad Request
+      if (statusCode == 400 && data is Map) {
+        final errors = data['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          // Format validation errors: "FieldName: error message"
+          final errorMessages = <String>[];
+          errors.forEach((key, value) {
+            if (value is List && value.isNotEmpty) {
+              errorMessages.add('$key: ${value.first}');
+            }
+          });
+          if (errorMessages.isNotEmpty) {
+            return Exception('Validation errors:\n${errorMessages.join('\n')}');
+          }
+        }
+      }
+
       final message =
-          error.response?.data?['message'] ??
-          error.response?.data?['title'] ??
+          data?['message'] ??
+          data?['title'] ??
           error.response?.statusMessage ??
           'Server error';
 

@@ -19,6 +19,9 @@ namespace GoHardAPI.Data
         public DbSet<SharedWorkoutSave> SharedWorkoutSaves { get; set; }
         public DbSet<WorkoutTemplate> WorkoutTemplates { get; set; }
         public DbSet<WorkoutTemplateRating> WorkoutTemplateRatings { get; set; }
+        public DbSet<Goal> Goals { get; set; }
+        public DbSet<GoalProgress> GoalProgressHistory { get; set; }
+        public DbSet<BodyMetric> BodyMetrics { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -156,6 +159,38 @@ namespace GoHardAPI.Data
             modelBuilder.Entity<WorkoutTemplateRating>()
                 .HasIndex(wtr => new { wtr.WorkoutTemplateId, wtr.UserId })
                 .IsUnique();
+
+            // Configure Goal-User relationship
+            modelBuilder.Entity<Goal>()
+                .HasOne(g => g.User)
+                .WithMany()
+                .HasForeignKey(g => g.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure GoalProgress-Goal relationship
+            modelBuilder.Entity<GoalProgress>()
+                .HasOne(gp => gp.Goal)
+                .WithMany(g => g.ProgressHistory)
+                .HasForeignKey(gp => gp.GoalId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add indexes for goal queries
+            modelBuilder.Entity<Goal>()
+                .HasIndex(g => new { g.UserId, g.IsActive, g.IsCompleted });
+
+            modelBuilder.Entity<GoalProgress>()
+                .HasIndex(gp => new { gp.GoalId, gp.RecordedAt });
+
+            // Configure BodyMetric-User relationship
+            modelBuilder.Entity<BodyMetric>()
+                .HasOne(bm => bm.User)
+                .WithMany()
+                .HasForeignKey(bm => bm.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add index for body metrics queries
+            modelBuilder.Entity<BodyMetric>()
+                .HasIndex(bm => new { bm.UserId, bm.RecordedAt });
         }
     }
 }

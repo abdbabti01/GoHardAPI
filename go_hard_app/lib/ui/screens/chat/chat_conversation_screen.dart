@@ -3,6 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../../providers/chat_provider.dart';
 import '../../../providers/sessions_provider.dart';
+import '../../../providers/active_workout_provider.dart';
+import '../../../data/models/exercise_template.dart';
+import '../../../data/services/api_service.dart';
+import '../../../core/constants/api_config.dart';
 import '../../widgets/common/offline_banner.dart';
 
 /// Chat conversation screen showing messages and input
@@ -279,6 +283,172 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     );
   }
 
+  /// Detect if message contains workout pattern
+  bool _detectWorkoutPattern(String message) {
+    // Look for patterns like "4 sets", "x 8-10 reps", "3x10", etc.
+    final hasSetPattern = RegExp(
+      r'\d+\s*(sets?|x)',
+      caseSensitive: false,
+    ).hasMatch(message);
+    final hasRepPattern = RegExp(
+      r'(x\s*)?\d+(-\d+)?\s*(reps?|repetitions?)',
+      caseSensitive: false,
+    ).hasMatch(message);
+    return hasSetPattern || hasRepPattern;
+  }
+
+  /// Parse exercise names from message
+  List<String> _parseExerciseNames(String message) {
+    final exercises = <String>[];
+    final lines = message.split('\n');
+
+    for (final line in lines) {
+      // Match patterns like:
+      // "1. Bench Press - 4 sets x 8-10 reps"
+      // "Squats: 4x10"
+      // "* Deadlift - 3 sets of 5 reps"
+      final match = RegExp(
+        r'(?:^\s*(?:\d+\.|\*|-)\s*)?([A-Za-z][A-Za-z\s]+?)\s*[-:]\s*\d+',
+        caseSensitive: false,
+      ).firstMatch(line);
+
+      if (match != null) {
+        final name = match.group(1)?.trim() ?? '';
+        if (name.isNotEmpty && name.length < 50) {
+          exercises.add(name);
+        }
+      }
+    }
+
+    return exercises;
+  }
+
+  /// Fetch all exercise templates from API
+  Future<List<ExerciseTemplate>> _fetchExerciseTemplates() async {
+    try {
+      final apiService = context.read<ApiService>();
+      final data = await apiService.get<List<dynamic>>(
+        ApiConfig.exerciseTemplates,
+      );
+      return data
+          .map(
+            (json) => ExerciseTemplate.fromJson(json as Map<String, dynamic>),
+          )
+          .toList();
+    } catch (e) {
+      debugPrint('Failed to fetch exercise templates: $e');
+      return [];
+    }
+  }
+
+  /// Match parsed exercise names to templates
+  List<int> _matchExercises(
+    List<String> names,
+    List<ExerciseTemplate> templates,
+  ) {
+    final matchedIds = <int>[];
+
+    for (final name in names) {
+      // Try exact match first
+      var match = templates.firstWhere(
+        (t) => t.name.toLowerCase() == name.toLowerCase(),
+        orElse: () => ExerciseTemplate(id: 0, name: '', category: ''),
+      );
+
+      // If no exact match, try partial match
+      if (match.id == 0) {
+        match = templates.firstWhere(
+          (t) =>
+              t.name.toLowerCase().contains(name.toLowerCase()) ||
+              name.toLowerCase().contains(t.name.toLowerCase()),
+          orElse: () => ExerciseTemplate(id: 0, name: '', category: ''),
+        );
+      }
+
+      if (match.id != 0) {
+        matchedIds.add(match.id);
+        debugPrint('✅ Matched: "$name" → ${match.name} (ID: ${match.id})');
+      } else {
+        debugPrint('⚠️ No match for: "$name"');
+      }
+    }
+
+    return matchedIds;
+  }
+
+  /// Start workout from AI message
+  Future<void> _startWorkoutFromAI(String message) async {
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final activeWorkoutProvider = context.read<ActiveWorkoutProvider>();
+
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      // Parse exercise names
+      final exerciseNames = _parseExerciseNames(message);
+      if (exerciseNames.isEmpty) {
+        throw Exception('No exercises found in message');
+      }
+
+      debugPrint('Parsed ${exerciseNames.length} exercises: $exerciseNames');
+
+      // Fetch templates
+      final templates = await _fetchExerciseTemplates();
+      if (templates.isEmpty) {
+        throw Exception('Failed to load exercise templates');
+      }
+
+      // Match exercises
+      final matchedIds = _matchExercises(exerciseNames, templates);
+      if (matchedIds.isEmpty) {
+        throw Exception('No matching exercises found');
+      }
+
+      // Create workout
+      final sessionId = await activeWorkoutProvider.createWorkoutFromAI(
+        workoutName: 'AI Generated Workout',
+        exerciseTemplateIds: matchedIds,
+      );
+
+      if (!mounted) return;
+      navigator.pop(); // Close loading
+
+      if (sessionId != null) {
+        // Navigate to active workout screen
+        navigator.pushNamed('/active-workout', arguments: sessionId);
+
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Created workout with ${matchedIds.length} exercises!',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception(
+          activeWorkoutProvider.errorMessage ?? 'Failed to create workout',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      navigator.pop(); // Close loading
+
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text('Failed to start workout: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -440,6 +610,31 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
                                   codeblockDecoration: BoxDecoration(
                                     color: Colors.grey[300],
                                     borderRadius: BorderRadius.circular(4),
+                                  ),
+                                ),
+                              ),
+                            // Show "Start This Workout" button if AI message contains workout
+                            if (!isUser &&
+                                _detectWorkoutPattern(message.content))
+                              Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: ElevatedButton.icon(
+                                  onPressed:
+                                      () =>
+                                          _startWorkoutFromAI(message.content),
+                                  icon: const Icon(
+                                    Icons.fitness_center,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Start This Workout'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor:
+                                        Theme.of(context).primaryColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
                                   ),
                                 ),
                               ),

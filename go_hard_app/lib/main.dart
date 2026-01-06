@@ -13,6 +13,8 @@ import 'data/repositories/analytics_repository.dart';
 import 'data/repositories/chat_repository.dart';
 import 'data/repositories/shared_workout_repository.dart';
 import 'data/repositories/workout_template_repository.dart';
+import 'data/repositories/goals_repository.dart';
+import 'data/repositories/body_metrics_repository.dart';
 import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
@@ -29,6 +31,8 @@ import 'providers/analytics_provider.dart';
 import 'providers/chat_provider.dart';
 import 'providers/shared_workout_provider.dart';
 import 'providers/workout_template_provider.dart';
+import 'providers/goals_provider.dart';
+import 'providers/body_metrics_provider.dart';
 import 'providers/music_player_provider.dart';
 
 void main() async {
@@ -168,6 +172,26 @@ void main() async {
                     connectivity,
                     authService,
                   ),
+        ),
+        ProxyProvider3<
+          ApiService,
+          AuthService,
+          ConnectivityService,
+          GoalsRepository
+        >(
+          update:
+              (_, apiService, authService, connectivity, __) =>
+                  GoalsRepository(apiService, authService, connectivity),
+        ),
+        ProxyProvider3<
+          ApiService,
+          AuthService,
+          ConnectivityService,
+          BodyMetricsRepository
+        >(
+          update:
+              (_, apiService, authService, connectivity, __) =>
+                  BodyMetricsRepository(apiService, authService, connectivity),
         ),
 
         // Sync Service
@@ -333,6 +357,34 @@ void main() async {
               (_, workoutTemplateRepo, connectivity, previous) =>
                   previous ??
                   WorkoutTemplateProvider(workoutTemplateRepo, connectivity),
+        ),
+        ChangeNotifierProxyProvider2<
+          GoalsRepository,
+          ConnectivityService,
+          GoalsProvider
+        >(
+          create:
+              (context) => GoalsProvider(
+                context.read<GoalsRepository>(),
+                context.read<ConnectivityService>(),
+              ),
+          update:
+              (_, goalsRepo, connectivity, previous) =>
+                  previous ?? GoalsProvider(goalsRepo, connectivity),
+        ),
+        ChangeNotifierProxyProvider2<
+          BodyMetricsRepository,
+          ConnectivityService,
+          BodyMetricsProvider
+        >(
+          create:
+              (context) => BodyMetricsProvider(
+                context.read<BodyMetricsRepository>(),
+                context.read<ConnectivityService>(),
+              ),
+          update:
+              (_, bodyMetricsRepo, connectivity, previous) =>
+                  previous ?? BodyMetricsProvider(bodyMetricsRepo, connectivity),
         ),
         ChangeNotifierProvider<MusicPlayerProvider>(
           create: (_) => MusicPlayerProvider(),

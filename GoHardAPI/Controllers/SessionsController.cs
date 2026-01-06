@@ -168,6 +168,9 @@ namespace GoHardAPI.Controllers
             else if (request.Status.ToLower() == "completed" && session.CompletedAt == null)
             {
                 session.CompletedAt = DateTime.UtcNow;
+
+                // AUTO-UPDATE WORKOUT GOALS
+                await UpdateWorkoutGoals(userId, session.CompletedAt.Value);
             }
 
             await _context.SaveChangesAsync();
@@ -265,6 +268,89 @@ namespace GoHardAPI.Controllers
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetSession), new { id = session.Id }, exercise);
+        }
+
+        private async Task UpdateWorkoutGoals(int userId, DateTime workoutDate)
+        {
+            // Get active workout frequency goals
+            var workoutGoals = await _context.Goals
+                .Where(g => g.UserId == userId &&
+                            g.IsActive &&
+                            !g.IsCompleted &&
+                            (g.GoalType.ToLower().Contains("workout") ||
+                             g.GoalType.ToLower().Contains("frequency") ||
+                             g.GoalType.ToLower().Contains("training")))
+                .ToListAsync();
+
+            foreach (var goal in workoutGoals)
+            {
+                // Determine if this workout counts toward the goal's time frame
+                bool countsTowardGoal = ShouldCountWorkout(goal, workoutDate);
+
+                if (countsTowardGoal)
+                {
+                    // Increment the goal's current value
+                    goal.CurrentValue += 1;
+
+                    // Add progress entry for tracking
+                    var progress = new GoalProgress
+                    {
+                        GoalId = goal.Id,
+                        RecordedAt = DateTime.UtcNow,
+                        Value = goal.CurrentValue,
+                        Notes = "Auto-tracked from workout completion"
+                    };
+
+                    _context.GoalProgressHistory.Add(progress);
+
+                    // Check if goal is now complete
+                    if (goal.CurrentValue >= goal.TargetValue)
+                    {
+                        goal.IsCompleted = true;
+                        goal.CompletedAt = DateTime.UtcNow;
+                        goal.IsActive = false;
+                    }
+                }
+            }
+        }
+
+        private bool ShouldCountWorkout(Goal goal, DateTime workoutDate)
+        {
+            var now = DateTime.UtcNow;
+
+            switch (goal.TimeFrame?.ToLower())
+            {
+                case "daily":
+                    return workoutDate.Date == now.Date;
+
+                case "weekly":
+                    return GetWeekNumber(workoutDate) == GetWeekNumber(now) &&
+                           workoutDate.Year == now.Year;
+
+                case "monthly":
+                    return workoutDate.Month == now.Month &&
+                           workoutDate.Year == now.Year;
+
+                case "yearly":
+                    return workoutDate.Year == now.Year;
+
+                case "total":
+                case null:
+                    return true;  // All-time goals count any workout
+
+                default:
+                    return false;
+            }
+        }
+
+        private int GetWeekNumber(DateTime date)
+        {
+            var culture = System.Globalization.CultureInfo.CurrentCulture;
+            return culture.Calendar.GetWeekOfYear(
+                date,
+                System.Globalization.CalendarWeekRule.FirstDay,
+                DayOfWeek.Monday
+            );
         }
     }
 }

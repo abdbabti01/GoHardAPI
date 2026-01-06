@@ -270,6 +270,68 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     }
   }
 
+  /// Create a new workout session from AI-generated exercises
+  /// Returns the session ID if successful, null otherwise
+  Future<int?> createWorkoutFromAI({
+    required String workoutName,
+    required List<int> exerciseTemplateIds,
+  }) async {
+    try {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+
+      // Create new session
+      final newSession = Session(
+        id: 0, // Will be assigned by repository
+        userId: 0, // Will be set by repository
+        date: DateTime.now(),
+        duration: 0,
+        name: workoutName,
+        type: 'strength',
+        status: 'draft',
+        exercises: const [],
+      );
+
+      // Save session
+      final createdSession = await _sessionRepository.createSession(newSession);
+      _currentSession = createdSession;
+
+      debugPrint('✅ Created AI workout session: ${createdSession.id}');
+
+      // Add exercises to the session
+      for (final templateId in exerciseTemplateIds) {
+        try {
+          final exercise = await _sessionRepository.addExerciseToSession(
+            createdSession.id,
+            templateId,
+          );
+          // Add to current session's list
+          final updatedExercises = [..._currentSession!.exercises, exercise];
+          _currentSession = _currentSession!.copyWith(
+            exercises: updatedExercises,
+          );
+          debugPrint('  ✅ Added exercise: ${exercise.name}');
+        } catch (e) {
+          debugPrint('  ⚠️ Failed to add exercise template $templateId: $e');
+          // Continue adding other exercises even if one fails
+        }
+      }
+
+      notifyListeners();
+      return createdSession.id;
+    } catch (e) {
+      _errorMessage =
+          'Failed to create workout: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Create workout from AI error: $e');
+      notifyListeners();
+      return null;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   /// Clear error message
   void clearError() {
     _errorMessage = null;

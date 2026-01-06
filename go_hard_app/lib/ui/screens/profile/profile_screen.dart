@@ -9,6 +9,8 @@ import '../../../routes/route_names.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../../core/constants/api_config.dart';
 import 'edit_profile_screen.dart';
+import '../goals/goals_screen.dart';
+import '../body_metrics/body_metrics_screen.dart';
 
 /// Profile screen for viewing user information and settings
 /// Matches ProfilePage.xaml from MAUI app
@@ -167,6 +169,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // Stats card
                   _buildStatsCard(context, provider),
+                  const SizedBox(height: 16),
+
+                  // Tracking menu card
+                  _buildTrackingMenuCard(context),
                   const SizedBox(height: 24),
 
                   // Logout button
@@ -463,6 +469,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildTrackingMenuCard(BuildContext context) {
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(
+              Icons.flag,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            title: const Text('Goals'),
+            subtitle: const Text('Track your fitness goals'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const GoalsScreen()),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Icon(
+              Icons.monitor_weight,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            title: const Text('Body Metrics'),
+            subtitle: const Text('Log and track body measurements'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BodyMetricsScreen()),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

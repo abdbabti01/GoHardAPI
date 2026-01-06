@@ -24,10 +24,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
   late TextEditingController _bioController;
   late TextEditingController _heightController;
-  late TextEditingController _weightController;
-  late TextEditingController _targetWeightController;
-  late TextEditingController _bodyFatController;
-  late TextEditingController _goalsController;
   late TextEditingController _favoriteExercisesController;
 
   // Form values
@@ -52,39 +48,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController = TextEditingController(text: user?.name ?? '');
     _bioController = TextEditingController(text: user?.bio ?? '');
 
-    // Convert height/weight from metric (backend storage) to display units
+    // Convert height from metric (backend storage) to display units
     final displayHeight = UnitConverter.convertMetricHeightToDisplay(
       user?.height,
-      _unitPreference.serverValue,
-    );
-    final displayWeight = UnitConverter.convertMetricWeightToDisplay(
-      user?.weight,
-      _unitPreference.serverValue,
-    );
-    final displayTargetWeight = UnitConverter.convertMetricWeightToDisplay(
-      user?.targetWeight,
       _unitPreference.serverValue,
     );
 
     _heightController = TextEditingController(
       text: displayHeight != null ? displayHeight.toStringAsFixed(1) : '',
     );
-    _weightController = TextEditingController(
-      text: displayWeight != null ? displayWeight.toStringAsFixed(1) : '',
-    );
-    _targetWeightController = TextEditingController(
-      text:
-          displayTargetWeight != null
-              ? displayTargetWeight.toStringAsFixed(1)
-              : '',
-    );
-    _bodyFatController = TextEditingController(
-      text:
-          user?.bodyFatPercentage != null
-              ? user!.bodyFatPercentage!.toStringAsFixed(1)
-              : '',
-    );
-    _goalsController = TextEditingController(text: user?.goals ?? '');
     _favoriteExercisesController = TextEditingController(
       text: user?.favoriteExercises ?? '',
     );
@@ -102,10 +74,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController.dispose();
     _bioController.dispose();
     _heightController.dispose();
-    _weightController.dispose();
-    _targetWeightController.dispose();
-    _bodyFatController.dispose();
-    _goalsController.dispose();
     _favoriteExercisesController.dispose();
     super.dispose();
   }
@@ -206,8 +174,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void _toggleUnitPreference() {
     setState(() {
       final currentHeight = double.tryParse(_heightController.text);
-      final currentWeight = double.tryParse(_weightController.text);
-      final currentTargetWeight = double.tryParse(_targetWeightController.text);
 
       // Convert values when toggling
       if (_unitPreference == UnitPreference.metric) {
@@ -218,32 +184,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             currentHeight,
           ).toStringAsFixed(1);
         }
-        if (currentWeight != null) {
-          _weightController.text = UnitConverter.kgToLbs(
-            currentWeight,
-          ).toStringAsFixed(1);
-        }
-        if (currentTargetWeight != null) {
-          _targetWeightController.text = UnitConverter.kgToLbs(
-            currentTargetWeight,
-          ).toStringAsFixed(1);
-        }
       } else {
         // Convert imperial to metric
         _unitPreference = UnitPreference.metric;
         if (currentHeight != null) {
           _heightController.text = UnitConverter.inchesToCm(
             currentHeight,
-          ).toStringAsFixed(1);
-        }
-        if (currentWeight != null) {
-          _weightController.text = UnitConverter.lbsToKg(
-            currentWeight,
-          ).toStringAsFixed(1);
-        }
-        if (currentTargetWeight != null) {
-          _targetWeightController.text = UnitConverter.lbsToKg(
-            currentTargetWeight,
           ).toStringAsFixed(1);
         }
       }
@@ -257,8 +203,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     // Convert display values to metric for backend storage
     final height = double.tryParse(_heightController.text);
-    final weight = double.tryParse(_weightController.text);
-    final targetWeight = double.tryParse(_targetWeightController.text);
 
     final request = ProfileUpdateRequest(
       name: _nameController.text.trim(),
@@ -272,21 +216,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         height,
         _unitPreference.serverValue,
       ),
-      weight: UnitConverter.convertInputWeightToMetric(
-        weight,
-        _unitPreference.serverValue,
-      ),
-      targetWeight: UnitConverter.convertInputWeightToMetric(
-        targetWeight,
-        _unitPreference.serverValue,
-      ),
-      bodyFatPercentage: double.tryParse(_bodyFatController.text),
       experienceLevel: _experienceLevel?.serverValue,
       primaryGoal: _primaryGoal?.serverValue,
-      goals:
-          _goalsController.text.trim().isEmpty
-              ? null
-              : _goalsController.text.trim(),
       unitPreference: _unitPreference.serverValue,
       themePreference: _themePreference,
       favoriteExercises:
@@ -359,8 +290,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _buildPersonalDetailsCard(),
               const SizedBox(height: 24),
 
-              // Body Metrics
-              _buildSectionHeader('Body Metrics'),
+              // Height & Units
+              _buildSectionHeader('Height & Units'),
               const SizedBox(height: 16),
               _buildBodyMetricsCard(),
               const SizedBox(height: 24),
@@ -543,46 +474,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 decimal: true,
               ),
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _weightController,
-              decoration: InputDecoration(
-                labelText: 'Current Weight',
-                prefixIcon: const Icon(Icons.monitor_weight),
-                suffixText: UnitConverter.getWeightUnit(
-                  _unitPreference.serverValue,
-                ),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _targetWeightController,
-              decoration: InputDecoration(
-                labelText: 'Target Weight',
-                prefixIcon: const Icon(Icons.flag),
-                suffixText: UnitConverter.getWeightUnit(
-                  _unitPreference.serverValue,
-                ),
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _bodyFatController,
-              decoration: const InputDecoration(
-                labelText: 'Body Fat Percentage',
-                prefixIcon: Icon(Icons.percent),
-                suffixText: '%',
-              ),
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-            ),
           ],
         ),
       ),
@@ -629,16 +520,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       )
                       .toList(),
               onChanged: (value) => setState(() => _primaryGoal = value),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _goalsController,
-              decoration: const InputDecoration(
-                labelText: 'Goals (detailed)',
-                prefixIcon: Icon(Icons.description),
-                hintText: 'Describe your fitness goals...',
-              ),
-              maxLines: 3,
             ),
           ],
         ),
