@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../data/models/session.dart';
 import 'status_badge.dart';
+import 'quick_actions_sheet.dart';
 
 /// Card widget for displaying a workout session
 /// Matches SessionCard from MAUI app
@@ -9,12 +10,16 @@ class SessionCard extends StatelessWidget {
   final Session session;
   final VoidCallback? onTap;
   final VoidCallback? onDelete;
+  final VoidCallback? onReschedule;
+  final VoidCallback? onDuplicate;
 
   const SessionCard({
     super.key,
     required this.session,
     this.onTap,
     this.onDelete,
+    this.onReschedule,
+    this.onDuplicate,
   });
 
   @override
@@ -35,6 +40,7 @@ class SessionCard extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: InkWell(
           onTap: onTap,
+          onLongPress: () => _showQuickActions(context),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -141,6 +147,15 @@ class SessionCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+
+  void _showQuickActions(BuildContext context) {
+    QuickActionsSheet.show(
+      context,
+      session,
+      onReschedule: onReschedule,
+      onDuplicate: onDuplicate,
     );
   }
 

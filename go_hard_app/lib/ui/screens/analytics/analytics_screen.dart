@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/analytics_provider.dart';
+import '../../../providers/sessions_provider.dart';
 import '../../../data/models/workout_stats.dart';
 import '../../widgets/charts/volume_chart.dart';
 import '../../widgets/charts/muscle_group_chart.dart';
+import '../../widgets/analytics/calendar_heatmap.dart';
+import '../../widgets/analytics/streak_counter.dart';
 import 'exercise_detail_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
@@ -94,6 +97,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     // Get muscle group data
     final muscleGroupData = provider.muscleGroupVolume;
 
+    // Get sessions for heatmap and streak counter
+    final sessionsProvider = context.watch<SessionsProvider>();
+    final sessions = sessionsProvider.sessions;
+
     return RefreshIndicator(
       onRefresh: () => provider.refresh(),
       child: SingleChildScrollView(
@@ -102,6 +109,14 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Streak Counter
+            StreakCounter(sessions: sessions),
+            const SizedBox(height: 8),
+
+            // Calendar Heatmap
+            CalendarHeatmap(sessions: sessions),
+            const SizedBox(height: 16),
+
             // Volume Over Time Chart
             FutureBuilder<List<ProgressDataPoint>>(
               future: provider.getVolumeOverTime(days: 30),
