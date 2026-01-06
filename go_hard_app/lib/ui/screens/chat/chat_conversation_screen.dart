@@ -302,22 +302,58 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
     final exercises = <String>[];
     final lines = message.split('\n');
 
-    for (final line in lines) {
-      // Match patterns like:
-      // "1. Bench Press - 4 sets x 8-10 reps"
-      // "Squats: 4x10"
-      // "* Deadlift - 3 sets of 5 reps"
-      final match = RegExp(
-        r'(?:^\s*(?:\d+\.|\*|-)\s*)?([A-Za-z][A-Za-z\s]+?)\s*[-:]\s*\d+',
+    // Multiple regex patterns to try, in order of preference
+    final patterns = [
+      // Pattern 1: "1. Bench Press - 4 sets x 8-10 reps"
+      RegExp(
+        r'^\s*(?:\d+\.|\*|-)\s*([A-Za-z][A-Za-z\s\-]+?)\s*[-:]\s*\d+',
         caseSensitive: false,
-      ).firstMatch(line);
+      ),
+      // Pattern 2: "Bench Press: 4x10"
+      RegExp(r'^\s*([A-Za-z][A-Za-z\s\-]+?):\s*\d+', caseSensitive: false),
+      // Pattern 3: "- Bench Press (4 sets)"
+      RegExp(r'^\s*[-*]\s*([A-Za-z][A-Za-z\s\-]+?)\s*\(', caseSensitive: false),
+      // Pattern 4: "**Bench Press**" or "Bench Press" at start of line
+      RegExp(
+        r'^\s*\*{0,2}([A-Z][A-Za-z\s\-]+?)\*{0,2}\s*[-:(]',
+        caseSensitive: false,
+      ),
+      // Pattern 5: Just exercise name followed by numbers
+      RegExp(r'^\s*(?:\d+\.|\*|-)?\s*([A-Z][A-Za-z\s\-]+?)\s+\d+'),
+    ];
 
-      if (match != null) {
-        final name = match.group(1)?.trim() ?? '';
-        if (name.isNotEmpty && name.length < 50) {
-          exercises.add(name);
+    for (final line in lines) {
+      if (line.trim().isEmpty) continue;
+
+      for (final pattern in patterns) {
+        final match = pattern.firstMatch(line);
+        if (match != null) {
+          final name = match.group(1)?.trim() ?? '';
+          // Clean up the name
+          final cleanName =
+              name
+                  .replaceAll(RegExp(r'\s+'), ' ') // normalize spaces
+                  .replaceAll(RegExp(r'[*_]'), '') // remove markdown
+                  .trim();
+
+          if (cleanName.isNotEmpty &&
+              cleanName.length >= 3 &&
+              cleanName.length < 50 &&
+              !exercises.contains(cleanName)) {
+            exercises.add(cleanName);
+            debugPrint('✅ Parsed exercise: "$cleanName" from line: "$line"');
+            break; // Found match, move to next line
+          }
         }
       }
+    }
+
+    debugPrint('📋 Total exercises parsed: ${exercises.length}');
+    if (exercises.isEmpty) {
+      debugPrint('⚠️ No exercises found. Message preview:');
+      debugPrint(
+        message.substring(0, message.length > 200 ? 200 : message.length),
+      );
     }
 
     return exercises;
