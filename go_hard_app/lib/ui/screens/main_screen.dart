@@ -8,14 +8,16 @@ import 'profile/profile_screen.dart';
 /// Main screen wrapper with bottom navigation
 /// Provides 5-tab navigation: Workouts, Exercises, AI Assistant, Analytics, Profile
 class MainScreen extends StatefulWidget {
-  const MainScreen({super.key});
+  final int? initialTab;
+
+  const MainScreen({super.key, this.initialTab});
 
   @override
   State<MainScreen> createState() => _MainScreenState();
 }
 
 class _MainScreenState extends State<MainScreen> {
-  int _currentIndex = 0;
+  late int _currentIndex;
 
   // Screens for each tab
   final List<Widget> _screens = [
@@ -25,6 +27,12 @@ class _MainScreenState extends State<MainScreen> {
     const AnalyticsScreen(),
     const ProfileScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialTab ?? 0;
+  }
 
   @override
   Widget build(BuildContext context) {

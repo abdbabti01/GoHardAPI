@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/sessions_provider.dart';
-import '../../../core/services/sync_service.dart';
+import '../../../providers/chat_provider.dart';
 import '../../../routes/route_names.dart';
 
 /// Login screen with email/password authentication
@@ -45,32 +45,33 @@ class _LoginScreenState extends State<LoginScreen> {
     final success = await authProvider.login();
 
     if (success && mounted) {
-      // Trigger initial sync after successful login to fetch user's data
+      // Load user data after successful login
       try {
-        final syncService = context.read<SyncService>();
+        debugPrint('🔐 Login successful, loading user data...');
         final sessionsProvider = context.read<SessionsProvider>();
+        final chatProvider = context.read<ChatProvider>();
 
-        // Start sync in background (don't await - let it happen async)
-        syncService
-            .sync()
-            .then((_) {
-              debugPrint('✅ Post-login sync completed');
-              // Reload sessions after sync completes
-              if (mounted) {
-                sessionsProvider.loadSessions(showLoading: false);
-              }
-            })
-            .catchError((e) {
-              debugPrint('⚠️ Post-login sync failed: $e');
-            });
+        // Wait for server sync on first load (cache is empty after logout)
+        // This ensures sessions appear immediately when user navigates to main screen
+        debugPrint('📥 Calling loadSessions with waitForSync=true...');
+        await sessionsProvider.loadSessions(
+          showLoading: false,
+          waitForSync: true,
+        );
+        debugPrint('📥 Calling loadConversations...');
+        await chatProvider.loadConversations(showLoading: false);
+
+        debugPrint('✅ Post-login data loaded successfully');
       } catch (e) {
-        debugPrint('⚠️ Failed to trigger post-login sync: $e');
+        debugPrint('❌ Failed to load post-login data: $e');
       }
 
       // Navigate to main screen on success
-      Navigator.of(
-        context,
-      ).pushNamedAndRemoveUntil(RouteNames.main, (route) => false);
+      if (mounted) {
+        Navigator.of(
+          context,
+        ).pushNamedAndRemoveUntil(RouteNames.main, (route) => false);
+      }
     }
     // Error message is displayed automatically via Consumer
   }

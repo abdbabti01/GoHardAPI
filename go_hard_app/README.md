@@ -7,6 +7,7 @@ A cross-platform mobile application for tracking workouts and fitness progress, 
 ### Authentication
 - User registration and login with JWT authentication
 - Secure token storage using flutter_secure_storage
+- 
 - Persistent authentication across app sessions
 
 ### Workout Sessions

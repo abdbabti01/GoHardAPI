@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/analytics_provider.dart';
 import '../../../data/models/workout_stats.dart';
+import '../../widgets/charts/volume_chart.dart';
+import '../../widgets/charts/muscle_group_chart.dart';
+import 'exercise_detail_screen.dart';
 
 class AnalyticsScreen extends StatefulWidget {
   const AnalyticsScreen({super.key});
@@ -88,6 +91,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       return const Center(child: Text('No data available'));
     }
 
+    // Get muscle group data
+    final muscleGroupData = provider.muscleGroupVolume;
+
     return RefreshIndicator(
       onRefresh: () => provider.refresh(),
       child: SingleChildScrollView(
@@ -96,6 +102,28 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Volume Over Time Chart
+            FutureBuilder<List<ProgressDataPoint>>(
+              future: provider.getVolumeOverTime(days: 30),
+              builder: (context, snapshot) {
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  return Column(
+                    children: [
+                      VolumeChart(data: snapshot.data!, lineColor: Colors.blue),
+                      const SizedBox(height: 16),
+                    ],
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+
+            // Muscle Group Distribution Chart
+            if (muscleGroupData.isNotEmpty) ...[
+              MuscleGroupChart(data: muscleGroupData),
+              const SizedBox(height: 16),
+            ],
+
             // Stats Grid
             _buildStatsGrid(stats),
 
@@ -265,6 +293,15 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder:
+                      (context) => ExerciseDetailScreen(exercise: progress),
+                ),
+              );
+            },
             title: Text(progress.exerciseName),
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -275,32 +312,37 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   Text('PR: ${progress.personalRecord!.toStringAsFixed(1)} kg'),
               ],
             ),
-            trailing:
-                progress.progressPercentage != null
-                    ? Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (progress.progressPercentage != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          (progress.progressPercentage! >= 0)
+                              ? Colors.green.withValues(alpha: 0.2)
+                              : Colors.red.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      progress.formattedProgress,
+                      style: TextStyle(
                         color:
                             (progress.progressPercentage! >= 0)
-                                ? Colors.green.withValues(alpha: 0.2)
-                                : Colors.red.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(12),
+                                ? Colors.green
+                                : Colors.red,
+                        fontWeight: FontWeight.bold,
                       ),
-                      child: Text(
-                        progress.formattedProgress,
-                        style: TextStyle(
-                          color:
-                              (progress.progressPercentage! >= 0)
-                                  ? Colors.green
-                                  : Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    )
-                    : null,
+                    ),
+                  ),
+                const SizedBox(width: 8),
+                const Icon(Icons.chevron_right, color: Colors.grey),
+              ],
+            ),
           ),
         );
       },

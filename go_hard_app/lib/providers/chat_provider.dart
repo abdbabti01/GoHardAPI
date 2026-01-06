@@ -18,8 +18,8 @@ class ChatProvider extends ChangeNotifier {
   StreamSubscription<bool>? _connectivitySubscription;
 
   ChatProvider(this._chatRepository, this._connectivity) {
-    // Auto-load conversations on initialization
-    loadConversations();
+    // Don't auto-load conversations here - they'll be loaded after login
+    // This prevents trying to load conversations before user is authenticated
 
     // Listen for connectivity changes and refresh when going online
     _connectivitySubscription = _connectivity.connectivityStream.listen((
@@ -237,6 +237,57 @@ class ChatProvider extends ChangeNotifier {
       _errorMessage =
           'Failed to delete conversation: ${e.toString().replaceAll('Exception: ', '')}';
       debugPrint('Delete conversation error: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Delete all conversations
+  Future<bool> deleteAllConversations() async {
+    if (isOffline) {
+      _errorMessage = 'Cannot delete conversations offline';
+      notifyListeners();
+      return false;
+    }
+
+    if (_conversations.isEmpty) {
+      return true;
+    }
+
+    try {
+      // Delete all conversations one by one
+      int successCount = 0;
+      int failCount = 0;
+
+      for (final conversation in List.from(_conversations)) {
+        final success = await _chatRepository.deleteConversation(
+          conversation.id,
+        );
+        if (success) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      }
+
+      // Clear local state
+      _conversations.clear();
+      _currentConversation = null;
+      notifyListeners();
+
+      if (failCount > 0) {
+        _errorMessage =
+            'Deleted $successCount conversations, $failCount failed';
+        debugPrint('⚠️ Some conversations failed to delete');
+      } else {
+        debugPrint('✅ Deleted all $successCount conversations');
+      }
+
+      return failCount == 0;
+    } catch (e) {
+      _errorMessage =
+          'Failed to delete conversations: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Delete all conversations error: $e');
       notifyListeners();
       return false;
     }
@@ -470,6 +521,17 @@ class ChatProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
     }
+  }
+
+  /// Clear all chat data (called on logout)
+  void clear() {
+    _conversations = [];
+    _currentConversation = null;
+    _errorMessage = null;
+    _isLoading = false;
+    _isSending = false;
+    notifyListeners();
+    debugPrint('🧹 ChatProvider cleared');
   }
 
   @override

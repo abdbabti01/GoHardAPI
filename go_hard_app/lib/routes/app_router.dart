@@ -42,8 +42,9 @@ class AppRouter {
 
       // Main app wrapper with bottom navigation
       case RouteNames.main:
+        final initialTab = settings.arguments as int?;
         return MaterialPageRoute(
-          builder: (_) => const MainScreen(),
+          builder: (_) => MainScreen(initialTab: initialTab),
           settings: settings,
         );
 

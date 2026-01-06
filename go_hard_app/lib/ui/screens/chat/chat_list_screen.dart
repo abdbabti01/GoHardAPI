@@ -113,10 +113,83 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
+  Future<void> _showDeleteAllConfirmation() async {
+    final provider = context.read<ChatProvider>();
+
+    if (provider.conversations.isEmpty) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Delete All Conversations'),
+            content: Text(
+              'Are you sure you want to delete all ${provider.conversations.length} conversations? This action cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: const Text('Delete All'),
+              ),
+            ],
+          ),
+    );
+
+    if (confirmed == true && mounted) {
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final success = await provider.deleteAllConversations();
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'All conversations deleted'
+                  : provider.errorMessage ?? 'Failed to delete conversations',
+            ),
+            backgroundColor: success ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('AI Assistant'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('AI Assistant'),
+        centerTitle: true,
+        actions: [
+          Consumer<ChatProvider>(
+            builder: (context, provider, child) {
+              if (provider.conversations.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return IconButton(
+                icon: const Icon(Icons.delete_sweep),
+                tooltip: 'Delete All',
+                onPressed: _showDeleteAllConfirmation,
+              );
+            },
+          ),
+        ],
+      ),
       body: Column(
         children: [
           const OfflineBanner(),

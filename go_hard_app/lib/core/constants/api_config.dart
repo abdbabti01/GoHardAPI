@@ -52,8 +52,9 @@ class ApiConfig {
   static const Duration connectTimeout = Duration(seconds: 3);
 
   /// Receive timeout duration
-  /// Set to 60 seconds to accommodate AI-generated responses (workout plans, etc.)
-  static const Duration receiveTimeout = Duration(seconds: 60);
+  /// Set to 180 seconds (3 minutes) to accommodate AI-generated responses (workout plans, etc.)
+  /// AI models like Claude can take 60-120 seconds for complex workout plan generation
+  static const Duration receiveTimeout = Duration(seconds: 180);
 
   /// API endpoints
   static const String authLogin = 'auth/login';

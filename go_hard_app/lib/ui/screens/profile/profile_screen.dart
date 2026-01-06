@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/profile_provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/sessions_provider.dart';
+import '../../../providers/active_workout_provider.dart';
+import '../../../providers/chat_provider.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/utils/unit_converter.dart';
 import '../../../core/constants/api_config.dart';
@@ -55,6 +58,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     if (confirmed == true && mounted) {
+      // Clear all provider states before logout
+      context.read<SessionsProvider>().clear();
+      context.read<ActiveWorkoutProvider>().clear();
+      context.read<ProfileProvider>().clear();
+      context.read<ChatProvider>().clear();
+
       await context.read<AuthProvider>().logout();
 
       if (mounted) {

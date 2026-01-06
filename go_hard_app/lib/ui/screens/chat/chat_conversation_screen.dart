@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../../providers/chat_provider.dart';
+import '../../../providers/sessions_provider.dart';
 import '../../widgets/common/offline_banner.dart';
 
 /// Chat conversation screen showing messages and input
@@ -121,9 +122,25 @@ class _ChatConversationScreenState extends State<ChatConversationScreen> {
         await chatProvider.deleteConversation(conversationId);
       }
 
-      // Navigate to sessions screen
+      // Refresh sessions list to show newly created sessions
+      // Use waitForSync to ensure sessions are fully loaded from server
       if (mounted) {
-        navigator.popUntil((route) => route.isFirst);
+        debugPrint('🔄 Refreshing sessions after creating workout plan...');
+        await context.read<SessionsProvider>().loadSessions(
+          showLoading: false,
+          waitForSync: true,
+        );
+        debugPrint('✅ Sessions refreshed after workout plan creation');
+      }
+
+      // Navigate to sessions screen (tab 0) and refresh sessions
+      if (mounted) {
+        // Pop to main screen and switch to Sessions tab
+        navigator.pushNamedAndRemoveUntil(
+          '/main',
+          (route) => false,
+          arguments: 0, // Sessions tab index
+        );
 
         // Show success message
         scaffoldMessenger.showSnackBar(

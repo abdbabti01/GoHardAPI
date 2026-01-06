@@ -87,7 +87,16 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
-            _context.Entry(Session).State = EntityState.Modified;
+            // Update the existing tracked entity instead of tracking a new one
+            existingSession.Name = Session.Name;
+            existingSession.Type = Session.Type;
+            existingSession.Status = Session.Status;
+            existingSession.Date = Session.Date;
+            existingSession.Duration = Session.Duration;
+            existingSession.Notes = Session.Notes;
+            existingSession.StartedAt = Session.StartedAt;
+            existingSession.PausedAt = Session.PausedAt;
+            existingSession.CompletedAt = Session.CompletedAt;
 
             try
             {

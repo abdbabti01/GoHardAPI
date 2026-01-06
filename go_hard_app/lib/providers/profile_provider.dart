@@ -200,6 +200,18 @@ class ProfileProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clear all profile data (called on logout)
+  void clear() {
+    _currentUser = null;
+    _errorMessage = null;
+    _isLoading = false;
+    _isUpdating = false;
+    _isUploadingPhoto = false;
+    // Keep theme preference for UX
+    notifyListeners();
+    debugPrint('🧹 ProfileProvider cleared');
+  }
+
   @override
   void dispose() {
     _connectivitySubscription?.cancel();

@@ -29,10 +29,19 @@ class SessionRepository {
 
   /// Get all sessions for the current user
   /// Offline-first: returns local cache immediately, syncs with server in background
-  Future<List<Session>> getSessions() async {
+  /// Set [waitForSync] to true to wait for server sync before returning (useful after login)
+  Future<List<Session>> getSessions({bool waitForSync = false}) async {
     final Isar db = _localDb.database;
 
-    // ALWAYS load from cache first for instant response
+    // If waitForSync is true and we're online, sync first then return fresh data
+    if (waitForSync && _connectivity.isOnline) {
+      debugPrint('⏳ Waiting for server sync before returning sessions...');
+      await _syncSessionsFromServer(db);
+      final freshSessions = await _getLocalSessions(db);
+      return freshSessions;
+    }
+
+    // Otherwise, use offline-first approach: load from cache first for instant response
     final cachedSessions = await _getLocalSessions(db);
 
     // Then sync with server in background if online (don't block)

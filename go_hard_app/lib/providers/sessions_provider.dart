@@ -22,8 +22,8 @@ class SessionsProvider extends ChangeNotifier {
     this._authService,
     this._connectivity,
   ) {
-    // Auto-load sessions on initialization to cache them for offline use
-    loadSessions();
+    // Don't auto-load sessions here - they'll be loaded after login
+    // This prevents trying to load sessions before user is authenticated
 
     // Listen for connectivity changes and refresh when going online
     _connectivitySubscription = _connectivity.connectivityStream.listen((
@@ -42,8 +42,19 @@ class SessionsProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   /// Load all sessions for current user
-  Future<void> loadSessions({bool showLoading = true}) async {
-    if (_isLoading) return;
+  /// Set [waitForSync] to true to wait for server sync (useful after login when cache is empty)
+  Future<void> loadSessions({
+    bool showLoading = true,
+    bool waitForSync = false,
+  }) async {
+    debugPrint(
+      '🔄 SessionsProvider.loadSessions() called - waitForSync: $waitForSync, showLoading: $showLoading',
+    );
+
+    if (_isLoading) {
+      debugPrint('⏭️  Already loading, skipping...');
+      return;
+    }
 
     if (showLoading) {
       _isLoading = true;
@@ -52,17 +63,23 @@ class SessionsProvider extends ChangeNotifier {
     }
 
     try {
-      final sessionList = await _sessionRepository.getSessions();
+      final sessionList = await _sessionRepository.getSessions(
+        waitForSync: waitForSync,
+      );
       // Sort by date descending (most recent first)
       _sessions = sessionList..sort((a, b) => b.date.compareTo(a.date));
+      debugPrint('✅ Loaded ${_sessions.length} sessions into provider');
     } catch (e) {
       _errorMessage =
           'Failed to load sessions: ${e.toString().replaceAll('Exception: ', '')}';
-      debugPrint('Load sessions error: $e');
+      debugPrint('❌ Load sessions error: $e');
     } finally {
       if (showLoading) {
         _isLoading = false;
       }
+      debugPrint(
+        '📢 Calling notifyListeners() with ${_sessions.length} sessions',
+      );
       notifyListeners();
     }
   }
@@ -169,6 +186,15 @@ class SessionsProvider extends ChangeNotifier {
   void clearError() {
     _errorMessage = null;
     notifyListeners();
+  }
+
+  /// Clear all sessions data (called on logout)
+  void clear() {
+    _sessions = [];
+    _errorMessage = null;
+    _isLoading = false;
+    notifyListeners();
+    debugPrint('🧹 SessionsProvider cleared');
   }
 
   @override

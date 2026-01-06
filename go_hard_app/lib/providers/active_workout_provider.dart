@@ -276,6 +276,18 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clear all workout data (called on logout)
+  void clear() {
+    _stopTimer();
+    _currentSession = null;
+    _errorMessage = null;
+    _isLoading = false;
+    _elapsedTime = Duration.zero;
+    _isTimerRunning = false;
+    notifyListeners();
+    debugPrint('🧹 ActiveWorkoutProvider cleared');
+  }
+
   @override
   void dispose() {
     _stopTimer();
