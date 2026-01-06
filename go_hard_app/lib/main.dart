@@ -384,7 +384,8 @@ void main() async {
               ),
           update:
               (_, bodyMetricsRepo, connectivity, previous) =>
-                  previous ?? BodyMetricsProvider(bodyMetricsRepo, connectivity),
+                  previous ??
+                  BodyMetricsProvider(bodyMetricsRepo, connectivity),
         ),
         ChangeNotifierProvider<MusicPlayerProvider>(
           create: (_) => MusicPlayerProvider(),

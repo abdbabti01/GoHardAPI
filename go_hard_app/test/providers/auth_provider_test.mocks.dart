@@ -29,23 +29,13 @@ import 'package:mockito/mockito.dart' as _i1;
 // ignore_for_file: subtype_of_sealed_class
 
 class _FakeAuthResponse_0 extends _i1.SmartFake implements _i2.AuthResponse {
-  _FakeAuthResponse_0(
-    Object parent,
-    Invocation parentInvocation,
-  ) : super(
-          parent,
-          parentInvocation,
-        );
+  _FakeAuthResponse_0(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
 }
 
 class _FakeIsar_1 extends _i1.SmartFake implements _i3.Isar {
-  _FakeIsar_1(
-    Object parent,
-    Invocation parentInvocation,
-  ) : super(
-          parent,
-          parentInvocation,
-        );
+  _FakeIsar_1(Object parent, Invocation parentInvocation)
+    : super(parent, parentInvocation);
 }
 
 /// A class which mocks [AuthRepository].
@@ -59,34 +49,22 @@ class MockAuthRepository extends _i1.Mock implements _i4.AuthRepository {
   @override
   _i5.Future<_i2.AuthResponse> login(_i6.LoginRequest? request) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #login,
-          [request],
-        ),
-        returnValue: _i5.Future<_i2.AuthResponse>.value(_FakeAuthResponse_0(
-          this,
-          Invocation.method(
-            #login,
-            [request],
-          ),
-        )),
-      ) as _i5.Future<_i2.AuthResponse>);
+            Invocation.method(#login, [request]),
+            returnValue: _i5.Future<_i2.AuthResponse>.value(
+              _FakeAuthResponse_0(this, Invocation.method(#login, [request])),
+            ),
+          )
+          as _i5.Future<_i2.AuthResponse>);
 
   @override
   _i5.Future<_i2.AuthResponse> signup(_i7.SignupRequest? request) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #signup,
-          [request],
-        ),
-        returnValue: _i5.Future<_i2.AuthResponse>.value(_FakeAuthResponse_0(
-          this,
-          Invocation.method(
-            #signup,
-            [request],
-          ),
-        )),
-      ) as _i5.Future<_i2.AuthResponse>);
+            Invocation.method(#signup, [request]),
+            returnValue: _i5.Future<_i2.AuthResponse>.value(
+              _FakeAuthResponse_0(this, Invocation.method(#signup, [request])),
+            ),
+          )
+          as _i5.Future<_i2.AuthResponse>);
 }
 
 /// A class which mocks [AuthService].
@@ -105,113 +83,99 @@ class MockAuthService extends _i1.Mock implements _i8.AuthService {
     required String? email,
   }) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #saveToken,
-          [],
-          {
-            #token: token,
-            #userId: userId,
-            #name: name,
-            #email: email,
-          },
-        ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
+            Invocation.method(#saveToken, [], {
+              #token: token,
+              #userId: userId,
+              #name: name,
+              #email: email,
+            }),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 
   @override
-  _i5.Future<String?> getToken() => (super.noSuchMethod(
-        Invocation.method(
-          #getToken,
-          [],
-        ),
-        returnValue: _i5.Future<String?>.value(),
-      ) as _i5.Future<String?>);
+  _i5.Future<String?> getToken() =>
+      (super.noSuchMethod(
+            Invocation.method(#getToken, []),
+            returnValue: _i5.Future<String?>.value(),
+          )
+          as _i5.Future<String?>);
 
   @override
-  _i5.Future<int?> getUserId() => (super.noSuchMethod(
-        Invocation.method(
-          #getUserId,
-          [],
-        ),
-        returnValue: _i5.Future<int?>.value(),
-      ) as _i5.Future<int?>);
+  _i5.Future<int?> getUserId() =>
+      (super.noSuchMethod(
+            Invocation.method(#getUserId, []),
+            returnValue: _i5.Future<int?>.value(),
+          )
+          as _i5.Future<int?>);
 
   @override
-  _i5.Future<String?> getUserName() => (super.noSuchMethod(
-        Invocation.method(
-          #getUserName,
-          [],
-        ),
-        returnValue: _i5.Future<String?>.value(),
-      ) as _i5.Future<String?>);
+  _i5.Future<String?> getUserName() =>
+      (super.noSuchMethod(
+            Invocation.method(#getUserName, []),
+            returnValue: _i5.Future<String?>.value(),
+          )
+          as _i5.Future<String?>);
 
   @override
-  _i5.Future<String?> getUserEmail() => (super.noSuchMethod(
-        Invocation.method(
-          #getUserEmail,
-          [],
-        ),
-        returnValue: _i5.Future<String?>.value(),
-      ) as _i5.Future<String?>);
+  _i5.Future<String?> getUserEmail() =>
+      (super.noSuchMethod(
+            Invocation.method(#getUserEmail, []),
+            returnValue: _i5.Future<String?>.value(),
+          )
+          as _i5.Future<String?>);
 
   @override
-  _i5.Future<bool> isAuthenticated() => (super.noSuchMethod(
-        Invocation.method(
-          #isAuthenticated,
-          [],
-        ),
-        returnValue: _i5.Future<bool>.value(false),
-      ) as _i5.Future<bool>);
+  _i5.Future<bool> isAuthenticated() =>
+      (super.noSuchMethod(
+            Invocation.method(#isAuthenticated, []),
+            returnValue: _i5.Future<bool>.value(false),
+          )
+          as _i5.Future<bool>);
 
   @override
-  _i5.Future<void> clearToken() => (super.noSuchMethod(
-        Invocation.method(
-          #clearToken,
-          [],
-        ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
+  _i5.Future<void> clearToken() =>
+      (super.noSuchMethod(
+            Invocation.method(#clearToken, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 
   @override
-  _i5.Future<void> saveThemePreference(String? theme) => (super.noSuchMethod(
-        Invocation.method(
-          #saveThemePreference,
-          [theme],
-        ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
+  _i5.Future<void> saveThemePreference(String? theme) =>
+      (super.noSuchMethod(
+            Invocation.method(#saveThemePreference, [theme]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 
   @override
-  _i5.Future<String?> getThemePreference() => (super.noSuchMethod(
-        Invocation.method(
-          #getThemePreference,
-          [],
-        ),
-        returnValue: _i5.Future<String?>.value(),
-      ) as _i5.Future<String?>);
+  _i5.Future<String?> getThemePreference() =>
+      (super.noSuchMethod(
+            Invocation.method(#getThemePreference, []),
+            returnValue: _i5.Future<String?>.value(),
+          )
+          as _i5.Future<String?>);
 
   @override
   _i5.Future<void> saveCachedProfile(String? profileJson) =>
       (super.noSuchMethod(
-        Invocation.method(
-          #saveCachedProfile,
-          [profileJson],
-        ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
+            Invocation.method(#saveCachedProfile, [profileJson]),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 
   @override
-  _i5.Future<String?> getCachedProfile() => (super.noSuchMethod(
-        Invocation.method(
-          #getCachedProfile,
-          [],
-        ),
-        returnValue: _i5.Future<String?>.value(),
-      ) as _i5.Future<String?>);
+  _i5.Future<String?> getCachedProfile() =>
+      (super.noSuchMethod(
+            Invocation.method(#getCachedProfile, []),
+            returnValue: _i5.Future<String?>.value(),
+          )
+          as _i5.Future<String?>);
 }
 
 /// A class which mocks [LocalDatabaseService].
@@ -224,80 +188,67 @@ class MockLocalDatabaseService extends _i1.Mock
   }
 
   @override
-  _i3.Isar get database => (super.noSuchMethod(
-        Invocation.getter(#database),
-        returnValue: _FakeIsar_1(
-          this,
-          Invocation.getter(#database),
-        ),
-      ) as _i3.Isar);
+  _i3.Isar get database =>
+      (super.noSuchMethod(
+            Invocation.getter(#database),
+            returnValue: _FakeIsar_1(this, Invocation.getter(#database)),
+          )
+          as _i3.Isar);
 
   @override
-  bool get isInitialized => (super.noSuchMethod(
-        Invocation.getter(#isInitialized),
-        returnValue: false,
-      ) as bool);
+  bool get isInitialized =>
+      (super.noSuchMethod(Invocation.getter(#isInitialized), returnValue: false)
+          as bool);
 
   @override
-  _i5.Future<_i3.Isar> initialize() => (super.noSuchMethod(
-        Invocation.method(
-          #initialize,
-          [],
-        ),
-        returnValue: _i5.Future<_i3.Isar>.value(_FakeIsar_1(
-          this,
-          Invocation.method(
-            #initialize,
-            [],
-          ),
-        )),
-      ) as _i5.Future<_i3.Isar>);
+  _i5.Future<_i3.Isar> initialize() =>
+      (super.noSuchMethod(
+            Invocation.method(#initialize, []),
+            returnValue: _i5.Future<_i3.Isar>.value(
+              _FakeIsar_1(this, Invocation.method(#initialize, [])),
+            ),
+          )
+          as _i5.Future<_i3.Isar>);
 
   @override
-  _i5.Future<void> close() => (super.noSuchMethod(
-        Invocation.method(
-          #close,
-          [],
-        ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
+  _i5.Future<void> close() =>
+      (super.noSuchMethod(
+            Invocation.method(#close, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 
   @override
-  _i5.Future<void> clearAll() => (super.noSuchMethod(
-        Invocation.method(
-          #clearAll,
-          [],
-        ),
-        returnValue: _i5.Future<void>.value(),
-        returnValueForMissingStub: _i5.Future<void>.value(),
-      ) as _i5.Future<void>);
+  _i5.Future<void> clearAll() =>
+      (super.noSuchMethod(
+            Invocation.method(#clearAll, []),
+            returnValue: _i5.Future<void>.value(),
+            returnValueForMissingStub: _i5.Future<void>.value(),
+          )
+          as _i5.Future<void>);
 
   @override
-  _i5.Future<int> getPendingSyncCount() => (super.noSuchMethod(
-        Invocation.method(
-          #getPendingSyncCount,
-          [],
-        ),
-        returnValue: _i5.Future<int>.value(0),
-      ) as _i5.Future<int>);
+  _i5.Future<int> getPendingSyncCount() =>
+      (super.noSuchMethod(
+            Invocation.method(#getPendingSyncCount, []),
+            returnValue: _i5.Future<int>.value(0),
+          )
+          as _i5.Future<int>);
 
   @override
-  _i5.Future<DateTime?> getLastSyncTime() => (super.noSuchMethod(
-        Invocation.method(
-          #getLastSyncTime,
-          [],
-        ),
-        returnValue: _i5.Future<DateTime?>.value(),
-      ) as _i5.Future<DateTime?>);
+  _i5.Future<DateTime?> getLastSyncTime() =>
+      (super.noSuchMethod(
+            Invocation.method(#getLastSyncTime, []),
+            returnValue: _i5.Future<DateTime?>.value(),
+          )
+          as _i5.Future<DateTime?>);
 
   @override
-  _i5.Future<int> cleanupOldData({int? daysOld = 30}) => (super.noSuchMethod(
-        Invocation.method(
-          #cleanupOldData,
-          [],
-          {#daysOld: daysOld},
-        ),
-        returnValue: _i5.Future<int>.value(0),
-      ) as _i5.Future<int>);
+  _i5.Future<int> cleanupOldData({int? daysOld = 30}) =>
+      (super.noSuchMethod(
+            Invocation.method(#cleanupOldData, [], {#daysOld: daysOld}),
+            returnValue: _i5.Future<int>.value(0),
+          )
+          as _i5.Future<int>);
 }

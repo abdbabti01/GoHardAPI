@@ -11,7 +11,11 @@ class BodyMetricsRepository {
   final AuthService _authService;
   final ConnectivityService? _connectivity;
 
-  BodyMetricsRepository(this._apiService, this._authService, [this._connectivity]);
+  BodyMetricsRepository(
+    this._apiService,
+    this._authService, [
+    this._connectivity,
+  ]);
 
   /// Get body metrics for the current user
   /// Optional parameter: days (default 90 days)
@@ -19,7 +23,9 @@ class BodyMetricsRepository {
     final isOnline = _connectivity?.isOnline ?? true;
 
     if (!isOnline) {
-      debugPrint('📴 Offline - body metrics feature requires online connection');
+      debugPrint(
+        '📴 Offline - body metrics feature requires online connection',
+      );
       return [];
     }
 
@@ -29,7 +35,9 @@ class BodyMetricsRepository {
         queryParameters: {'days': days.toString()},
       );
 
-      return data.map((json) => BodyMetric.fromJson(json as Map<String, dynamic>)).toList();
+      return data
+          .map((json) => BodyMetric.fromJson(json as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       debugPrint('⚠️ Failed to fetch body metrics: $e');
       rethrow;
@@ -89,10 +97,7 @@ class BodyMetricsRepository {
     try {
       final data = await _apiService.get<List<dynamic>>(
         ApiConfig.bodyMetricsChart,
-        queryParameters: {
-          'metric': metric,
-          'days': days.toString(),
-        },
+        queryParameters: {'metric': metric, 'days': days.toString()},
       );
 
       return data.map((json) => json as Map<String, dynamic>).toList();

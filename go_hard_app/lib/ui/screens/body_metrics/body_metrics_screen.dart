@@ -115,10 +115,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
               children: [
                 const Text(
                   'Latest Measurement',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 Text(
                   dateFormat.format(metric.recordedAt),
@@ -132,15 +129,30 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
               runSpacing: 8,
               children: [
                 if (metric.weight != null)
-                  _buildMetricChip('Weight', '${metric.weight!.toStringAsFixed(1)} kg'),
+                  _buildMetricChip(
+                    'Weight',
+                    '${metric.weight!.toStringAsFixed(1)} kg',
+                  ),
                 if (metric.bodyFatPercentage != null)
-                  _buildMetricChip('Body Fat', '${metric.bodyFatPercentage!.toStringAsFixed(1)}%'),
+                  _buildMetricChip(
+                    'Body Fat',
+                    '${metric.bodyFatPercentage!.toStringAsFixed(1)}%',
+                  ),
                 if (metric.chestCircumference != null)
-                  _buildMetricChip('Chest', '${metric.chestCircumference!.toStringAsFixed(1)} cm'),
+                  _buildMetricChip(
+                    'Chest',
+                    '${metric.chestCircumference!.toStringAsFixed(1)} cm',
+                  ),
                 if (metric.waistCircumference != null)
-                  _buildMetricChip('Waist', '${metric.waistCircumference!.toStringAsFixed(1)} cm'),
+                  _buildMetricChip(
+                    'Waist',
+                    '${metric.waistCircumference!.toStringAsFixed(1)} cm',
+                  ),
                 if (metric.armCircumference != null)
-                  _buildMetricChip('Arm', '${metric.armCircumference!.toStringAsFixed(1)} cm'),
+                  _buildMetricChip(
+                    'Arm',
+                    '${metric.armCircumference!.toStringAsFixed(1)} cm',
+                  ),
               ],
             ),
           ],
@@ -155,10 +167,7 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 10, color: Colors.grey),
-          ),
+          Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)),
           Text(
             value,
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
@@ -182,34 +191,33 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
-        leading: const CircleAvatar(
-          child: Icon(Icons.fitness_center),
-        ),
+        leading: const CircleAvatar(child: Icon(Icons.fitness_center)),
         title: Text(dateFormat.format(metric.recordedAt)),
         subtitle: _buildMetricSummary(metric),
         trailing: PopupMenuButton(
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'view',
-              child: Row(
-                children: [
-                  Icon(Icons.visibility),
-                  SizedBox(width: 8),
-                  Text('View Details'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_outline, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Delete'),
-                ],
-              ),
-            ),
-          ],
+          itemBuilder:
+              (context) => [
+                const PopupMenuItem(
+                  value: 'view',
+                  child: Row(
+                    children: [
+                      Icon(Icons.visibility),
+                      SizedBox(width: 8),
+                      Text('View Details'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete'),
+                    ],
+                  ),
+                ),
+              ],
           onSelected: (value) => _handleMetricAction(metric, value as String),
         ),
       ),
@@ -255,20 +263,21 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
   Future<bool?> _showConfirmDialog(String title, String message) {
     return showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Confirm'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -284,50 +293,78 @@ class _BodyMetricsScreenState extends State<BodyMetricsScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Measurement Details'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                dateFormat.format(metric.recordedAt),
-                style: const TextStyle(fontWeight: FontWeight.bold),
+      builder:
+          (context) => AlertDialog(
+            title: Text('Measurement Details'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    dateFormat.format(metric.recordedAt),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  if (metric.weight != null)
+                    _buildDetailRow(
+                      'Weight',
+                      '${metric.weight!.toStringAsFixed(1)} kg',
+                    ),
+                  if (metric.bodyFatPercentage != null)
+                    _buildDetailRow(
+                      'Body Fat',
+                      '${metric.bodyFatPercentage!.toStringAsFixed(1)}%',
+                    ),
+                  if (metric.chestCircumference != null)
+                    _buildDetailRow(
+                      'Chest',
+                      '${metric.chestCircumference!.toStringAsFixed(1)} cm',
+                    ),
+                  if (metric.waistCircumference != null)
+                    _buildDetailRow(
+                      'Waist',
+                      '${metric.waistCircumference!.toStringAsFixed(1)} cm',
+                    ),
+                  if (metric.hipCircumference != null)
+                    _buildDetailRow(
+                      'Hip',
+                      '${metric.hipCircumference!.toStringAsFixed(1)} cm',
+                    ),
+                  if (metric.armCircumference != null)
+                    _buildDetailRow(
+                      'Arm',
+                      '${metric.armCircumference!.toStringAsFixed(1)} cm',
+                    ),
+                  if (metric.thighCircumference != null)
+                    _buildDetailRow(
+                      'Thigh',
+                      '${metric.thighCircumference!.toStringAsFixed(1)} cm',
+                    ),
+                  if (metric.calfCircumference != null)
+                    _buildDetailRow(
+                      'Calf',
+                      '${metric.calfCircumference!.toStringAsFixed(1)} cm',
+                    ),
+                  if (metric.notes != null && metric.notes!.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Notes:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(metric.notes!),
+                  ],
+                ],
               ),
-              const SizedBox(height: 16),
-              if (metric.weight != null)
-                _buildDetailRow('Weight', '${metric.weight!.toStringAsFixed(1)} kg'),
-              if (metric.bodyFatPercentage != null)
-                _buildDetailRow('Body Fat', '${metric.bodyFatPercentage!.toStringAsFixed(1)}%'),
-              if (metric.chestCircumference != null)
-                _buildDetailRow('Chest', '${metric.chestCircumference!.toStringAsFixed(1)} cm'),
-              if (metric.waistCircumference != null)
-                _buildDetailRow('Waist', '${metric.waistCircumference!.toStringAsFixed(1)} cm'),
-              if (metric.hipCircumference != null)
-                _buildDetailRow('Hip', '${metric.hipCircumference!.toStringAsFixed(1)} cm'),
-              if (metric.armCircumference != null)
-                _buildDetailRow('Arm', '${metric.armCircumference!.toStringAsFixed(1)} cm'),
-              if (metric.thighCircumference != null)
-                _buildDetailRow('Thigh', '${metric.thighCircumference!.toStringAsFixed(1)} cm'),
-              if (metric.calfCircumference != null)
-                _buildDetailRow('Calf', '${metric.calfCircumference!.toStringAsFixed(1)} cm'),
-              if (metric.notes != null && metric.notes!.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                const Text('Notes:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text(metric.notes!),
-              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close'),
+              ),
             ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -410,33 +447,42 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
       id: 0, // Will be assigned by backend
       userId: 0, // Will be assigned by backend
       recordedAt: DateTime.now(),
-      weight: _weightController.text.isEmpty
-          ? null
-          : double.parse(_weightController.text),
-      bodyFatPercentage: _bodyFatController.text.isEmpty
-          ? null
-          : double.parse(_bodyFatController.text),
-      chestCircumference: _chestController.text.isEmpty
-          ? null
-          : double.parse(_chestController.text),
-      waistCircumference: _waistController.text.isEmpty
-          ? null
-          : double.parse(_waistController.text),
-      hipCircumference: _hipController.text.isEmpty
-          ? null
-          : double.parse(_hipController.text),
-      armCircumference: _armController.text.isEmpty
-          ? null
-          : double.parse(_armController.text),
-      thighCircumference: _thighController.text.isEmpty
-          ? null
-          : double.parse(_thighController.text),
-      calfCircumference: _calfController.text.isEmpty
-          ? null
-          : double.parse(_calfController.text),
-      notes: _notesController.text.trim().isEmpty
-          ? null
-          : _notesController.text.trim(),
+      weight:
+          _weightController.text.isEmpty
+              ? null
+              : double.parse(_weightController.text),
+      bodyFatPercentage:
+          _bodyFatController.text.isEmpty
+              ? null
+              : double.parse(_bodyFatController.text),
+      chestCircumference:
+          _chestController.text.isEmpty
+              ? null
+              : double.parse(_chestController.text),
+      waistCircumference:
+          _waistController.text.isEmpty
+              ? null
+              : double.parse(_waistController.text),
+      hipCircumference:
+          _hipController.text.isEmpty
+              ? null
+              : double.parse(_hipController.text),
+      armCircumference:
+          _armController.text.isEmpty
+              ? null
+              : double.parse(_armController.text),
+      thighCircumference:
+          _thighController.text.isEmpty
+              ? null
+              : double.parse(_thighController.text),
+      calfCircumference:
+          _calfController.text.isEmpty
+              ? null
+              : double.parse(_calfController.text),
+      notes:
+          _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
       createdAt: DateTime.now(),
     );
 
@@ -484,7 +530,9 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
                   suffixText: 'kg',
                   prefixIcon: Icon(Icons.monitor_weight),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (double.tryParse(value) == null) {
@@ -502,7 +550,9 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
                   suffixText: '%',
                   prefixIcon: Icon(Icons.percent),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (double.tryParse(value) == null) {
@@ -520,7 +570,9 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
                   suffixText: 'cm',
                   prefixIcon: Icon(Icons.accessibility_new),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (double.tryParse(value) == null) {
@@ -538,7 +590,9 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
                   suffixText: 'cm',
                   prefixIcon: Icon(Icons.accessibility),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (double.tryParse(value) == null) {
@@ -556,7 +610,9 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
                   suffixText: 'cm',
                   prefixIcon: Icon(Icons.accessibility),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (double.tryParse(value) == null) {
@@ -574,7 +630,9 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
                   suffixText: 'cm',
                   prefixIcon: Icon(Icons.fitness_center),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (double.tryParse(value) == null) {
@@ -592,7 +650,9 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
                   suffixText: 'cm',
                   prefixIcon: Icon(Icons.accessibility),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (double.tryParse(value) == null) {
@@ -610,7 +670,9 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
                   suffixText: 'cm',
                   prefixIcon: Icon(Icons.accessibility),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value != null && value.isNotEmpty) {
                     if (double.tryParse(value) == null) {
@@ -641,13 +703,14 @@ class _AddBodyMetricDialogState extends State<AddBodyMetricDialog> {
         ),
         ElevatedButton(
           onPressed: _isAdding ? null : _addMetric,
-          child: _isAdding
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Save'),
+          child:
+              _isAdding
+                  ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Text('Save'),
         ),
       ],
     );

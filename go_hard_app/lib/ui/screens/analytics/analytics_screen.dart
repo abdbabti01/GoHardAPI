@@ -243,10 +243,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
                   const SizedBox(height: 8),
                   Text(
                     '${goal.currentValue.toStringAsFixed(1)} / ${goal.targetValue.toStringAsFixed(1)} ${goal.unit ?? ''}',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   ),
                 ],
               ),
@@ -291,7 +288,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       ),
     );
   }
-
 
   Widget _buildProgressTab(AnalyticsProvider provider) {
     final muscleGroupData = provider.muscleGroupVolume;
@@ -360,22 +356,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
           children: [
             if (progress.progressPercentage != null)
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (progress.progressPercentage! >= 0)
-                      ? Colors.green.withValues(alpha: 0.2)
-                      : Colors.red.withValues(alpha: 0.2),
+                  color:
+                      (progress.progressPercentage! >= 0)
+                          ? Colors.green.withValues(alpha: 0.2)
+                          : Colors.red.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   progress.formattedProgress,
                   style: TextStyle(
-                    color: (progress.progressPercentage! >= 0)
-                        ? Colors.green
-                        : Colors.red,
+                    color:
+                        (progress.progressPercentage! >= 0)
+                            ? Colors.green
+                            : Colors.red,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -387,7 +382,6 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
       ),
     );
   }
-
 
   Widget _buildRecordsTab(AnalyticsProvider provider) {
     if (provider.personalRecords.isEmpty) {

@@ -25,13 +25,16 @@ class GoalsRepository {
     }
 
     try {
-      final queryParams = isActive != null ? {'isActive': isActive.toString()} : null;
+      final queryParams =
+          isActive != null ? {'isActive': isActive.toString()} : null;
       final data = await _apiService.get<List<dynamic>>(
         ApiConfig.goals,
         queryParameters: queryParams,
       );
 
-      return data.map((json) => Goal.fromJson(json as Map<String, dynamic>)).toList();
+      return data
+          .map((json) => Goal.fromJson(json as Map<String, dynamic>))
+          .toList();
     } catch (e) {
       debugPrint('⚠️ Failed to fetch goals: $e');
       rethrow;
@@ -57,10 +60,7 @@ class GoalsRepository {
 
   /// Update an existing goal
   Future<void> updateGoal(int id, Goal goal) async {
-    await _apiService.put<void>(
-      ApiConfig.goalById(id),
-      data: goal.toJson(),
-    );
+    await _apiService.put<void>(ApiConfig.goalById(id), data: goal.toJson());
   }
 
   /// Delete a goal
@@ -88,6 +88,8 @@ class GoalsRepository {
     final data = await _apiService.get<List<dynamic>>(
       ApiConfig.goalHistory(goalId),
     );
-    return data.map((json) => GoalProgress.fromJson(json as Map<String, dynamic>)).toList();
+    return data
+        .map((json) => GoalProgress.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 }

@@ -18,10 +18,7 @@ class BodyMetricsProvider extends ChangeNotifier {
 
   StreamSubscription<bool>? _connectivitySubscription;
 
-  BodyMetricsProvider(
-    this._bodyMetricsRepository, [
-    this._connectivity,
-  ]) {
+  BodyMetricsProvider(this._bodyMetricsRepository, [this._connectivity]) {
     // Listen for connectivity changes and refresh when going online
     _connectivitySubscription = _connectivity?.connectivityStream.listen((
       isOnline,

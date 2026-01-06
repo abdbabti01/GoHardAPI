@@ -7,12 +7,12 @@ part of 'goal_progress.dart';
 // **************************************************************************
 
 GoalProgress _$GoalProgressFromJson(Map<String, dynamic> json) => GoalProgress(
-      id: (json['id'] as num).toInt(),
-      goalId: (json['goalId'] as num).toInt(),
-      recordedAt: DateTime.parse(json['recordedAt'] as String),
-      value: (json['value'] as num).toDouble(),
-      notes: json['notes'] as String?,
-    );
+  id: (json['id'] as num).toInt(),
+  goalId: (json['goalId'] as num).toInt(),
+  recordedAt: DateTime.parse(json['recordedAt'] as String),
+  value: (json['value'] as num).toDouble(),
+  notes: json['notes'] as String?,
+);
 
 Map<String, dynamic> _$GoalProgressToJson(GoalProgress instance) =>
     <String, dynamic>{

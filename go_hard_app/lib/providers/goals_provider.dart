@@ -20,10 +20,7 @@ class GoalsProvider extends ChangeNotifier {
 
   StreamSubscription<bool>? _connectivitySubscription;
 
-  GoalsProvider(
-    this._goalsRepository, [
-    this._connectivity,
-  ]) {
+  GoalsProvider(this._goalsRepository, [this._connectivity]) {
     // Listen for connectivity changes and refresh when going online
     _connectivitySubscription = _connectivity?.connectivityStream.listen((
       isOnline,
@@ -57,7 +54,9 @@ class GoalsProvider extends ChangeNotifier {
       _activeGoals = _goals.where((g) => g.isActive).toList();
       _completedGoals = _goals.where((g) => g.isCompleted).toList();
 
-      debugPrint('✅ Loaded ${_goals.length} goals (${_activeGoals.length} active, ${_completedGoals.length} completed)');
+      debugPrint(
+        '✅ Loaded ${_goals.length} goals (${_activeGoals.length} active, ${_completedGoals.length} completed)',
+      );
     } catch (e) {
       _errorMessage =
           'Failed to load goals: ${e.toString().replaceAll('Exception: ', '')}';

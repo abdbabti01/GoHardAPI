@@ -154,39 +154,41 @@ class _GoalsScreenState extends State<GoalsScreen>
                   const Icon(Icons.check_circle, color: Colors.green)
                 else
                   PopupMenuButton(
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'progress',
-                        child: Row(
-                          children: [
-                            Icon(Icons.add_circle_outline),
-                            SizedBox(width: 8),
-                            Text('Add Progress'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'complete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.check_circle_outline),
-                            SizedBox(width: 8),
-                            Text('Mark Complete'),
-                          ],
-                        ),
-                      ),
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline, color: Colors.red),
-                            SizedBox(width: 8),
-                            Text('Delete'),
-                          ],
-                        ),
-                      ),
-                    ],
-                    onSelected: (value) => _handleGoalAction(goal, value as String),
+                    itemBuilder:
+                        (context) => [
+                          const PopupMenuItem(
+                            value: 'progress',
+                            child: Row(
+                              children: [
+                                Icon(Icons.add_circle_outline),
+                                SizedBox(width: 8),
+                                Text('Add Progress'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'complete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.check_circle_outline),
+                                SizedBox(width: 8),
+                                Text('Mark Complete'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline, color: Colors.red),
+                                SizedBox(width: 8),
+                                Text('Delete'),
+                              ],
+                            ),
+                          ),
+                        ],
+                    onSelected:
+                        (value) => _handleGoalAction(goal, value as String),
                   ),
               ],
             ),
@@ -224,10 +226,7 @@ class _GoalsScreenState extends State<GoalsScreen>
   String _formatGoalType(String goalType) {
     // Convert camelCase to Title Case with spaces
     return goalType
-        .replaceAllMapped(
-          RegExp(r'([A-Z])'),
-          (match) => ' ${match.group(0)}',
-        )
+        .replaceAllMapped(RegExp(r'([A-Z])'), (match) => ' ${match.group(0)}')
         .trim();
   }
 
@@ -262,20 +261,21 @@ class _GoalsScreenState extends State<GoalsScreen>
   Future<bool?> _showConfirmDialog(String title, String message) {
     return showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+      builder:
+          (context) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Confirm'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
     );
   }
 
@@ -413,7 +413,9 @@ class _CreateGoalDialogState extends State<CreateGoalDialog> {
                   labelText: 'Target Value',
                   prefixIcon: Icon(Icons.track_changes),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Please enter a target value';
@@ -431,7 +433,9 @@ class _CreateGoalDialogState extends State<CreateGoalDialog> {
                   labelText: 'Current Value (optional)',
                   prefixIcon: Icon(Icons.trending_up),
                 ),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -496,13 +500,14 @@ class _CreateGoalDialogState extends State<CreateGoalDialog> {
         ),
         ElevatedButton(
           onPressed: _isCreating ? null : _createGoal,
-          child: _isCreating
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Create'),
+          child:
+              _isCreating
+                  ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Text('Create'),
         ),
       ],
     );
@@ -544,9 +549,10 @@ class _AddProgressDialogState extends State<AddProgressDialog> {
       goalId: widget.goal.id,
       recordedAt: DateTime.now(),
       value: double.parse(_valueController.text),
-      notes: _notesController.text.trim().isEmpty
-          ? null
-          : _notesController.text.trim(),
+      notes:
+          _notesController.text.trim().isEmpty
+              ? null
+              : _notesController.text.trim(),
     );
 
     final provider = context.read<GoalsProvider>();
@@ -597,7 +603,9 @@ class _AddProgressDialogState extends State<AddProgressDialog> {
                 suffixText: widget.goal.unit,
                 prefixIcon: const Icon(Icons.edit),
               ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               autofocus: true,
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
@@ -629,13 +637,14 @@ class _AddProgressDialogState extends State<AddProgressDialog> {
         ),
         ElevatedButton(
           onPressed: _isAdding ? null : _addProgress,
-          child: _isAdding
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('Add'),
+          child:
+              _isAdding
+                  ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                  : const Text('Add'),
         ),
       ],
     );
