@@ -274,6 +274,35 @@ class NotificationService {
   Future<void> showTestNotification() async {
     try {
       debugPrint('🔔 Attempting to show test notification...');
+      debugPrint('📱 Platform: ${defaultTargetPlatform.name}');
+      debugPrint('🔧 Is initialized: $_isInitialized');
+
+      // Check iOS permissions before showing notification
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final iosImpl =
+            _notifications
+                .resolvePlatformSpecificImplementation<
+                  IOSFlutterLocalNotificationsPlugin
+                >();
+
+        if (iosImpl != null) {
+          // Check current permission status
+          debugPrint('🍎 Checking iOS notification settings...');
+
+          // Request permissions again to ensure they're granted
+          final granted = await iosImpl.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+          debugPrint('🍎 iOS permissions check result: $granted');
+
+          if (granted != true) {
+            debugPrint('❌ iOS notifications not permitted!');
+            throw Exception('iOS notification permissions not granted');
+          }
+        }
+      }
 
       const androidDetails = AndroidNotificationDetails(
         'test_notifications',
@@ -297,6 +326,9 @@ class NotificationService {
         iOS: iosDetails,
       );
 
+      debugPrint('📝 Notification details prepared');
+      debugPrint('📤 Calling show() on notification plugin...');
+
       await _notifications.show(
         999,
         '💪 Test Notification',
@@ -305,9 +337,16 @@ class NotificationService {
         payload: 'test',
       );
 
-      debugPrint('✅ Test notification shown successfully');
-    } catch (e) {
+      debugPrint('✅ Test notification show() completed without errors');
+
+      // For iOS, also try to get pending notifications to verify
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        final pending = await _notifications.pendingNotificationRequests();
+        debugPrint('📋 Pending notifications: ${pending.length}');
+      }
+    } catch (e, stackTrace) {
       debugPrint('❌ Error showing test notification: $e');
+      debugPrint('Stack trace: $stackTrace');
       rethrow;
     }
   }
