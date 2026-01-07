@@ -26,8 +26,12 @@ class NotificationService {
     if (_isInitialized) return;
 
     try {
+      debugPrint('🔔 Initializing NotificationService...');
+      debugPrint('📱 Platform: ${defaultTargetPlatform.name}');
+
       // Initialize timezone database
       tz.initializeTimeZones();
+      debugPrint('🌍 Timezone initialized');
 
       // Android initialization settings
       const androidSettings = AndroidInitializationSettings(
@@ -46,16 +50,32 @@ class NotificationService {
         iOS: iosSettings,
       );
 
+      debugPrint('📝 Notification settings configured');
+
       // Initialize with callback for when notification is tapped
-      await _notifications.initialize(
+      final initialized = await _notifications.initialize(
         initSettings,
         onDidReceiveNotificationResponse: _onNotificationTapped,
       );
 
+      debugPrint('🔔 Notification plugin initialized: $initialized');
+
+      // For iOS, explicitly request permissions
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        debugPrint('🍎 Requesting iOS notification permissions...');
+        final granted = await _notifications
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, badge: true, sound: true);
+        debugPrint('🍎 iOS permissions granted: $granted');
+      }
+
       _isInitialized = true;
-      debugPrint('✅ NotificationService initialized');
-    } catch (e) {
-      debugPrint('⚠️ Failed to initialize notifications: $e');
+      debugPrint('✅ NotificationService initialized successfully');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Failed to initialize notifications: $e');
+      debugPrint('Stack trace: $stackTrace');
     }
   }
 
@@ -65,17 +85,31 @@ class NotificationService {
     // Navigation will be handled by the app router based on payload
   }
 
-  /// Request notification permissions (Android 13+)
+  /// Request notification permissions (Android 13+, iOS)
   Future<bool> requestPermissions() async {
     try {
+      debugPrint(
+        '📱 Requesting notification permissions for ${defaultTargetPlatform.name}',
+      );
+
       if (defaultTargetPlatform == TargetPlatform.android) {
         final status = await Permission.notification.request();
+        debugPrint('🤖 Android permission status: ${status.name}');
         return status.isGranted;
+      } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+        // Request iOS permissions explicitly
+        final granted = await _notifications
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >()
+            ?.requestPermissions(alert: true, badge: true, sound: true);
+        debugPrint('🍎 iOS permissions granted: $granted');
+        return granted ?? false;
       }
-      // iOS permissions are requested during initialization
+
       return true;
     } catch (e) {
-      debugPrint('⚠️ Failed to request notification permissions: $e');
+      debugPrint('❌ Failed to request notification permissions: $e');
       return false;
     }
   }
