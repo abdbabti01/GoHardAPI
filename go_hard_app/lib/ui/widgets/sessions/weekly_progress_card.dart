@@ -1,22 +1,37 @@
 import 'package:flutter/material.dart';
 import '../../../data/models/session.dart';
 
-/// Widget displaying weekly progress stats
-class WeeklyProgressCard extends StatelessWidget {
+/// Widget displaying weekly/monthly progress stats with toggle
+class WeeklyProgressCard extends StatefulWidget {
   final List<Session> thisWeekSessions;
+  final List<Session> thisMonthSessions;
 
-  const WeeklyProgressCard({super.key, required this.thisWeekSessions});
+  const WeeklyProgressCard({
+    super.key,
+    required this.thisWeekSessions,
+    required this.thisMonthSessions,
+  });
+
+  @override
+  State<WeeklyProgressCard> createState() => _WeeklyProgressCardState();
+}
+
+class _WeeklyProgressCardState extends State<WeeklyProgressCard> {
+  bool _isMonthlyView = false;
 
   @override
   Widget build(BuildContext context) {
-    final completed =
-        thisWeekSessions.where((s) => s.status == 'completed').length;
-    final total = thisWeekSessions.length;
+    // Choose which sessions to display
+    final sessions =
+        _isMonthlyView ? widget.thisMonthSessions : widget.thisWeekSessions;
+
+    final completed = sessions.where((s) => s.status == 'completed').length;
+    final total = sessions.length;
     final percentage = total > 0 ? (completed / total * 100).round() : 0;
 
     // Calculate total duration and volume
     int totalMinutes = 0;
-    for (final session in thisWeekSessions) {
+    for (final session in sessions) {
       if (session.status == 'completed' && session.duration != null) {
         totalMinutes += session.duration!;
       }
@@ -34,19 +49,46 @@ class WeeklyProgressCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.calendar_today,
+                  _isMonthlyView ? Icons.calendar_month : Icons.calendar_today,
                   size: 20,
                   color: Theme.of(context).colorScheme.primary,
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  'This Week',
+                  _isMonthlyView ? 'This Month' : 'This Week',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 const Spacer(),
-                if (completed >= 3)
+                // Toggle button
+                Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildToggleButton(
+                        context,
+                        'Week',
+                        !_isMonthlyView,
+                        () => setState(() => _isMonthlyView = false),
+                      ),
+                      _buildToggleButton(
+                        context,
+                        'Month',
+                        _isMonthlyView,
+                        () => setState(() => _isMonthlyView = true),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (completed >= (_isMonthlyView ? 12 : 3))
                   const Text('🔥', style: TextStyle(fontSize: 24)),
               ],
             ),
@@ -185,5 +227,37 @@ class WeeklyProgressCard extends StatelessWidget {
     if (percentage >= 80) return Colors.green;
     if (percentage >= 50) return Colors.orange;
     return Theme.of(context).colorScheme.primary;
+  }
+
+  Widget _buildToggleButton(
+    BuildContext context,
+    String label,
+    bool isSelected,
+    VoidCallback onTap,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color:
+              isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color:
+                isSelected
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : Theme.of(context).colorScheme.primary,
+          ),
+        ),
+      ),
+    );
   }
 }

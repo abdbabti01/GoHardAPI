@@ -382,19 +382,31 @@ class _SessionsScreenState extends State<SessionsScreen> {
                         )
                         .toList();
 
-                final thisWeekSessions =
+                // ALL sessions for this week (for progress card) - includes planned, in-progress, completed, draft
+                final allThisWeekSessions =
                     provider.sessions
                         .where(
                           (s) =>
-                              s.status != 'planned' &&
-                              s.status !=
-                                  'in_progress' && // Exclude in-progress (shown in today)
                               s.date.isAfter(
                                 weekStart.subtract(const Duration(days: 1)),
                               ) &&
                               s.date.isBefore(
-                                today.add(const Duration(days: 1)),
-                              ),
+                                today.add(const Duration(days: 7)),
+                              ), // Include future workouts in current week
+                        )
+                        .toList();
+
+                // ALL sessions for this month (for progress card)
+                final monthStart = DateTime(now.year, now.month, 1);
+                final monthEnd = DateTime(now.year, now.month + 1, 1);
+                final allThisMonthSessions =
+                    provider.sessions
+                        .where(
+                          (s) =>
+                              s.date.isAfter(
+                                monthStart.subtract(const Duration(days: 1)),
+                              ) &&
+                              s.date.isBefore(monthEnd),
                         )
                         .toList();
 
@@ -428,9 +440,13 @@ class _SessionsScreenState extends State<SessionsScreen> {
                     physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 80),
                     children: [
-                      // Weekly Progress Card
-                      if (thisWeekSessions.isNotEmpty)
-                        WeeklyProgressCard(thisWeekSessions: thisWeekSessions),
+                      // Weekly/Monthly Progress Card
+                      if (allThisWeekSessions.isNotEmpty ||
+                          allThisMonthSessions.isNotEmpty)
+                        WeeklyProgressCard(
+                          thisWeekSessions: allThisWeekSessions,
+                          thisMonthSessions: allThisMonthSessions,
+                        ),
 
                       // Today Section
                       if (todaySessions.isNotEmpty) ...[
@@ -446,33 +462,6 @@ class _SessionsScreenState extends State<SessionsScreen> {
                             onDelete: () => _handleDeleteSession(session.id),
                           ),
                         ),
-                      ],
-
-                      // This Week Section
-                      if (thisWeekSessions.isNotEmpty) ...[
-                        _buildSectionHeader('This Week', Icons.view_week, null),
-                        ...thisWeekSessions
-                            .where(
-                              (s) =>
-                                  DateTime(
-                                    s.date.year,
-                                    s.date.month,
-                                    s.date.day,
-                                  ) !=
-                                  today,
-                            )
-                            .map(
-                              (session) => SessionCard(
-                                session: session,
-                                onTap:
-                                    () => _handleSessionTap(
-                                      session.id,
-                                      session.status,
-                                    ),
-                                onDelete:
-                                    () => _handleDeleteSession(session.id),
-                              ),
-                            ),
                       ],
 
                       // Planned/Upcoming Section
