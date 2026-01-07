@@ -238,29 +238,43 @@ class NotificationService {
 
   /// Show immediate test notification
   Future<void> showTestNotification() async {
-    const androidDetails = AndroidNotificationDetails(
-      'test_notifications',
-      'Test Notifications',
-      channelDescription: 'Test notification channel',
-      importance: Importance.high,
-      priority: Priority.high,
-    );
+    try {
+      debugPrint('🔔 Attempting to show test notification...');
 
-    const iosDetails = DarwinNotificationDetails();
+      const androidDetails = AndroidNotificationDetails(
+        'test_notifications',
+        'Test Notifications',
+        channelDescription: 'Test notification channel',
+        importance: Importance.max,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+        enableLights: true,
+      );
 
-    const details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
+      const iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
 
-    await _notifications.show(
-      999,
-      '💪 Test Notification',
-      'Your notifications are working!',
-      details,
-      payload: 'test',
-    );
+      const details = NotificationDetails(
+        android: androidDetails,
+        iOS: iosDetails,
+      );
 
-    debugPrint('🔔 Test notification sent');
+      await _notifications.show(
+        999,
+        '💪 Test Notification',
+        'Your notifications are working!',
+        details,
+        payload: 'test',
+      );
+
+      debugPrint('✅ Test notification shown successfully');
+    } catch (e) {
+      debugPrint('❌ Error showing test notification: $e');
+      rethrow;
+    }
   }
 }

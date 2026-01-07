@@ -223,32 +223,48 @@ class SettingsScreen extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () async {
-                  // Request permissions first
-                  final granted =
-                      await settings.requestNotificationPermissions();
+                  try {
+                    // Request permissions first
+                    final granted =
+                        await settings.requestNotificationPermissions();
 
-                  if (!granted && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Notification permissions are required. Please enable them in app settings.',
+                    if (!granted && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Notification permissions are required. Please enable them in app settings.',
+                          ),
+                          backgroundColor: Colors.orange,
+                          duration: Duration(seconds: 5),
                         ),
-                        backgroundColor: Colors.orange,
-                      ),
-                    );
-                    return;
-                  }
+                      );
+                      return;
+                    }
 
-                  // Send test notification
-                  await settings.sendTestNotification();
+                    // Send test notification
+                    await settings.sendTestNotification();
 
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Test notification sent!'),
-                        backgroundColor: Colors.green,
-                      ),
-                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Test notification sent! Check your notification tray.',
+                          ),
+                          backgroundColor: Colors.green,
+                          duration: Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error: $e'),
+                          backgroundColor: Colors.red,
+                          duration: const Duration(seconds: 5),
+                        ),
+                      );
+                    }
                   }
                 },
                 icon: const Icon(Icons.notifications_active),
