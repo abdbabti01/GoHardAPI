@@ -60,26 +60,32 @@ class ActiveWorkoutProvider extends ChangeNotifier {
       // (startedAt and pausedAt are already in UTC from Session.fromJson)
       if (_currentSession?.startedAt != null) {
         final Duration calculated;
+        final bool shouldBeRunning;
 
         if (_currentSession?.pausedAt != null) {
           // Timer is paused - elapsed time is when it was paused
           calculated = _currentSession!.pausedAt!.difference(
             _currentSession!.startedAt!,
           );
-          _stopTimer(); // Ensure timer is stopped
+          shouldBeRunning = false;
         } else {
           // Timer is running - calculate from current time
           calculated = DateTime.now().toUtc().difference(
             _currentSession!.startedAt!,
           );
-          // Auto-start timer since it should be running in background
-          if (_currentSession?.status == 'in_progress') {
-            _startTimer();
-          }
+          shouldBeRunning = _currentSession?.status == 'in_progress';
         }
 
-        // Ensure elapsed time is never negative (due to network latency)
+        // CRITICAL: Always stop timer first to avoid race condition
+        _stopTimer();
+
+        // Set the correct elapsed time
         _elapsedTime = calculated.isNegative ? Duration.zero : calculated;
+
+        // Then restart timer if it should be running
+        if (shouldBeRunning) {
+          _startTimer();
+        }
       } else {
         // Session hasn't started yet (still draft), reset timer
         _elapsedTime = Duration.zero;
