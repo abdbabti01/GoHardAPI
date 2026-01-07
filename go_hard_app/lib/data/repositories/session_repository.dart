@@ -439,7 +439,7 @@ class SessionRepository {
 
     // Then sync to server in background if online (don't block)
     if (_connectivity.isOnline && localSession.serverId != null) {
-      _syncSessionStatusToServer(db, localSession.serverId!, status)
+      _syncSessionStatusToServer(db, localSession.serverId!, localSession)
           .then((_) {
             debugPrint('✅ Background sync: Updated session status on server');
           })
@@ -469,25 +469,40 @@ class SessionRepository {
   Future<void> _syncSessionStatusToServer(
     Isar db,
     int serverId,
-    String status,
+    LocalSession localSession,
   ) async {
     try {
+      // Send status AND timestamps to server (preserves timer state)
+      final data = {
+        'status': localSession.status,
+        if (localSession.startedAt != null)
+          'startedAt': localSession.startedAt!.toUtc().toIso8601String(),
+        if (localSession.completedAt != null)
+          'completedAt': localSession.completedAt!.toUtc().toIso8601String(),
+        if (localSession.pausedAt != null)
+          'pausedAt': localSession.pausedAt!.toUtc().toIso8601String(),
+      };
+
       await _apiService.patch<void>(
         ApiConfig.sessionStatus(serverId),
-        data: {'status': status},
+        data: data,
+      );
+
+      debugPrint(
+        '✅ Synced session $serverId with timestamps (startedAt: ${localSession.startedAt})',
       );
 
       // Update sync status in local DB
       await db.writeTxn(() async {
-        final localSession =
+        final session =
             await db.localSessions
                 .filter()
                 .serverIdEqualTo(serverId)
                 .findFirst();
-        if (localSession != null) {
-          localSession.isSynced = true;
-          localSession.syncStatus = 'synced';
-          await db.localSessions.put(localSession);
+        if (session != null) {
+          session.isSynced = true;
+          session.syncStatus = 'synced';
+          await db.localSessions.put(session);
         }
       });
     } catch (e) {

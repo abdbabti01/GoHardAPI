@@ -160,17 +160,24 @@ namespace GoHardAPI.Controllers
 
             session.Status = request.Status.ToLower();
 
-            // Update timestamps based on status
+            // Update timestamps - use client's timestamps if provided (preserves timer state)
+            // Otherwise generate server-side timestamps
             if (request.Status.ToLower() == "in_progress" && session.StartedAt == null)
             {
-                session.StartedAt = DateTime.UtcNow;
+                session.StartedAt = request.StartedAt ?? DateTime.UtcNow;
             }
             else if (request.Status.ToLower() == "completed" && session.CompletedAt == null)
             {
-                session.CompletedAt = DateTime.UtcNow;
+                session.CompletedAt = request.CompletedAt ?? DateTime.UtcNow;
 
                 // AUTO-UPDATE WORKOUT GOALS
                 await UpdateWorkoutGoals(userId, session.CompletedAt.Value);
+            }
+
+            // Update paused state if provided
+            if (request.PausedAt.HasValue)
+            {
+                session.PausedAt = request.PausedAt;
             }
 
             await _context.SaveChangesAsync();
