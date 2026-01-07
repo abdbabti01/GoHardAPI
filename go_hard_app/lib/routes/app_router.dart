@@ -6,6 +6,7 @@ import '../ui/screens/auth/signup_screen.dart';
 import '../ui/screens/sessions/sessions_screen.dart';
 import '../ui/screens/sessions/session_detail_screen.dart';
 import '../ui/screens/sessions/active_workout_screen.dart';
+import '../ui/screens/sessions/planned_workout_form_screen.dart';
 import '../ui/screens/exercises/exercises_screen.dart';
 import '../ui/screens/exercises/exercise_detail_screen.dart';
 import '../ui/screens/exercises/add_exercise_screen.dart';
@@ -78,6 +79,12 @@ class AppRouter {
         }
         return MaterialPageRoute(
           builder: (_) => ActiveWorkoutScreen(sessionId: sessionId),
+          settings: settings,
+        );
+
+      case RouteNames.planWorkout:
+        return MaterialPageRoute(
+          builder: (_) => const PlannedWorkoutFormScreen(),
           settings: settings,
         );
 

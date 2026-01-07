@@ -65,6 +65,9 @@ dependencies:
   # Charts & Data Visualization
   fl_chart: ^0.68.0
 
+  # Calendar UI
+  table_calendar: ^3.0.9
+
   # Image Picker
   image_picker: ^1.0.7
 

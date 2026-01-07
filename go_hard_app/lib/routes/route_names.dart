@@ -15,6 +15,7 @@ class RouteNames {
   static const String sessions = '/sessions';
   static const String sessionDetail = '/session-detail';
   static const String activeWorkout = '/active-workout';
+  static const String planWorkout = '/plan-workout';
 
   // Exercise routes
   static const String exercises = '/exercises';

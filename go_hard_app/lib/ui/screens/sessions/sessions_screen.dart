@@ -7,6 +7,7 @@ import '../../../core/services/sync_service.dart';
 import '../../../core/utils/date_utils.dart';
 import '../../widgets/sessions/session_card.dart';
 import '../../widgets/sessions/workout_name_dialog.dart';
+import '../../widgets/sessions/workout_options_sheet.dart';
 import '../../widgets/sessions/weekly_progress_card.dart';
 import '../../widgets/common/offline_banner.dart';
 
@@ -79,6 +80,35 @@ class _SessionsScreenState extends State<SessionsScreen> {
 
   Future<void> _handleDeleteSession(int sessionId) async {
     await context.read<SessionsProvider>().deleteSession(sessionId);
+  }
+
+  Future<void> _handlePlanWorkout() async {
+    final result = await Navigator.of(
+      context,
+    ).pushNamed(RouteNames.planWorkout);
+
+    // Reload sessions if workout was created
+    if (result == true && mounted) {
+      await context.read<SessionsProvider>().loadSessions();
+    }
+  }
+
+  void _showWorkoutOptionsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) => WorkoutOptionsSheet(
+            onStartNow: () {
+              Navigator.pop(context);
+              _handleStartNewWorkout();
+            },
+            onPlanLater: () {
+              Navigator.pop(context);
+              _handlePlanWorkout();
+            },
+          ),
+    );
   }
 
   Future<void> _handleSessionTap(int sessionId, String status) async {
@@ -504,7 +534,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(28),
-            onTap: _handleStartNewWorkout,
+            onTap: _showWorkoutOptionsSheet,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Row(

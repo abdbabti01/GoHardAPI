@@ -176,6 +176,176 @@ class SessionsProvider extends ChangeNotifier {
     }
   }
 
+  /// Create a single planned workout for a future date
+  Future<Session?> createPlannedWorkout({
+    required String name,
+    required DateTime scheduledDate,
+    String? type,
+    String? notes,
+    int? estimatedDuration,
+  }) async {
+    try {
+      final userId = await _authService.getUserId();
+      if (userId == null) {
+        _errorMessage = 'User not authenticated';
+        notifyListeners();
+        return null;
+      }
+
+      // Ensure date is date-only (no time)
+      final dateOnly = DateTime(
+        scheduledDate.year,
+        scheduledDate.month,
+        scheduledDate.day,
+      );
+
+      final newSession = Session(
+        id: 0,
+        userId: userId,
+        date: dateOnly,
+        type: type ?? 'Workout',
+        status: 'planned',
+        notes: notes ?? '',
+        name: name,
+        duration: estimatedDuration,
+      );
+
+      final createdSession = await _sessionRepository.createSession(newSession);
+
+      _sessions.insert(0, createdSession);
+      notifyListeners();
+
+      return createdSession;
+    } catch (e) {
+      _errorMessage =
+          'Failed to create planned workout: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Create planned workout error: $e');
+      notifyListeners();
+      return null;
+    }
+  }
+
+  /// Create multiple recurring planned workouts
+  Future<List<Session>> createRecurringPlannedWorkouts({
+    required String name,
+    required DateTime startDate,
+    required String frequency,
+    List<int>? daysOfWeek,
+    int? intervalDays,
+    int? occurrences,
+    DateTime? endDate,
+    String? type,
+    String? notes,
+    int? estimatedDuration,
+  }) async {
+    try {
+      final userId = await _authService.getUserId();
+      if (userId == null) {
+        _errorMessage = 'User not authenticated';
+        notifyListeners();
+        return [];
+      }
+
+      // Calculate all dates for recurring workouts
+      final dates = _calculateRecurringDates(
+        startDate: startDate,
+        frequency: frequency,
+        daysOfWeek: daysOfWeek,
+        intervalDays: intervalDays,
+        occurrences: occurrences,
+        endDate: endDate,
+      );
+
+      // Limit to 52 occurrences max (1 year)
+      final limitedDates = dates.take(52).toList();
+
+      final createdSessions = <Session>[];
+
+      // Create a session for each calculated date
+      for (final date in limitedDates) {
+        final dateOnly = DateTime(date.year, date.month, date.day);
+
+        final session = Session(
+          id: 0,
+          userId: userId,
+          date: dateOnly,
+          type: type ?? 'Workout',
+          status: 'planned',
+          notes: notes ?? '',
+          name: name,
+          duration: estimatedDuration,
+        );
+
+        final createdSession = await _sessionRepository.createSession(session);
+        createdSessions.add(createdSession);
+        _sessions.insert(0, createdSession);
+      }
+
+      notifyListeners();
+      return createdSessions;
+    } catch (e) {
+      _errorMessage =
+          'Failed to create recurring workouts: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Create recurring workouts error: $e');
+      notifyListeners();
+      return [];
+    }
+  }
+
+  /// Calculate dates for recurring workouts
+  List<DateTime> _calculateRecurringDates({
+    required DateTime startDate,
+    required String frequency,
+    List<int>? daysOfWeek,
+    int? intervalDays,
+    int? occurrences,
+    DateTime? endDate,
+  }) {
+    final dates = <DateTime>[];
+    var currentDate = startDate;
+    final maxDate = endDate ?? startDate.add(const Duration(days: 365));
+
+    switch (frequency) {
+      case 'daily':
+        while (dates.length < (occurrences ?? 365) &&
+            currentDate.isBefore(maxDate.add(const Duration(days: 1)))) {
+          dates.add(currentDate);
+          currentDate = currentDate.add(const Duration(days: 1));
+        }
+        break;
+
+      case 'weekly':
+        if (daysOfWeek == null || daysOfWeek.isEmpty) break;
+
+        // Find first occurrence
+        while (!daysOfWeek.contains(currentDate.weekday) &&
+            currentDate.isBefore(maxDate.add(const Duration(days: 1)))) {
+          currentDate = currentDate.add(const Duration(days: 1));
+        }
+
+        // Add recurring weekly dates
+        while (dates.length < (occurrences ?? 365) &&
+            currentDate.isBefore(maxDate.add(const Duration(days: 1)))) {
+          if (daysOfWeek.contains(currentDate.weekday)) {
+            dates.add(currentDate);
+          }
+          currentDate = currentDate.add(const Duration(days: 1));
+        }
+        break;
+
+      case 'custom':
+        final interval = intervalDays ?? 1;
+        while (dates.length < (occurrences ?? 365) &&
+            currentDate.isBefore(maxDate.add(const Duration(days: 1)))) {
+          dates.add(currentDate);
+          currentDate = currentDate.add(Duration(days: interval));
+        }
+        break;
+    }
+
+    return dates;
+  }
+
   /// Refresh sessions (pull-to-refresh)
   /// Don't show loading indicator for smooth UX
   Future<void> refresh() async {
