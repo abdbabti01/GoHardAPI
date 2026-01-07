@@ -625,7 +625,7 @@ class SessionRepository {
         debugPrint('▶️ Adjusted startedAt by pause duration: $pauseDuration');
       }
 
-      localSession!.pausedAt = null;
+      localSession.pausedAt = null;
       localSession.lastModifiedLocal = DateTime.now();
       localSession.isSynced = false;
       // Only mark as pending_update if session already exists on server
