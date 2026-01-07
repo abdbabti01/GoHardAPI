@@ -16,7 +16,15 @@ class SettingsProvider extends ChangeNotifier {
   bool _isLoading = false;
 
   SettingsProvider(this._storage, this._notificationService) {
-    loadSettings();
+    _initialize();
+  }
+
+  /// Initialize settings and request permissions
+  Future<void> _initialize() async {
+    // Request notification permissions first
+    await _notificationService.requestPermissions();
+    // Then load and schedule notifications
+    await loadSettings();
   }
 
   // Getters
@@ -69,6 +77,23 @@ class SettingsProvider extends ChangeNotifier {
       }
 
       debugPrint('✅ Settings loaded successfully');
+
+      // Schedule notifications if enabled
+      if (_morningReminderEnabled) {
+        await _notificationService.scheduleMorningReminder(
+          hour: _morningReminderTime.hour,
+          minute: _morningReminderTime.minute,
+        );
+        debugPrint('📅 Morning reminder scheduled');
+      }
+
+      if (_eveningReminderEnabled) {
+        await _notificationService.scheduleEveningReminder(
+          hour: _eveningReminderTime.hour,
+          minute: _eveningReminderTime.minute,
+        );
+        debugPrint('📅 Evening reminder scheduled');
+      }
     } catch (e) {
       debugPrint('⚠️ Error loading settings: $e');
     } finally {
