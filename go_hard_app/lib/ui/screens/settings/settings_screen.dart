@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../routes/route_names.dart';
 
 /// Settings screen for managing app preferences
 /// Currently focuses on notification settings
@@ -28,6 +29,12 @@ class SettingsScreen extends StatelessWidget {
 
               // Test Notification Button
               _buildTestNotificationButton(context, settings),
+              const SizedBox(height: 24),
+
+              // Debug Section
+              _buildSectionHeader(context, 'Debug'),
+              const SizedBox(height: 8),
+              _buildDebugCard(context),
             ],
           );
         },
@@ -269,6 +276,44 @@ class SettingsScreen extends StatelessWidget {
                 },
                 icon: const Icon(Icons.notifications_active),
                 label: const Text('Send Test Notification'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDebugCard(BuildContext context) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Notification Logs',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'View detailed logs to debug notification issues on iOS and Android.',
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pushNamed(RouteNames.debugLogs);
+                },
+                icon: const Icon(Icons.bug_report),
+                label: const Text('View Debug Logs'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
