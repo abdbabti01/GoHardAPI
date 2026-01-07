@@ -151,12 +151,13 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     }
 
     // Update UI IMMEDIATELY - don't wait for anything
+    final nowUtc = DateTime.now().toUtc(); // CRITICAL: Use UTC
     _stopTimer();
     _currentSession = _currentSession!.copyWith(
-      pausedAt: DateTime.now().toUtc(),
+      pausedAt: nowUtc, // Store as UTC
     );
     notifyListeners();
-    debugPrint('⏸️ Timer paused (UI updated)');
+    debugPrint('⏸️ Timer paused (UI updated) - pausedAt UTC: $nowUtc');
 
     // Then save to DB in background (don't block UI)
     _sessionRepository.pauseSession(_currentSession!.id).catchError((e) {

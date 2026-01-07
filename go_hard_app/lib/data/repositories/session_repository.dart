@@ -560,7 +560,8 @@ class SessionRepository {
 
     // ALWAYS update locally first for instant response
     await db.writeTxn(() async {
-      localSession!.pausedAt = DateTime.now();
+      final nowUtc = DateTime.now().toUtc(); // CRITICAL: Store as UTC
+      localSession!.pausedAt = nowUtc; // Store as UTC, not local time
       localSession.lastModifiedLocal = DateTime.now();
       localSession.isSynced = false;
       // Only mark as pending_update if session already exists on server
@@ -568,6 +569,7 @@ class SessionRepository {
         localSession.syncStatus = 'pending_update';
       }
       await db.localSessions.put(localSession);
+      debugPrint('⏸️ Session paused locally (pausedAt UTC: $nowUtc)');
     });
 
     debugPrint('⏸️ Session paused locally');
@@ -615,6 +617,14 @@ class SessionRepository {
 
     // ALWAYS update locally first for instant response
     await db.writeTxn(() async {
+      // Calculate pause duration and adjust startedAt (just like backend does)
+      if (localSession!.pausedAt != null && localSession.startedAt != null) {
+        final nowUtc = DateTime.now().toUtc();
+        final pauseDuration = nowUtc.difference(localSession.pausedAt!);
+        localSession.startedAt = localSession.startedAt!.add(pauseDuration);
+        debugPrint('▶️ Adjusted startedAt by pause duration: $pauseDuration');
+      }
+
       localSession!.pausedAt = null;
       localSession.lastModifiedLocal = DateTime.now();
       localSession.isSynced = false;
