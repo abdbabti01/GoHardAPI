@@ -23,6 +23,7 @@ class SessionsScreen extends StatefulWidget {
 class _SessionsScreenState extends State<SessionsScreen> {
   bool _isPlannedExpanded =
       false; // Track if planned workouts section is expanded
+  String _pastWorkoutsFilter = 'Last Month'; // Filter for past workouts
 
   @override
   void initState() {
@@ -247,6 +248,24 @@ class _SessionsScreenState extends State<SessionsScreen> {
     return months[month];
   }
 
+  /// Get number of days for past workouts filter
+  int _getFilterDays(String filter) {
+    switch (filter) {
+      case 'Last Week':
+        return 7;
+      case 'Last Month':
+        return 30;
+      case 'Last 3 Months':
+        return 90;
+      case 'Last 6 Months':
+        return 180;
+      case 'Last 12 Months':
+        return 365;
+      default:
+        return 30; // Default to last month
+    }
+  }
+
   /// Build week header widget
   Widget _buildWeekHeader(String label) {
     return Padding(
@@ -257,6 +276,80 @@ class _SessionsScreenState extends State<SessionsScreen> {
           fontWeight: FontWeight.bold,
           color: Theme.of(context).colorScheme.primary,
         ),
+      ),
+    );
+  }
+
+  /// Build past workouts filter dropdown
+  Widget _buildPastWorkoutsFilter() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Row(
+        children: [
+          Icon(
+            Icons.history,
+            size: 20,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Past Workouts',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: DropdownButton<String>(
+              value: _pastWorkoutsFilter,
+              underline: const SizedBox(),
+              isDense: true,
+              icon: Icon(
+                Icons.arrow_drop_down,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Last Week', child: Text('Last Week')),
+                DropdownMenuItem(
+                  value: 'Last Month',
+                  child: Text('Last Month'),
+                ),
+                DropdownMenuItem(
+                  value: 'Last 3 Months',
+                  child: Text('Last 3 Months'),
+                ),
+                DropdownMenuItem(
+                  value: 'Last 6 Months',
+                  child: Text('Last 6 Months'),
+                ),
+                DropdownMenuItem(
+                  value: 'Last 12 Months',
+                  child: Text('Last 12 Months'),
+                ),
+              ],
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _pastWorkoutsFilter = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -489,14 +582,36 @@ class _SessionsScreenState extends State<SessionsScreen> {
                         .where((s) => s.status == 'planned')
                         .toList();
 
+                // This Week: workouts from Monday to yesterday (not today, not before this week)
+                final thisWeekSessions =
+                    provider.sessions
+                        .where(
+                          (s) =>
+                              s.status != 'planned' &&
+                              s.status != 'in_progress' &&
+                              !s.date.isBefore(
+                                weekStart,
+                              ) && // After/equal Monday
+                              DateTime(s.date.year, s.date.month, s.date.day) !=
+                                  today, // Not today
+                        )
+                        .toList();
+
+                // Calculate date range for past workouts filter
+                final filterDays = _getFilterDays(_pastWorkoutsFilter);
+                final filterCutoff = today.subtract(Duration(days: filterDays));
+
+                // Past sessions: before this week AND within filter range
                 final pastSessions =
                     provider.sessions
                         .where(
                           (s) =>
                               s.status != 'planned' &&
-                              s.status !=
-                                  'in_progress' && // Exclude in-progress (shown in today)
-                              s.date.isBefore(weekStart),
+                              s.status != 'in_progress' &&
+                              s.date.isBefore(weekStart) && // Before this week
+                              s.date.isAfter(
+                                filterCutoff.subtract(const Duration(days: 1)),
+                              ), // Within filter range
                         )
                         .toList();
 
@@ -559,8 +674,29 @@ class _SessionsScreenState extends State<SessionsScreen> {
                           ),
                       ],
 
-                      // Past Sessions
+                      // This Week Section (Monday to yesterday)
+                      if (thisWeekSessions.isNotEmpty) ...[
+                        _buildSectionHeader(
+                          'This Week',
+                          Icons.calendar_today,
+                          null,
+                        ),
+                        ...thisWeekSessions.map(
+                          (session) => SessionCard(
+                            session: session,
+                            onTap:
+                                () => _handleSessionTap(
+                                  session.id,
+                                  session.status,
+                                ),
+                            onDelete: () => _handleDeleteSession(session.id),
+                          ),
+                        ),
+                      ],
+
+                      // Past Sessions with Filter
                       if (pastSessions.isNotEmpty) ...[
+                        _buildPastWorkoutsFilter(),
                         for (final label in pastWeekLabels) ...[
                           _buildWeekHeader(label),
                           ...groupedPast[label]!.map(
