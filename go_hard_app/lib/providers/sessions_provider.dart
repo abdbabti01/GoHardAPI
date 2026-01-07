@@ -176,6 +176,29 @@ class SessionsProvider extends ChangeNotifier {
     }
   }
 
+  /// Update workout date (used when starting a future planned workout early)
+  Future<bool> updateWorkoutDate(int sessionId, DateTime newDate) async {
+    try {
+      // Update in repository
+      await _sessionRepository.updateWorkoutDate(sessionId, newDate);
+
+      // Update local session in the list
+      final index = _sessions.indexWhere((s) => s.id == sessionId);
+      if (index != -1) {
+        _sessions[index] = _sessions[index].copyWith(date: newDate);
+        notifyListeners();
+      }
+
+      return true;
+    } catch (e) {
+      _errorMessage =
+          'Failed to update workout date: ${e.toString().replaceAll('Exception: ', '')}';
+      debugPrint('Update workout date error: $e');
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Create a single planned workout for a future date
   Future<Session?> createPlannedWorkout({
     required String name,

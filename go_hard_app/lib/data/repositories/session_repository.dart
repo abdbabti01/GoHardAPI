@@ -818,6 +818,91 @@ class SessionRepository {
     return ModelMapper.localToSession(localSession, exercises: exercises);
   }
 
+  /// Update workout date (used when starting future planned workout early)
+  /// Optimistic update: updates locally first, syncs to server if online
+  Future<void> updateWorkoutDate(int id, DateTime newDate) async {
+    final Isar db = _localDb.database;
+
+    // Find local session (id could be localId or serverId)
+    var localSession = await db.localSessions.get(id);
+    localSession ??=
+        await db.localSessions.filter().serverIdEqualTo(id).findFirst();
+
+    if (localSession == null) {
+      throw Exception('Session not found: $id');
+    }
+
+    // ALWAYS update locally first for instant response
+    await db.writeTxn(() async {
+      // Convert to date-only (no time component)
+      final dateOnly = DateTime(newDate.year, newDate.month, newDate.day);
+      localSession!.date = dateOnly;
+      localSession.lastModifiedLocal = DateTime.now();
+      localSession.isSynced = false;
+      // Only mark as pending_update if session already exists on server
+      if (localSession.serverId != null) {
+        localSession.syncStatus = 'pending_update';
+      }
+      await db.localSessions.put(localSession);
+    });
+
+    debugPrint('📅 Workout date updated locally to: $newDate');
+
+    // Then sync to server in background if online (don't block)
+    if (_connectivity.isOnline && localSession.serverId != null) {
+      _syncSessionDateToServer(db, localSession.serverId!, newDate)
+          .then((_) {
+            debugPrint('✅ Background sync: Updated workout date on server');
+          })
+          .catchError((e) {
+            debugPrint('⚠️ Background sync failed, will retry later: $e');
+          });
+    } else {
+      debugPrint('📴 Offline - workout date will sync later');
+    }
+  }
+
+  /// Background sync: Update workout date on server
+  Future<void> _syncSessionDateToServer(
+    Isar db,
+    int serverId,
+    DateTime newDate,
+  ) async {
+    try {
+      // Fetch the current session to send full data (required by PUT)
+      final session =
+          await db.localSessions.filter().serverIdEqualTo(serverId).findFirst();
+
+      if (session == null) return;
+
+      // Convert to API model
+      final apiSession = ModelMapper.localToSession(session);
+      final updateData = apiSession.toJson();
+
+      await _apiService.put<void>(
+        ApiConfig.sessionById(serverId),
+        data: updateData,
+      );
+
+      // Mark as synced
+      await db.writeTxn(() async {
+        final updatedSession =
+            await db.localSessions
+                .filter()
+                .serverIdEqualTo(serverId)
+                .findFirst();
+        if (updatedSession != null) {
+          updatedSession.isSynced = true;
+          updatedSession.syncStatus = 'synced';
+          await db.localSessions.put(updatedSession);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error syncing workout date to server: $e');
+      rethrow;
+    }
+  }
+
   /// Background sync: Update session name on server
   Future<void> _syncSessionNameToServer(
     Isar db,

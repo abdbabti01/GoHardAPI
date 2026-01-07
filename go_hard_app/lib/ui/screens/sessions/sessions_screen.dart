@@ -113,11 +113,35 @@ class _SessionsScreenState extends State<SessionsScreen> {
 
   Future<void> _handleSessionTap(int sessionId, String status) async {
     if (status == 'planned') {
-      // Show dialog to start planned workout
-      final shouldStart = await _showStartPlannedWorkoutDialog();
+      final provider = context.read<SessionsProvider>();
+      final session = provider.sessions.firstWhere((s) => s.id == sessionId);
+
+      // Check if workout is scheduled for a future date
+      final today = DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      );
+      final workoutDate = DateTime(
+        session.date.year,
+        session.date.month,
+        session.date.day,
+      );
+      final isScheduledForFuture = workoutDate.isAfter(today);
+
+      // Show appropriate confirmation dialog
+      final shouldStart =
+          isScheduledForFuture
+              ? await _showStartFuturePlannedWorkoutDialog(workoutDate)
+              : await _showStartPlannedWorkoutDialog();
+
       if (shouldStart == true && mounted) {
+        // If workout is in the future, update its date to today first
+        if (isScheduledForFuture) {
+          await provider.updateWorkoutDate(sessionId, DateTime.now());
+        }
+
         // Start the planned workout (change status to in_progress)
-        final provider = context.read<SessionsProvider>();
         final success = await provider.startPlannedWorkout(sessionId);
 
         if (success && mounted) {
@@ -171,6 +195,56 @@ class _SessionsScreenState extends State<SessionsScreen> {
             ],
           ),
     );
+  }
+
+  Future<bool?> _showStartFuturePlannedWorkoutDialog(
+    DateTime scheduledDate,
+  ) async {
+    // Format the date nicely
+    final dateStr =
+        '${_getMonthName(scheduledDate.month)} ${scheduledDate.day}';
+    final daysDiff = scheduledDate.difference(DateTime.now()).inDays;
+    final whenStr = daysDiff == 1 ? 'tomorrow' : 'on $dateStr';
+
+    return showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Start Early?'),
+            content: Text(
+              'This workout is scheduled for $whenStr. Do you want to start it today instead?\n\nThe workout date will be updated to today.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Start Today'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      '',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return months[month];
   }
 
   /// Build week header widget
