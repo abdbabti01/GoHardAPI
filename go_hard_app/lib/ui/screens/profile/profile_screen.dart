@@ -84,6 +84,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Profile'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.of(context).pushNamed(RouteNames.settings);
+            },
+            tooltip: 'Settings',
+          ),
+          IconButton(
             icon: const Icon(Icons.edit),
             onPressed: () async {
               await Navigator.push(

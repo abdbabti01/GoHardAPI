@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
@@ -19,6 +20,7 @@ import 'data/local/services/local_database_service.dart';
 import 'core/services/connectivity_service.dart';
 import 'core/services/sync_service.dart';
 import 'core/services/sync_service_initializer.dart';
+import 'core/services/notification_service.dart';
 import 'core/utils/database_cleanup.dart';
 import 'providers/auth_provider.dart';
 import 'providers/sessions_provider.dart';
@@ -34,6 +36,7 @@ import 'providers/workout_template_provider.dart';
 import 'providers/goals_provider.dart';
 import 'providers/body_metrics_provider.dart';
 import 'providers/music_player_provider.dart';
+import 'providers/settings_provider.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized for async operations
@@ -53,6 +56,13 @@ void main() async {
   // Initialize connectivity service
   final connectivity = ConnectivityService.instance;
   await connectivity.initialize();
+
+  // Initialize notification service
+  final notificationService = NotificationService();
+  await notificationService.initialize();
+
+  // Initialize secure storage
+  const secureStorage = FlutterSecureStorage();
   runApp(
     /// MultiProvider setup for dependency injection and state management
     /// Matches the service and ViewModel structure from MAUI app
@@ -61,6 +71,8 @@ void main() async {
         // Services (singletons)
         Provider<LocalDatabaseService>.value(value: localDb),
         ChangeNotifierProvider<ConnectivityService>.value(value: connectivity),
+        Provider<NotificationService>.value(value: notificationService),
+        Provider<FlutterSecureStorage>.value(value: secureStorage),
         Provider<AuthService>(create: (_) => AuthService()),
         ProxyProvider<AuthService, ApiService>(
           update: (_, authService, __) => ApiService(authService),
@@ -379,6 +391,20 @@ void main() async {
         ),
         ChangeNotifierProvider<MusicPlayerProvider>(
           create: (_) => MusicPlayerProvider(),
+        ),
+        ChangeNotifierProxyProvider2<
+          FlutterSecureStorage,
+          NotificationService,
+          SettingsProvider
+        >(
+          create:
+              (context) => SettingsProvider(
+                context.read<FlutterSecureStorage>(),
+                context.read<NotificationService>(),
+              ),
+          update:
+              (_, storage, notificationService, previous) =>
+                  previous ?? SettingsProvider(storage, notificationService),
         ),
       ],
       child: const SyncServiceInitializer(child: MyApp()),

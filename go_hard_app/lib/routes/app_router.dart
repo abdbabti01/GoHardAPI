@@ -12,6 +12,7 @@ import '../ui/screens/exercises/exercise_detail_screen.dart';
 import '../ui/screens/exercises/add_exercise_screen.dart';
 import '../ui/screens/exercises/log_sets_screen.dart';
 import '../ui/screens/profile/profile_screen.dart';
+import '../ui/screens/settings/settings_screen.dart';
 import '../ui/screens/analytics/analytics_screen.dart';
 import '../ui/screens/chat/chat_list_screen.dart';
 import '../ui/screens/chat/chat_conversation_screen.dart';
@@ -135,6 +136,13 @@ class AppRouter {
       case RouteNames.profile:
         return MaterialPageRoute(
           builder: (_) => const ProfileScreen(),
+          settings: settings,
+        );
+
+      // Settings routes
+      case RouteNames.settings:
+        return MaterialPageRoute(
+          builder: (_) => const SettingsScreen(),
           settings: settings,
         );
 

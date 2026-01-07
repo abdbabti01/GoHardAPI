@@ -26,6 +26,9 @@ class RouteNames {
   // Profile routes
   static const String profile = '/profile';
 
+  // Settings routes
+  static const String settings = '/settings';
+
   // Analytics routes
   static const String analytics = '/analytics';
 
