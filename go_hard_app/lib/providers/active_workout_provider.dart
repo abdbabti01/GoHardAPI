@@ -56,6 +56,13 @@ class ActiveWorkoutProvider extends ChangeNotifier {
     try {
       _currentSession = await _sessionRepository.getSession(sessionId);
 
+      debugPrint('⏱️ TIMER DEBUG - loadSession called');
+      debugPrint('  Session ID: ${_currentSession?.id}');
+      debugPrint('  Status: ${_currentSession?.status}');
+      debugPrint('  StartedAt: ${_currentSession?.startedAt}');
+      debugPrint('  PausedAt: ${_currentSession?.pausedAt}');
+      debugPrint('  Current time UTC: ${DateTime.now().toUtc()}');
+
       // Calculate elapsed time if session has started
       // (startedAt and pausedAt are already in UTC from Session.fromJson)
       if (_currentSession?.startedAt != null) {
@@ -68,12 +75,14 @@ class ActiveWorkoutProvider extends ChangeNotifier {
             _currentSession!.startedAt!,
           );
           shouldBeRunning = false;
+          debugPrint('  Timer PAUSED - calculated: ${calculated.inSeconds}s');
         } else {
           // Timer is running - calculate from current time
           calculated = DateTime.now().toUtc().difference(
             _currentSession!.startedAt!,
           );
           shouldBeRunning = _currentSession?.status == 'in_progress';
+          debugPrint('  Timer RUNNING - calculated: ${calculated.inSeconds}s');
         }
 
         // CRITICAL: Always stop timer first to avoid race condition
@@ -81,13 +90,16 @@ class ActiveWorkoutProvider extends ChangeNotifier {
 
         // Set the correct elapsed time
         _elapsedTime = calculated.isNegative ? Duration.zero : calculated;
+        debugPrint('  Set _elapsedTime to: ${_elapsedTime.inSeconds}s');
 
         // Then restart timer if it should be running
         if (shouldBeRunning) {
           _startTimer();
+          debugPrint('  Timer restarted');
         }
       } else {
         // Session hasn't started yet (still draft), reset timer
+        debugPrint('  StartedAt is NULL - resetting timer to zero');
         _elapsedTime = Duration.zero;
         _stopTimer();
       }

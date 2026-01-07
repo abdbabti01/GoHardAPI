@@ -33,13 +33,24 @@ class Session {
     this.exercises = const [],
   });
 
-  // Helper method to ensure datetime is in UTC (proper conversion if needed)
+  // Helper method to mark datetime as UTC without conversion
+  // Database timestamps are already stored as UTC, just need to mark them
   static DateTime? _toUtc(DateTime? dt) {
     if (dt == null) return null;
-    // If already UTC, return as-is
+    // If already marked as UTC, return as-is
     if (dt.isUtc) return dt;
-    // Convert local time to UTC (this preserves the actual moment in time)
-    return dt.toUtc();
+    // CRITICAL: Don't convert! Just mark as UTC since DB stores UTC values
+    // Using toUtc() would double-convert and add timezone offset
+    return DateTime.utc(
+      dt.year,
+      dt.month,
+      dt.day,
+      dt.hour,
+      dt.minute,
+      dt.second,
+      dt.millisecond,
+      dt.microsecond,
+    );
   }
 
   factory Session.fromJson(Map<String, dynamic> json) {

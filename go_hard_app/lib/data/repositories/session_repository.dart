@@ -321,8 +321,18 @@ class SessionRepository {
     debugPrint(
       '  📦 Loaded session ${localSession.serverId ?? localSession.localId} from cache with ${exercises.length} exercises',
     );
+    debugPrint('  📦 LocalSession startedAt: ${localSession.startedAt}');
+    debugPrint('  📦 LocalSession pausedAt: ${localSession.pausedAt}');
+    debugPrint('  📦 LocalSession status: ${localSession.status}');
 
-    return ModelMapper.localToSession(localSession, exercises: exercises);
+    final session = ModelMapper.localToSession(
+      localSession,
+      exercises: exercises,
+    );
+    debugPrint('  📦 Mapped Session startedAt: ${session.startedAt}');
+    debugPrint('  📦 Mapped Session pausedAt: ${session.pausedAt}');
+
+    return session;
   }
 
   /// Create new session
