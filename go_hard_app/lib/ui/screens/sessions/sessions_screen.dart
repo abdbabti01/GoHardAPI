@@ -365,13 +365,20 @@ class _SessionsScreenState extends State<SessionsScreen> {
                 );
 
                 // Group sessions
+                // Today: includes today's workouts + ALL in-progress workouts (even if scheduled for future)
                 final todaySessions =
                     provider.sessions
                         .where(
                           (s) =>
-                              s.status != 'planned' &&
-                              DateTime(s.date.year, s.date.month, s.date.day) ==
-                                  today,
+                              (s.status != 'planned' &&
+                                  DateTime(
+                                        s.date.year,
+                                        s.date.month,
+                                        s.date.day,
+                                      ) ==
+                                      today) ||
+                              s.status ==
+                                  'in_progress', // Show all active workouts
                         )
                         .toList();
 
@@ -380,6 +387,8 @@ class _SessionsScreenState extends State<SessionsScreen> {
                         .where(
                           (s) =>
                               s.status != 'planned' &&
+                              s.status !=
+                                  'in_progress' && // Exclude in-progress (shown in today)
                               s.date.isAfter(
                                 weekStart.subtract(const Duration(days: 1)),
                               ) &&
@@ -399,6 +408,8 @@ class _SessionsScreenState extends State<SessionsScreen> {
                         .where(
                           (s) =>
                               s.status != 'planned' &&
+                              s.status !=
+                                  'in_progress' && // Exclude in-progress (shown in today)
                               s.date.isBefore(weekStart),
                         )
                         .toList();

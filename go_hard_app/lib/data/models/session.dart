@@ -57,6 +57,7 @@ class Session {
       duration: session.duration,
       notes: session.notes,
       type: session.type,
+      name: session.name, // Preserve workout name
       status: session.status,
       startedAt: _toUtc(session.startedAt), // Convert to UTC (timestamp)
       completedAt: _toUtc(session.completedAt), // Convert to UTC (timestamp)
