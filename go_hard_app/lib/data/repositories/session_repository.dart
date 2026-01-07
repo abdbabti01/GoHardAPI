@@ -473,14 +473,15 @@ class SessionRepository {
   ) async {
     try {
       // Send status AND timestamps to server (preserves timer state)
+      // Timestamps are already in UTC format from storage
       final data = {
         'status': localSession.status,
         if (localSession.startedAt != null)
-          'startedAt': localSession.startedAt!.toUtc().toIso8601String(),
+          'startedAt': localSession.startedAt!.toIso8601String(),
         if (localSession.completedAt != null)
-          'completedAt': localSession.completedAt!.toUtc().toIso8601String(),
+          'completedAt': localSession.completedAt!.toIso8601String(),
         if (localSession.pausedAt != null)
-          'pausedAt': localSession.pausedAt!.toUtc().toIso8601String(),
+          'pausedAt': localSession.pausedAt!.toIso8601String(),
       };
 
       await _apiService.patch<void>(
@@ -518,21 +519,22 @@ class SessionRepository {
   ) async {
     await db.writeTxn(() async {
       final now = DateTime.now();
+      final nowUtc = DateTime.now().toUtc(); // Use UTC for timestamps
       localSession.status = status;
       localSession.lastModifiedLocal = now;
       localSession.isSynced = false;
 
       // Set startedAt when status changes to 'in_progress'
       if (status == 'in_progress' && localSession.startedAt == null) {
-        localSession.startedAt = now;
+        localSession.startedAt = nowUtc; // Store as UTC
         localSession.pausedAt = null; // Clear any pause state
-        debugPrint('🏋️ Set startedAt in DB: $now');
+        debugPrint('🏋️ Set startedAt in DB (UTC): $nowUtc');
       }
 
       // Set completedAt when status changes to 'completed'
       if (status == 'completed' && localSession.completedAt == null) {
-        localSession.completedAt = now;
-        debugPrint('✅ Set completedAt in DB: $now');
+        localSession.completedAt = nowUtc; // Store as UTC
+        debugPrint('✅ Set completedAt in DB (UTC): $nowUtc');
       }
 
       // Only mark as pending_update if session already exists on server
