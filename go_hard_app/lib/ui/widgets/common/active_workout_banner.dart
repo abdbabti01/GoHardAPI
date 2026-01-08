@@ -37,10 +37,9 @@ class ActiveWorkoutBanner extends StatelessWidget {
       child: InkWell(
         onTap: () {
           // Navigate to active workout screen
-          Navigator.of(context).pushNamed(
-            RouteNames.activeWorkout,
-            arguments: session.id,
-          );
+          Navigator.of(
+            context,
+          ).pushNamed(RouteNames.activeWorkout, arguments: session.id);
         },
         child: Container(
           width: double.infinity,
@@ -108,11 +107,7 @@ class ActiveWorkoutBanner extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      Icons.timer,
-                      size: 16,
-                      color: Colors.white,
-                    ),
+                    const Icon(Icons.timer, size: 16, color: Colors.white),
                     const SizedBox(width: 6),
                     Text(
                       _formatDuration(workoutProvider.elapsedTime),
@@ -126,11 +121,7 @@ class ActiveWorkoutBanner extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_right,
-                color: Colors.white,
-                size: 20,
-              ),
+              const Icon(Icons.chevron_right, color: Colors.white, size: 20),
             ],
           ),
         ),

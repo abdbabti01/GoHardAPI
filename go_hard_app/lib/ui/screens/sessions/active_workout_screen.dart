@@ -136,92 +136,92 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     return Consumer<ActiveWorkoutProvider>(
       builder: (context, provider, child) {
         return Scaffold(
-            appBar: AppBar(
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      provider.currentSession?.name ?? 'Active Workout',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 20),
-                    onPressed: _handleEditWorkoutName,
-                    tooltip: 'Edit Workout Name',
-                  ),
-                ],
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.check_circle),
-                  onPressed: _handleFinishWorkout,
-                  tooltip: 'Finish Workout',
-                ),
-              ],
-            ),
-            body: Column(
+          appBar: AppBar(
+            title: Row(
               children: [
-                const OfflineBanner(),
-                Expanded(child: _buildBody(provider)),
+                Expanded(
+                  child: Text(
+                    provider.currentSession?.name ?? 'Active Workout',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20),
+                  onPressed: _handleEditWorkoutName,
+                  tooltip: 'Edit Workout Name',
+                ),
               ],
             ),
-            floatingActionButton: Container(
-              height: 56,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(28),
-                gradient: LinearGradient(
-                  colors: [
-                    Theme.of(context).colorScheme.secondary,
-                    Theme.of(
-                      context,
-                    ).colorScheme.secondary.withValues(alpha: 0.8),
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.secondary.withValues(alpha: 0.4),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.check_circle),
+                onPressed: _handleFinishWorkout,
+                tooltip: 'Finish Workout',
+              ),
+            ],
+          ),
+          body: Column(
+            children: [
+              const OfflineBanner(),
+              Expanded(child: _buildBody(provider)),
+            ],
+          ),
+          floatingActionButton: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: LinearGradient(
+                colors: [
+                  Theme.of(context).colorScheme.secondary,
+                  Theme.of(
+                    context,
+                  ).colorScheme.secondary.withValues(alpha: 0.8),
                 ],
               ),
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(28),
-                  onTap: _handleAddExercise,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 16,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.add_circle_outline,
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.secondary.withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(28),
+                onTap: _handleAddExercise,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.add_circle_outline,
+                        color: Theme.of(context).colorScheme.onSecondary,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Add Exercise',
+                        style: TextStyle(
                           color: Theme.of(context).colorScheme.onSecondary,
-                          size: 24,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.5,
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Add Exercise',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSecondary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
+          ),
         );
       },
     );
