@@ -8,8 +8,21 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddDbContext<TrainingContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+// Support both SQL Server (local) and PostgreSQL (Railway production)
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Use PostgreSQL if DATABASE_URL is set (Railway), otherwise use SQL Server (local)
+if (Environment.GetEnvironmentVariable("DATABASE_URL") != null)
+{
+    builder.Services.AddDbContext<TrainingContext>(options =>
+        options.UseNpgsql(connectionString));
+}
+else
+{
+    builder.Services.AddDbContext<TrainingContext>(options =>
+        options.UseSqlServer(connectionString));
+}
 
 // Register AuthService
 builder.Services.AddScoped<AuthService>();
