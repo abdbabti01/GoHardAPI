@@ -1,5 +1,3 @@
-import 'dart:io';
-
 /// API configuration with platform-specific base URLs
 /// Matches the ApiService.cs platform detection logic from MAUI app
 class ApiConfig {
