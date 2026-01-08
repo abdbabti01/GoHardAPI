@@ -15,7 +15,5 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
 COPY --from=build /app/publish .
 
-# Railway provides PORT environment variable
-ENV ASPNETCORE_URLS=http://+:$PORT
-
-ENTRYPOINT ["dotnet", "GoHardAPI.dll"]
+# Use shell form to evaluate PORT environment variable at runtime
+CMD ASPNETCORE_URLS=http://*:${PORT:-8080} dotnet GoHardAPI.dll
