@@ -206,6 +206,402 @@ namespace GoHardAPI.Data
                     Equipment = "Bodyweight",
                     Difficulty = "Intermediate",
                     Instructions = "Squat down, kick feet back to plank, do push-up, jump feet forward, jump up"
+                },
+
+                // Additional Chest Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Incline Dumbbell Press",
+                    Description = "Upper chest builder",
+                    Category = "Strength",
+                    MuscleGroup = "Chest",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Intermediate",
+                    Instructions = "Lie on incline bench, press dumbbells up from chest level, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Cable Crossovers",
+                    Description = "Chest isolation with cables",
+                    Category = "Strength",
+                    MuscleGroup = "Chest",
+                    Equipment = "Cable",
+                    Difficulty = "Intermediate",
+                    Instructions = "Stand between cable machines, bring handles together in front of chest"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Decline Push-ups",
+                    Description = "Advanced push-up variation",
+                    Category = "Strength",
+                    MuscleGroup = "Chest",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Advanced",
+                    Instructions = "Feet elevated on bench, perform push-ups with increased difficulty"
+                },
+
+                // Additional Back Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Lat Pulldown",
+                    Description = "Machine-based back exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    Instructions = "Pull bar down to chest level, squeeze shoulder blades together"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Seated Cable Row",
+                    Description = "Mid-back thickness builder",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    Instructions = "Pull cable handle to torso, squeeze back muscles, return with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "T-Bar Row",
+                    Description = "Thick back developer",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    Instructions = "Straddle barbell, pull to chest with neutral grip"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Face Pulls",
+                    Description = "Rear delt and upper back",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    Instructions = "Pull rope attachment to face level, squeeze rear delts"
+                },
+
+                // Additional Leg Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Romanian Deadlift",
+                    Description = "Hamstring and glute builder",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    Instructions = "Lower bar by hinging at hips, feel stretch in hamstrings, return to standing"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Bulgarian Split Squat",
+                    Description = "Single-leg quad and glute developer",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Advanced",
+                    Instructions = "Rear foot elevated, lower front leg until deep squat, drive back up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Leg Curl",
+                    Description = "Hamstring isolation",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    Instructions = "Curl legs up toward glutes, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Leg Extension",
+                    Description = "Quad isolation",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    Instructions = "Extend legs until straight, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Calf Raises",
+                    Description = "Calf muscle builder",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    Instructions = "Rise up on toes, squeeze calves at top, lower slowly"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Goblet Squat",
+                    Description = "Front-loaded squat variation",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    Instructions = "Hold dumbbell at chest, squat deep, maintain upright torso"
+                },
+
+                // Additional Shoulder Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Arnold Press",
+                    Description = "Complete shoulder developer",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Intermediate",
+                    Instructions = "Start with palms facing you, press and rotate dumbbells overhead"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Front Raises",
+                    Description = "Front delt isolation",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    Instructions = "Raise dumbbells to shoulder height in front of body"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Rear Delt Flyes",
+                    Description = "Rear shoulder isolation",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    Instructions = "Bent over, raise dumbbells out to sides, squeeze rear delts"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Upright Row",
+                    Description = "Shoulder and trap developer",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    Instructions = "Pull barbell up to chin level, elbows high"
+                },
+
+                // Additional Arm Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Hammer Curls",
+                    Description = "Bicep and forearm builder",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    Instructions = "Curl dumbbells with neutral grip, keep elbows stable"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Preacher Curls",
+                    Description = "Strict bicep isolation",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    Instructions = "Arms on preacher bench, curl bar up, squeeze biceps"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Tricep Pushdown",
+                    Description = "Tricep isolation with cable",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    Instructions = "Push cable bar down until arms fully extended"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Skull Crushers",
+                    Description = "Lying tricep extension",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    Instructions = "Lying on bench, lower bar to forehead, extend arms back up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Close-Grip Bench Press",
+                    Description = "Compound tricep builder",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    Instructions = "Narrow grip on bar, press focusing on triceps"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Concentration Curls",
+                    Description = "Isolated bicep peak builder",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    Instructions = "Seated, curl dumbbell with full focus on bicep contraction"
+                },
+
+                // Additional Core Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Russian Twists",
+                    Description = "Oblique and core rotation",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    Instructions = "Seated, lean back, rotate torso side to side"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Hanging Leg Raises",
+                    Description = "Advanced lower ab exercise",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Pull-up Bar",
+                    Difficulty = "Advanced",
+                    Instructions = "Hang from bar, raise legs to 90 degrees, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Cable Crunches",
+                    Description = "Weighted ab exercise",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Cable",
+                    Difficulty = "Intermediate",
+                    Instructions = "Kneel at cable machine, crunch down bringing elbows to knees"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Side Plank",
+                    Description = "Oblique isometric hold",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    Instructions = "Hold body sideways on forearm, maintain straight line"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Mountain Climbers",
+                    Description = "Dynamic core and cardio",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    Instructions = "Plank position, alternate bringing knees to chest rapidly"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Ab Wheel Rollout",
+                    Description = "Advanced core stability",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Ab Wheel",
+                    Difficulty = "Advanced",
+                    Instructions = "Roll wheel forward extending body, pull back to start"
+                },
+
+                // Additional Cardio Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Cycling",
+                    Description = "Low-impact cardio",
+                    Category = "Cardio",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Bike",
+                    Difficulty = "Beginner",
+                    Instructions = "Maintain steady pace on stationary or regular bike"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Rowing Machine",
+                    Description = "Full-body cardio and strength",
+                    Category = "Cardio",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    Instructions = "Pull handle to chest, push with legs, repeat in rhythm"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Battle Ropes",
+                    Description = "High-intensity upper body cardio",
+                    Category = "Cardio",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Battle Ropes",
+                    Difficulty = "Intermediate",
+                    Instructions = "Alternate or simultaneous waves with heavy ropes"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Box Jumps",
+                    Description = "Explosive lower body power",
+                    Category = "Cardio",
+                    MuscleGroup = "Legs",
+                    Equipment = "Box",
+                    Difficulty = "Intermediate",
+                    Instructions = "Jump onto elevated box, step down, repeat"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "High Knees",
+                    Description = "Running in place with high knee drive",
+                    Category = "Cardio",
+                    MuscleGroup = "Full Body",
+                    Equipment = "None",
+                    Difficulty = "Beginner",
+                    Instructions = "Run in place bringing knees to hip level"
+                },
+
+                // Advanced/Athletic Movements
+                new ExerciseTemplate
+                {
+                    Name = "Muscle-ups",
+                    Description = "Advanced pull-up to dip transition",
+                    Category = "Strength",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Pull-up Bar",
+                    Difficulty = "Advanced",
+                    Instructions = "Pull up explosively, transition to dip position, press to top"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Pistol Squats",
+                    Description = "Single-leg bodyweight squat",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Advanced",
+                    Instructions = "Squat on one leg, other leg extended forward, stand back up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Handstand Push-ups",
+                    Description = "Inverted shoulder press",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Advanced",
+                    Instructions = "Handstand against wall, lower head to ground, press back up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Clean and Jerk",
+                    Description = "Olympic weightlifting movement",
+                    Category = "Strength",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Barbell",
+                    Difficulty = "Advanced",
+                    Instructions = "Pull bar to shoulders, then jerk overhead in one fluid motion"
                 }
             };
 
