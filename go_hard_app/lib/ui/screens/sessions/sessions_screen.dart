@@ -5,6 +5,7 @@ import '../../../providers/exercises_provider.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/services/sync_service.dart';
 import '../../../core/utils/date_utils.dart';
+import '../../../data/models/session.dart';
 import '../../widgets/sessions/session_card.dart';
 import '../../widgets/sessions/workout_name_dialog.dart';
 import '../../widgets/sessions/workout_options_sheet.dart';
@@ -264,6 +265,59 @@ class _SessionsScreenState extends State<SessionsScreen> {
       default:
         return 30; // Default to last month
     }
+  }
+
+  /// Group planned sessions by workout name
+  Map<String, List<Session>> _groupPlannedSessionsByName(
+    List<Session> sessions,
+  ) {
+    final grouped = <String, List<Session>>{};
+
+    for (final session in sessions) {
+      final name = session.name ?? 'Unnamed Workout';
+      if (!grouped.containsKey(name)) {
+        grouped[name] = [];
+      }
+      grouped[name]!.add(session);
+    }
+
+    // Sort sessions within each group by date
+    for (final group in grouped.values) {
+      group.sort((a, b) => a.date.compareTo(b.date));
+    }
+
+    return grouped;
+  }
+
+  /// Build subheader for workout name groups
+  Widget _buildWorkoutNameSubheader(String workoutName, int count) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 12, 16, 4),
+      child: Row(
+        children: [
+          Icon(
+            Icons.fitness_center,
+            size: 16,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            workoutName,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '($count)',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.7),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Build week header widget
@@ -653,25 +707,46 @@ class _SessionsScreenState extends State<SessionsScreen> {
                         ),
                       ],
 
-                      // Planned/Upcoming Section
+                      // Planned/Upcoming Section (Grouped by Workout Name)
                       if (plannedSessions.isNotEmpty) ...[
                         _buildSectionHeader(
                           'Upcoming',
                           Icons.event,
                           plannedSessions.length,
                         ),
-                        if (_isPlannedExpanded)
-                          ...plannedSessions.map(
-                            (session) => SessionCard(
-                              session: session,
-                              onTap:
-                                  () => _handleSessionTap(
-                                    session.id,
-                                    session.status,
+                        if (_isPlannedExpanded) ...[
+                          () {
+                            final groupedPlanned =
+                                _groupPlannedSessionsByName(plannedSessions);
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: groupedPlanned.entries.expand((entry) {
+                                final workoutName = entry.key;
+                                final sessions = entry.value;
+
+                                return [
+                                  _buildWorkoutNameSubheader(
+                                    workoutName,
+                                    sessions.length,
                                   ),
-                              onDelete: () => _handleDeleteSession(session.id),
-                            ),
-                          ),
+                                  ...sessions.map(
+                                    (session) => SessionCard(
+                                      session: session,
+                                      onTap:
+                                          () => _handleSessionTap(
+                                            session.id,
+                                            session.status,
+                                          ),
+                                      onDelete:
+                                          () => _handleDeleteSession(session.id),
+                                    ),
+                                  ),
+                                ];
+                              }).toList(),
+                            );
+                          }(),
+                        ],
                       ],
 
                       // This Week Section (Monday to yesterday)
