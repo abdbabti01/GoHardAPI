@@ -206,34 +206,10 @@ namespace GoHardAPI.Controllers
             // Update current value
             goal.CurrentValue = progress.Value;
 
-            // Check if goal is completed (handle both increase and decrease goals)
-            if (!goal.IsCompleted)
-            {
-                bool isCompleted = false;
-
-                // Determine if this is a decrease goal (lower is better)
-                bool isDecreaseGoal = goal.GoalType?.Contains("Weight", StringComparison.OrdinalIgnoreCase) == true ||
-                                     goal.GoalType?.Contains("BodyFat", StringComparison.OrdinalIgnoreCase) == true ||
-                                     goal.GoalType?.Contains("Fat", StringComparison.OrdinalIgnoreCase) == true;
-
-                if (isDecreaseGoal)
-                {
-                    // For weight loss/body fat: completed when current <= target
-                    isCompleted = goal.CurrentValue <= goal.TargetValue;
-                }
-                else
-                {
-                    // For increase goals: completed when current >= target
-                    isCompleted = goal.CurrentValue >= goal.TargetValue;
-                }
-
-                if (isCompleted)
-                {
-                    goal.IsCompleted = true;
-                    goal.CompletedAt = DateTime.UtcNow;
-                    goal.IsActive = false;
-                }
-            }
+            // Note: Goals are not automatically marked as complete when adding progress.
+            // This prevents premature completion when users enter incorrect values or
+            // when the semantics of progress values are ambiguous (e.g., absolute value vs. delta).
+            // Users should manually mark goals as complete using the /complete endpoint.
 
             await _context.SaveChangesAsync();
 
