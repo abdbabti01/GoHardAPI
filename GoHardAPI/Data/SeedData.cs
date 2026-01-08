@@ -7,9 +7,13 @@ namespace GoHardAPI.Data
         public static void Initialize(TrainingContext context)
         {
             // Check if we already have exercise templates
-            if (context.ExerciseTemplates.Any())
+            bool hasExistingTemplates = context.ExerciseTemplates.Any();
+
+            if (hasExistingTemplates)
             {
-                return; // Database has been seeded
+                // Update existing exercises with video URLs if missing
+                UpdateExerciseVideos(context);
+                return;
             }
 
             var templates = new List<ExerciseTemplate>
@@ -663,6 +667,99 @@ namespace GoHardAPI.Data
 
             context.ExerciseTemplates.AddRange(templates);
             context.SaveChanges();
+        }
+
+        private static void UpdateExerciseVideos(TrainingContext context)
+        {
+            // Dictionary of exercise names to video URLs
+            var exerciseVideos = new Dictionary<string, string>
+            {
+                // Chest
+                { "Bench Press", "https://www.youtube.com/watch?v=gRVjAtPip0Y" },
+                { "Push-ups", "https://www.youtube.com/watch?v=IODxDxX7oi4" },
+                { "Dumbbell Flyes", "https://www.youtube.com/watch?v=eozdVDA78K0" },
+                { "Incline Dumbbell Press", "https://www.youtube.com/watch?v=8iPEnn-ltC8" },
+                { "Cable Crossovers", "https://www.youtube.com/watch?v=f2W1xG-dATo" },
+                { "Decline Push-ups", "https://www.youtube.com/watch?v=56PKAzP3pHE" },
+                // Back
+                { "Deadlift", "https://www.youtube.com/watch?v=op9kVnSso6Q" },
+                { "Pull-ups", "https://www.youtube.com/watch?v=eGo4IYlbE5g" },
+                { "Bent-Over Row", "https://www.youtube.com/watch?v=FWJR5Ve8bnQ" },
+                { "Lat Pulldown", "https://www.youtube.com/watch?v=CAwf7n6Luuc" },
+                { "Seated Cable Row", "https://www.youtube.com/watch?v=m-w6d9hqcAk" },
+                { "T-Bar Row", "https://www.youtube.com/watch?v=8w6vYGbh0OI" },
+                { "Face Pulls", "https://www.youtube.com/watch?v=eIJS4mrcWqE" },
+                // Legs
+                { "Squat", "https://www.youtube.com/watch?v=ultWZbUMPL8" },
+                { "Lunges", "https://www.youtube.com/watch?v=QOVaHwm-Q6U" },
+                { "Leg Press", "https://www.youtube.com/watch?v=IZxyjW7MPJQ" },
+                { "Romanian Deadlift", "https://www.youtube.com/watch?v=3kDVVwc0YoI" },
+                { "Bulgarian Split Squat", "https://www.youtube.com/watch?v=2avvEHx3E-U" },
+                { "Leg Curl", "https://www.youtube.com/watch?v=Cy-6vKzZCJE" },
+                { "Leg Extension", "https://www.youtube.com/watch?v=YyvSfVjQeL0" },
+                { "Calf Raises", "https://www.youtube.com/watch?v=AdwxjPu2YFI" },
+                { "Goblet Squat", "https://www.youtube.com/watch?v=VxY2ZvyeP0s" },
+                // Shoulders
+                { "Overhead Press", "https://www.youtube.com/watch?v=2yjwXTZQDDI" },
+                { "Lateral Raises", "https://www.youtube.com/watch?v=3VcKaXpzqRo" },
+                { "Arnold Press", "https://www.youtube.com/watch?v=6Z15_WdXmj8" },
+                { "Front Raises", "https://www.youtube.com/watch?v=sAjf4GncMg0" },
+                { "Rear Delt Flyes", "https://www.youtube.com/watch?v=dD-Sf7PZZ5A" },
+                { "Upright Row", "https://www.youtube.com/watch?v=DcDfXaQrdm0" },
+                // Arms
+                { "Bicep Curls", "https://www.youtube.com/watch?v=ykJmrZ5v0Oo" },
+                { "Tricep Dips", "https://www.youtube.com/watch?v=2z8JmcrW-As" },
+                { "Hammer Curls", "https://www.youtube.com/watch?v=CFVQ8Foize4" },
+                { "Preacher Curls", "https://www.youtube.com/watch?v=fCr5pMwrYmU" },
+                { "Tricep Pushdown", "https://www.youtube.com/watch?v=omHg8vAH0ic" },
+                { "Skull Crushers", "https://www.youtube.com/watch?v=_l4DQKzwXJw" },
+                { "Close-Grip Bench Press", "https://www.youtube.com/watch?v=tEOM1HoYESw" },
+                { "Concentration Curls", "https://www.youtube.com/watch?v=i3gePZ5ufTw" },
+                // Core
+                { "Plank", "https://www.youtube.com/watch?v=ASdvN_XEl_c" },
+                { "Crunches", "https://www.youtube.com/watch?v=Xyd_fa5zoEU" },
+                { "Russian Twists", "https://www.youtube.com/watch?v=Y2akXNeDPaE" },
+                { "Hanging Leg Raises", "https://www.youtube.com/watch?v=VR_hWJ2rCIU" },
+                { "Cable Crunches", "https://www.youtube.com/watch?v=rXIqwU4aZxI" },
+                { "Side Plank", "https://www.youtube.com/watch?v=okNdaE9V3SE" },
+                { "Mountain Climbers", "https://www.youtube.com/watch?v=nmwgirgXLYM" },
+                { "Ab Wheel Rollout", "https://www.youtube.com/watch?v=wcUvzXpIV3I" },
+                // Cardio
+                { "Running", "https://www.youtube.com/watch?v=brFHyOtTwH4" },
+                { "Jump Rope", "https://www.youtube.com/watch?v=FJmRQ5iTXKE" },
+                { "Burpees", "https://www.youtube.com/watch?v=auBLPXO8Fww" },
+                { "Cycling", "https://www.youtube.com/watch?v=GKhT2VGXe5A" },
+                { "Rowing Machine", "https://www.youtube.com/watch?v=qyNjPBqiKfg" },
+                { "Battle Ropes", "https://www.youtube.com/watch?v=R3xyWBgkKoI" },
+                { "Box Jumps", "https://www.youtube.com/watch?v=Km8uZRGXVCU" },
+                { "High Knees", "https://www.youtube.com/watch?v=uLXJL6bVCl0" },
+                // Advanced
+                { "Muscle-ups", "https://www.youtube.com/watch?v=pT2o2hP_ZLE" },
+                { "Pistol Squats", "https://www.youtube.com/watch?v=OMx1jF6dYOg" },
+                { "Handstand Push-ups", "https://www.youtube.com/watch?v=EHVrk-9kPKM" },
+                { "Clean and Jerk", "https://www.youtube.com/watch?v=eHnuHIOu8zU" }
+            };
+
+            // Update existing exercises with video URLs
+            var exercisesToUpdate = context.ExerciseTemplates
+                .Where(e => e.VideoUrl == null || e.VideoUrl == "")
+                .ToList();
+
+            int updatedCount = 0;
+            foreach (var exercise in exercisesToUpdate)
+            {
+                if (exerciseVideos.TryGetValue(exercise.Name, out string? videoUrl))
+                {
+                    exercise.VideoUrl = videoUrl;
+                    updatedCount++;
+                }
+            }
+
+            if (updatedCount > 0)
+            {
+                context.SaveChanges();
+                Console.WriteLine($"Updated {updatedCount} exercises with video URLs");
+            }
         }
     }
 }
