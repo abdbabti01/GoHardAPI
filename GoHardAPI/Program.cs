@@ -114,14 +114,16 @@ using (var scope = app.Services.CreateScope())
         if (created)
         {
             Console.WriteLine("New database created - seeding initial data...");
-            // Only seed data when database is first created
-            SeedData.Initialize(context);
-            Console.WriteLine("Database seeded successfully");
         }
         else
         {
-            Console.WriteLine("Database already exists - preserving existing data");
+            Console.WriteLine("Database already exists - checking for updates...");
         }
+
+        // Always run seed data initialization
+        // It will either insert new exercises or update existing ones with video URLs
+        SeedData.Initialize(context);
+        Console.WriteLine("Database seed/update completed successfully");
     }
     catch (Exception ex)
     {
