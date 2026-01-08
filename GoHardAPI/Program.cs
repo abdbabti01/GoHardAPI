@@ -105,8 +105,9 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<TrainingContext>();
 
-    // Apply any pending migrations (creates tables if they don't exist)
-    context.Database.Migrate();
+    // Create database schema if it doesn't exist
+    // Using EnsureCreated instead of Migrate for PostgreSQL compatibility
+    context.Database.EnsureCreated();
 
     // Seed initial data
     SeedData.Initialize(context);
