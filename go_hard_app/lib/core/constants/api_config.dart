@@ -6,34 +6,26 @@ class ApiConfig {
   ApiConfig._(); // Private constructor to prevent instantiation
 
   /// Base URL for the GoHardAPI backend
-  /// - iOS/macOS: http://localhost:5121/api
-  /// - Android: http://10.0.0.4:5121/api (for physical device on same WiFi)
-  /// - Other platforms: http://localhost:5121/api
+  /// Production: https://gohardapi-production.up.railway.app/api
   static String get baseUrl {
-    if (Platform.isIOS || Platform.isMacOS) {
-      // For physical iPhone on WiFi, use computer's IP address
-      return 'http://10.0.0.4:5121/api/'; // REPLACE 10.0.0.4 WITH YOUR IP
-    } else if (Platform.isAndroid) {
-      // IMPORTANT: Choose the correct URL based on your testing device:
-      // - Android Emulator: use 10.0.2.2 (special alias to host machine's localhost)
-      // - Physical Android Device: use your computer's WiFi IP address (e.g., 10.0.0.4, 192.168.x.x)
-      //   To find your IP: Windows (ipconfig), Mac/Linux (ifconfig)
-      return 'http://10.0.2.2:5121/api/'; // Configured for Android Emulator
-    } else {
-      // Windows, Linux, or other platforms
-      return 'http://localhost:5121/api/';
-    }
+    // Production URL - hosted on Railway
+    return 'https://gohardapi-production.up.railway.app/api/';
+
+    // For local development, uncomment the appropriate line below:
+    // iOS/macOS: return 'http://localhost:5121/api/';
+    // Android Emulator: return 'http://10.0.2.2:5121/api/';
+    // Physical device on WiFi: return 'http://YOUR_IP:5121/api/';
   }
 
   /// Server URL without /api suffix (for static files like profile photos)
   static String get serverUrl {
-    if (Platform.isIOS || Platform.isMacOS) {
-      return 'http://localhost:5121';
-    } else if (Platform.isAndroid) {
-      return 'http://10.0.2.2:5121'; // Configured for Android Emulator
-    } else {
-      return 'http://localhost:5121';
-    }
+    // Production URL - hosted on Railway
+    return 'https://gohardapi-production.up.railway.app';
+
+    // For local development, uncomment the appropriate line below:
+    // iOS/macOS: return 'http://localhost:5121';
+    // Android Emulator: return 'http://10.0.2.2:5121';
+    // Physical device on WiFi: return 'http://YOUR_IP:5121';
   }
 
   /// Get full URL for a profile photo
