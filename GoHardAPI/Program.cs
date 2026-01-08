@@ -105,12 +105,30 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<TrainingContext>();
 
-    // Create database schema if it doesn't exist
-    // Using EnsureCreated instead of Migrate for PostgreSQL compatibility
-    context.Database.EnsureCreated();
+    try
+    {
+        // For fresh PostgreSQL deployment: delete and recreate database
+        // This ensures clean schema without SQL Server migration artifacts
+        if (Environment.GetEnvironmentVariable("DATABASE_URL") != null)
+        {
+            Console.WriteLine("Deleting existing database...");
+            context.Database.EnsureDeleted();
+            Console.WriteLine("Creating fresh database schema...");
+        }
 
-    // Seed initial data
-    SeedData.Initialize(context);
+        // Create database schema
+        var created = context.Database.EnsureCreated();
+        Console.WriteLine($"Database created: {created}");
+
+        // Seed initial data
+        SeedData.Initialize(context);
+        Console.WriteLine("Database seeded successfully");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Database initialization error: {ex.Message}");
+        throw;
+    }
 }
 
 // Configure the HTTP request pipeline.
