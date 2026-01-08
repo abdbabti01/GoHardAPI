@@ -206,12 +206,33 @@ namespace GoHardAPI.Controllers
             // Update current value
             goal.CurrentValue = progress.Value;
 
-            // Check if goal is completed
-            if (goal.CurrentValue >= goal.TargetValue && !goal.IsCompleted)
+            // Check if goal is completed (handle both increase and decrease goals)
+            if (!goal.IsCompleted)
             {
-                goal.IsCompleted = true;
-                goal.CompletedAt = DateTime.UtcNow;
-                goal.IsActive = false;
+                bool isCompleted = false;
+
+                // Determine if this is a decrease goal (lower is better)
+                bool isDecreaseGoal = goal.GoalType?.Contains("Weight", StringComparison.OrdinalIgnoreCase) == true ||
+                                     goal.GoalType?.Contains("BodyFat", StringComparison.OrdinalIgnoreCase) == true ||
+                                     goal.GoalType?.Contains("Fat", StringComparison.OrdinalIgnoreCase) == true;
+
+                if (isDecreaseGoal)
+                {
+                    // For weight loss/body fat: completed when current <= target
+                    isCompleted = goal.CurrentValue <= goal.TargetValue;
+                }
+                else
+                {
+                    // For increase goals: completed when current >= target
+                    isCompleted = goal.CurrentValue >= goal.TargetValue;
+                }
+
+                if (isCompleted)
+                {
+                    goal.IsCompleted = true;
+                    goal.CompletedAt = DateTime.UtcNow;
+                    goal.IsActive = false;
+                }
             }
 
             await _context.SaveChangesAsync();
