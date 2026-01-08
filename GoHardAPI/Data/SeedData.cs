@@ -23,6 +23,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Chest",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=gRVjAtPip0Y",
                     Instructions = "Lie on bench, grip bar slightly wider than shoulders, lower to chest, press up"
                 },
                 new ExerciseTemplate
@@ -33,6 +34,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Chest",
                     Equipment = "Bodyweight",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=IODxDxX7oi4",
                     Instructions = "Start in plank position, lower body until chest nearly touches floor, push back up"
                 },
                 new ExerciseTemplate
@@ -43,6 +45,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Chest",
                     Equipment = "Dumbbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=eozdVDA78K0",
                     Instructions = "Lie on bench, hold dumbbells above chest, lower arms out to sides, bring back together"
                 },
 
@@ -55,6 +58,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Back",
                     Equipment = "Barbell",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=op9kVnSso6Q",
                     Instructions = "Stand with feet hip-width, grip bar, lift by extending hips and knees, lower with control"
                 },
                 new ExerciseTemplate
@@ -65,6 +69,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Back",
                     Equipment = "Pull-up Bar",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=eGo4IYlbE5g",
                     Instructions = "Hang from bar with overhand grip, pull body up until chin over bar, lower with control"
                 },
                 new ExerciseTemplate
@@ -75,6 +80,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Back",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=FWJR5Ve8bnQ",
                     Instructions = "Bend at hips, grip bar, pull to lower chest, lower with control"
                 },
 
@@ -87,6 +93,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=ultWZbUMPL8",
                     Instructions = "Bar on upper back, feet shoulder-width, lower hips back and down, drive through heels to stand"
                 },
                 new ExerciseTemplate
@@ -97,6 +104,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Bodyweight",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=QOVaHwm-Q6U",
                     Instructions = "Step forward, lower back knee toward ground, push back to starting position"
                 },
                 new ExerciseTemplate
@@ -107,6 +115,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Machine",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=IZxyjW7MPJQ",
                     Instructions = "Sit in machine, feet on platform, push platform away, return with control"
                 },
 
@@ -119,6 +128,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Shoulders",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=2yjwXTZQDDI",
                     Instructions = "Bar at shoulder height, press overhead, lower with control"
                 },
                 new ExerciseTemplate
@@ -129,6 +139,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Shoulders",
                     Equipment = "Dumbbell",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=3VcKaXpzqRo",
                     Instructions = "Hold dumbbells at sides, raise arms out to shoulder height, lower with control"
                 },
 
@@ -141,6 +152,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Arms",
                     Equipment = "Dumbbell",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=ykJmrZ5v0Oo",
                     Instructions = "Hold dumbbells, curl up toward shoulders, lower with control"
                 },
                 new ExerciseTemplate
@@ -151,6 +163,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Arms",
                     Equipment = "Parallel Bars",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=2z8JmcrW-As",
                     Instructions = "Support body on bars, lower by bending elbows, push back up"
                 },
 
@@ -163,6 +176,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Abs",
                     Equipment = "Bodyweight",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=ASdvN_XEl_c",
                     Instructions = "Hold body in straight line from head to heels, supported on forearms and toes"
                 },
                 new ExerciseTemplate
@@ -173,6 +187,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Abs",
                     Equipment = "Bodyweight",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=Xyd_fa5zoEU",
                     Instructions = "Lie on back, knees bent, lift shoulders off ground, lower with control"
                 },
 
@@ -185,6 +200,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "None",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=brFHyOtTwH4",
                     Instructions = "Run at steady pace for desired duration or distance"
                 },
                 new ExerciseTemplate
@@ -195,6 +211,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "Jump Rope",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=FJmRQ5iTXKE",
                     Instructions = "Jump over rope as it passes under feet, maintain steady rhythm"
                 },
                 new ExerciseTemplate
@@ -205,6 +222,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "Bodyweight",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=auBLPXO8Fww",
                     Instructions = "Squat down, kick feet back to plank, do push-up, jump feet forward, jump up"
                 },
 
@@ -217,6 +235,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Chest",
                     Equipment = "Dumbbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=8iPEnn-ltC8",
                     Instructions = "Lie on incline bench, press dumbbells up from chest level, lower with control"
                 },
                 new ExerciseTemplate
@@ -227,6 +246,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Chest",
                     Equipment = "Cable",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=f2W1xG-dATo",
                     Instructions = "Stand between cable machines, bring handles together in front of chest"
                 },
                 new ExerciseTemplate
@@ -237,6 +257,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Chest",
                     Equipment = "Bodyweight",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=56PKAzP3pHE",
                     Instructions = "Feet elevated on bench, perform push-ups with increased difficulty"
                 },
 
@@ -249,6 +270,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Back",
                     Equipment = "Machine",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=CAwf7n6Luuc",
                     Instructions = "Pull bar down to chest level, squeeze shoulder blades together"
                 },
                 new ExerciseTemplate
@@ -259,6 +281,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Back",
                     Equipment = "Cable",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=m-w6d9hqcAk",
                     Instructions = "Pull cable handle to torso, squeeze back muscles, return with control"
                 },
                 new ExerciseTemplate
@@ -269,6 +292,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Back",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=8w6vYGbh0OI",
                     Instructions = "Straddle barbell, pull to chest with neutral grip"
                 },
                 new ExerciseTemplate
@@ -279,6 +303,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Back",
                     Equipment = "Cable",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=eIJS4mrcWqE",
                     Instructions = "Pull rope attachment to face level, squeeze rear delts"
                 },
 
@@ -291,6 +316,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=3kDVVwc0YoI",
                     Instructions = "Lower bar by hinging at hips, feel stretch in hamstrings, return to standing"
                 },
                 new ExerciseTemplate
@@ -301,6 +327,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Dumbbell",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=2avvEHx3E-U",
                     Instructions = "Rear foot elevated, lower front leg until deep squat, drive back up"
                 },
                 new ExerciseTemplate
@@ -311,6 +338,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Machine",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=Cy-6vKzZCJE",
                     Instructions = "Curl legs up toward glutes, lower with control"
                 },
                 new ExerciseTemplate
@@ -321,6 +349,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Machine",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=YyvSfVjQeL0",
                     Instructions = "Extend legs until straight, lower with control"
                 },
                 new ExerciseTemplate
@@ -331,6 +360,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Machine",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=AdwxjPu2YFI",
                     Instructions = "Rise up on toes, squeeze calves at top, lower slowly"
                 },
                 new ExerciseTemplate
@@ -341,6 +371,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Dumbbell",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=VxY2ZvyeP0s",
                     Instructions = "Hold dumbbell at chest, squat deep, maintain upright torso"
                 },
 
@@ -353,6 +384,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Shoulders",
                     Equipment = "Dumbbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=6Z15_WdXmj8",
                     Instructions = "Start with palms facing you, press and rotate dumbbells overhead"
                 },
                 new ExerciseTemplate
@@ -363,6 +395,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Shoulders",
                     Equipment = "Dumbbell",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=sAjf4GncMg0",
                     Instructions = "Raise dumbbells to shoulder height in front of body"
                 },
                 new ExerciseTemplate
@@ -373,6 +406,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Shoulders",
                     Equipment = "Dumbbell",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=dD-Sf7PZZ5A",
                     Instructions = "Bent over, raise dumbbells out to sides, squeeze rear delts"
                 },
                 new ExerciseTemplate
@@ -383,6 +417,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Shoulders",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=DcDfXaQrdm0",
                     Instructions = "Pull barbell up to chin level, elbows high"
                 },
 
@@ -395,6 +430,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Arms",
                     Equipment = "Dumbbell",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=CFVQ8Foize4",
                     Instructions = "Curl dumbbells with neutral grip, keep elbows stable"
                 },
                 new ExerciseTemplate
@@ -405,6 +441,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Arms",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=fCr5pMwrYmU",
                     Instructions = "Arms on preacher bench, curl bar up, squeeze biceps"
                 },
                 new ExerciseTemplate
@@ -415,6 +452,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Arms",
                     Equipment = "Cable",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=omHg8vAH0ic",
                     Instructions = "Push cable bar down until arms fully extended"
                 },
                 new ExerciseTemplate
@@ -425,6 +463,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Arms",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=_l4DQKzwXJw",
                     Instructions = "Lying on bench, lower bar to forehead, extend arms back up"
                 },
                 new ExerciseTemplate
@@ -435,6 +474,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Arms",
                     Equipment = "Barbell",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=tEOM1HoYESw",
                     Instructions = "Narrow grip on bar, press focusing on triceps"
                 },
                 new ExerciseTemplate
@@ -445,6 +485,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Arms",
                     Equipment = "Dumbbell",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=i3gePZ5ufTw",
                     Instructions = "Seated, curl dumbbell with full focus on bicep contraction"
                 },
 
@@ -457,6 +498,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Abs",
                     Equipment = "Bodyweight",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=Y2akXNeDPaE",
                     Instructions = "Seated, lean back, rotate torso side to side"
                 },
                 new ExerciseTemplate
@@ -467,6 +509,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Abs",
                     Equipment = "Pull-up Bar",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=VR_hWJ2rCIU",
                     Instructions = "Hang from bar, raise legs to 90 degrees, lower with control"
                 },
                 new ExerciseTemplate
@@ -477,6 +520,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Abs",
                     Equipment = "Cable",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=rXIqwU4aZxI",
                     Instructions = "Kneel at cable machine, crunch down bringing elbows to knees"
                 },
                 new ExerciseTemplate
@@ -487,6 +531,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Abs",
                     Equipment = "Bodyweight",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=okNdaE9V3SE",
                     Instructions = "Hold body sideways on forearm, maintain straight line"
                 },
                 new ExerciseTemplate
@@ -497,6 +542,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Abs",
                     Equipment = "Bodyweight",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=nmwgirgXLYM",
                     Instructions = "Plank position, alternate bringing knees to chest rapidly"
                 },
                 new ExerciseTemplate
@@ -507,6 +553,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Abs",
                     Equipment = "Ab Wheel",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=wcUvzXpIV3I",
                     Instructions = "Roll wheel forward extending body, pull back to start"
                 },
 
@@ -519,6 +566,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "Bike",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=GKhT2VGXe5A",
                     Instructions = "Maintain steady pace on stationary or regular bike"
                 },
                 new ExerciseTemplate
@@ -529,6 +577,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "Machine",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=qyNjPBqiKfg",
                     Instructions = "Pull handle to chest, push with legs, repeat in rhythm"
                 },
                 new ExerciseTemplate
@@ -539,6 +588,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "Battle Ropes",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=R3xyWBgkKoI",
                     Instructions = "Alternate or simultaneous waves with heavy ropes"
                 },
                 new ExerciseTemplate
@@ -549,6 +599,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Box",
                     Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=Km8uZRGXVCU",
                     Instructions = "Jump onto elevated box, step down, repeat"
                 },
                 new ExerciseTemplate
@@ -559,6 +610,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "None",
                     Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=uLXJL6bVCl0",
                     Instructions = "Run in place bringing knees to hip level"
                 },
 
@@ -571,6 +623,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "Pull-up Bar",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=pT2o2hP_ZLE",
                     Instructions = "Pull up explosively, transition to dip position, press to top"
                 },
                 new ExerciseTemplate
@@ -581,6 +634,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Legs",
                     Equipment = "Bodyweight",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=OMx1jF6dYOg",
                     Instructions = "Squat on one leg, other leg extended forward, stand back up"
                 },
                 new ExerciseTemplate
@@ -591,6 +645,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Shoulders",
                     Equipment = "Bodyweight",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=EHVrk-9kPKM",
                     Instructions = "Handstand against wall, lower head to ground, press back up"
                 },
                 new ExerciseTemplate
@@ -601,6 +656,7 @@ namespace GoHardAPI.Data
                     MuscleGroup = "Full Body",
                     Equipment = "Barbell",
                     Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=eHnuHIOu8zU",
                     Instructions = "Pull bar to shoulders, then jerk overhead in one fluid motion"
                 }
             };
