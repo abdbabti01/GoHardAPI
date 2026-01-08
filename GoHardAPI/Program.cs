@@ -12,6 +12,13 @@ var builder = WebApplication.CreateBuilder(args);
 var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
 string connectionString;
 
+// Debug logging
+Console.WriteLine($"DATABASE_URL exists: {databaseUrl != null}");
+if (databaseUrl != null)
+{
+    Console.WriteLine($"DATABASE_URL value: {databaseUrl.Substring(0, Math.Min(20, databaseUrl.Length))}...");
+}
+
 // Use PostgreSQL if DATABASE_URL is set (Railway), otherwise use SQL Server (local)
 if (databaseUrl != null)
 {
@@ -92,11 +99,16 @@ builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Seed the database
+// Apply migrations and seed the database
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<TrainingContext>();
+
+    // Apply any pending migrations (creates tables if they don't exist)
+    context.Database.Migrate();
+
+    // Seed initial data
     SeedData.Initialize(context);
 }
 
