@@ -11,6 +11,7 @@ import '../../widgets/sessions/workout_name_dialog.dart';
 import '../../widgets/sessions/workout_options_sheet.dart';
 import '../../widgets/sessions/weekly_progress_card.dart';
 import '../../widgets/common/offline_banner.dart';
+import '../../widgets/common/active_workout_banner.dart';
 
 /// Sessions screen displaying list of workout sessions
 /// Matches SessionsPage.xaml from MAUI app
@@ -502,6 +503,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
       ),
       body: Column(
         children: [
+          const ActiveWorkoutBanner(),
           const OfflineBanner(),
           Expanded(
             child: Consumer<SessionsProvider>(

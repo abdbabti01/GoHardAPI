@@ -135,41 +135,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   Widget build(BuildContext context) {
     return Consumer<ActiveWorkoutProvider>(
       builder: (context, provider, child) {
-        return PopScope(
-          canPop: false,
-          onPopInvokedWithResult: (bool didPop, dynamic result) async {
-            if (didPop) return;
-
-            // Warn user about leaving active workout
-            final shouldPop = await showDialog<bool>(
-              context: context,
-              builder:
-                  (context) => AlertDialog(
-                    title: const Text('Leave Workout'),
-                    content: const Text(
-                      'Your workout is still in progress. Are you sure you want to leave?',
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Stay'),
-                      ),
-                      TextButton(
-                        onPressed: () => Navigator.of(context).pop(true),
-                        style: TextButton.styleFrom(
-                          foregroundColor: Colors.red,
-                        ),
-                        child: const Text('Leave'),
-                      ),
-                    ],
-                  ),
-            );
-
-            if (shouldPop == true && context.mounted) {
-              Navigator.of(context).pop();
-            }
-          },
-          child: Scaffold(
+        return Scaffold(
             appBar: AppBar(
               title: Row(
                 children: [
@@ -256,7 +222,6 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                 ),
               ),
             ),
-          ),
         );
       },
     );
