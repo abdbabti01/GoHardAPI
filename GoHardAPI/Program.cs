@@ -107,22 +107,21 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        // For fresh PostgreSQL deployment: delete and recreate database
-        // This ensures clean schema without SQL Server migration artifacts
-        if (Environment.GetEnvironmentVariable("DATABASE_URL") != null)
-        {
-            Console.WriteLine("Deleting existing database...");
-            context.Database.EnsureDeleted();
-            Console.WriteLine("Creating fresh database schema...");
-        }
-
-        // Create database schema
+        // Create database schema if it doesn't exist
+        // EnsureCreated() will NOT delete existing data - it only creates if missing
         var created = context.Database.EnsureCreated();
-        Console.WriteLine($"Database created: {created}");
 
-        // Seed initial data
-        SeedData.Initialize(context);
-        Console.WriteLine("Database seeded successfully");
+        if (created)
+        {
+            Console.WriteLine("New database created - seeding initial data...");
+            // Only seed data when database is first created
+            SeedData.Initialize(context);
+            Console.WriteLine("Database seeded successfully");
+        }
+        else
+        {
+            Console.WriteLine("Database already exists - preserving existing data");
+        }
     }
     catch (Exception ex)
     {
