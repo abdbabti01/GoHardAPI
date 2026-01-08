@@ -1,13 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../core/services/notification_service.dart';
-import '../core/services/debug_logger.dart';
 
 /// Provider for app settings including notification preferences
 class SettingsProvider extends ChangeNotifier {
   final FlutterSecureStorage _storage;
   final NotificationService _notificationService;
-  final DebugLogger _logger = DebugLogger();
 
   // Notification settings
   bool _morningReminderEnabled = true;
@@ -78,7 +76,7 @@ class SettingsProvider extends ChangeNotifier {
         );
       }
 
-      _logger.log('✅ Settings loaded successfully');
+      debugPrint('Settings loaded successfully');
 
       // Schedule notifications if enabled
       if (_morningReminderEnabled) {
@@ -86,7 +84,6 @@ class SettingsProvider extends ChangeNotifier {
           hour: _morningReminderTime.hour,
           minute: _morningReminderTime.minute,
         );
-        _logger.log('📅 Morning reminder scheduled');
       }
 
       if (_eveningReminderEnabled) {
@@ -94,10 +91,9 @@ class SettingsProvider extends ChangeNotifier {
           hour: _eveningReminderTime.hour,
           minute: _eveningReminderTime.minute,
         );
-        _logger.log('📅 Evening reminder scheduled');
       }
     } catch (e) {
-      _logger.log('⚠️ Error loading settings: $e');
+      debugPrint('Error loading settings: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -122,7 +118,6 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-    _logger.log('🔔 Morning reminder ${enabled ? 'enabled' : 'disabled'}');
   }
 
   /// Set evening reminder enabled/disabled
@@ -143,7 +138,6 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-    _logger.log('🔔 Evening reminder ${enabled ? 'enabled' : 'disabled'}');
   }
 
   /// Set morning reminder time
@@ -166,7 +160,6 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-    _logger.log('🔔 Morning reminder time set to ${time.format}');
   }
 
   /// Set evening reminder time
@@ -189,7 +182,6 @@ class SettingsProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-    _logger.log('🔔 Evening reminder time set to ${time.format}');
   }
 
   /// Request notification permissions

@@ -4,7 +4,6 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 import '../../data/models/session.dart';
-import 'debug_logger.dart';
 
 /// Service for managing local notifications
 /// Handles daily workout reminders and motivational notifications
@@ -15,14 +14,8 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
-  final DebugLogger _logger = DebugLogger();
 
   bool _isInitialized = false;
-
-  /// Helper to log messages both to console and debug logger
-  void _log(String message) {
-    _logger.log(message);
-  }
 
   /// Notification IDs
   static const int morningReminderId = 1;
@@ -33,12 +26,8 @@ class NotificationService {
     if (_isInitialized) return;
 
     try {
-      _log('🔔 Initializing NotificationService...');
-      _log('📱 Platform: ${defaultTargetPlatform.name}');
-
       // Initialize timezone database
       tz.initializeTimeZones();
-      _log('🌍 Timezone initialized');
 
       // Android initialization settings
       const androidSettings = AndroidInitializationSettings(
@@ -57,51 +46,39 @@ class NotificationService {
         iOS: iosSettings,
       );
 
-      _log('📝 Notification settings configured');
-
       // Initialize with callback for when notification is tapped
-      final initialized = await _notifications.initialize(
+      await _notifications.initialize(
         initSettings,
         onDidReceiveNotificationResponse: _onNotificationTapped,
       );
 
-      _log('🔔 Notification plugin initialized: $initialized');
-
       // For iOS, explicitly request permissions
       if (defaultTargetPlatform == TargetPlatform.iOS) {
-        _log('🍎 Requesting iOS notification permissions...');
-        final granted = await _notifications
+        await _notifications
             .resolvePlatformSpecificImplementation<
               IOSFlutterLocalNotificationsPlugin
             >()
             ?.requestPermissions(alert: true, badge: true, sound: true);
-        _log('🍎 iOS permissions granted: $granted');
       }
 
       _isInitialized = true;
-      _log('✅ NotificationService initialized successfully');
     } catch (e, stackTrace) {
-      _log('❌ Failed to initialize notifications: $e');
-      _log('Stack trace: $stackTrace');
+      debugPrint('Failed to initialize notifications: $e');
+      debugPrint('Stack trace: $stackTrace');
     }
   }
 
   /// Handle notification tap
   void _onNotificationTapped(NotificationResponse response) {
-    _log('🔔 Notification tapped: ${response.payload}');
+    debugPrint('Notification tapped: ${response.payload}');
     // Navigation will be handled by the app router based on payload
   }
 
   /// Request notification permissions (Android 13+, iOS)
   Future<bool> requestPermissions() async {
     try {
-      _log(
-        '📱 Requesting notification permissions for ${defaultTargetPlatform.name}',
-      );
-
       if (defaultTargetPlatform == TargetPlatform.android) {
         final status = await Permission.notification.request();
-        _log('🤖 Android permission status: ${status.name}');
         return status.isGranted;
       } else if (defaultTargetPlatform == TargetPlatform.iOS) {
         // Request iOS permissions explicitly
@@ -110,13 +87,12 @@ class NotificationService {
               IOSFlutterLocalNotificationsPlugin
             >()
             ?.requestPermissions(alert: true, badge: true, sound: true);
-        _log('🍎 iOS permissions granted: $granted');
         return granted ?? false;
       }
 
       return true;
     } catch (e) {
-      _log('❌ Failed to request notification permissions: $e');
+      debugPrint('Failed to request notification permissions: $e');
       return false;
     }
   }
@@ -136,10 +112,6 @@ class NotificationService {
       body: _getMorningNotificationBody(todayWorkouts),
       payload: 'morning_reminder',
     );
-
-    _log(
-      '🔔 Morning reminder scheduled for $hour:${minute.toString().padLeft(2, '0')}',
-    );
   }
 
   /// Schedule evening reminder
@@ -155,10 +127,6 @@ class NotificationService {
       title: '🔥 Don\'t Break Your Streak!',
       body: 'You haven\'t worked out today. Even 15 minutes counts!',
       payload: 'evening_reminder',
-    );
-
-    _log(
-      '🔔 Evening reminder scheduled for $hour:${minute.toString().padLeft(2, '0')}',
     );
   }
 
@@ -226,7 +194,7 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       );
     } catch (e) {
-      _log('⚠️ Failed to schedule notification: $e');
+      debugPrint('Failed to schedule notification: $e');
     }
   }
 
@@ -262,28 +230,21 @@ class NotificationService {
   /// Cancel morning reminder
   Future<void> cancelMorningReminder() async {
     await _notifications.cancel(morningReminderId);
-    _log('🔕 Morning reminder cancelled');
   }
 
   /// Cancel evening reminder
   Future<void> cancelEveningReminder() async {
     await _notifications.cancel(eveningReminderId);
-    _log('🔕 Evening reminder cancelled');
   }
 
   /// Cancel all notifications
   Future<void> cancelAll() async {
     await _notifications.cancelAll();
-    _log('🔕 All notifications cancelled');
   }
 
   /// Show immediate test notification
   Future<void> showTestNotification() async {
     try {
-      _log('🔔 Attempting to show test notification...');
-      _log('📱 Platform: ${defaultTargetPlatform.name}');
-      _log('🔧 Is initialized: $_isInitialized');
-
       // Check iOS permissions before showing notification
       if (defaultTargetPlatform == TargetPlatform.iOS) {
         final iosImpl =
@@ -293,19 +254,14 @@ class NotificationService {
                 >();
 
         if (iosImpl != null) {
-          // Check current permission status
-          _log('🍎 Checking iOS notification settings...');
-
           // Request permissions again to ensure they're granted
           final granted = await iosImpl.requestPermissions(
             alert: true,
             badge: true,
             sound: true,
           );
-          _log('🍎 iOS permissions check result: $granted');
 
           if (granted != true) {
-            _log('❌ iOS notifications not permitted!');
             throw Exception('iOS notification permissions not granted');
           }
         }
@@ -333,9 +289,6 @@ class NotificationService {
         iOS: iosDetails,
       );
 
-      _log('📝 Notification details prepared');
-      _log('📤 Calling show() on notification plugin...');
-
       await _notifications.show(
         999,
         '💪 Test Notification',
@@ -343,17 +296,9 @@ class NotificationService {
         details,
         payload: 'test',
       );
-
-      _log('✅ Test notification show() completed without errors');
-
-      // For iOS, also try to get pending notifications to verify
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
-        final pending = await _notifications.pendingNotificationRequests();
-        _log('📋 Pending notifications: ${pending.length}');
-      }
     } catch (e, stackTrace) {
-      _log('❌ Error showing test notification: $e');
-      _log('Stack trace: $stackTrace');
+      debugPrint('Error showing test notification: $e');
+      debugPrint('Stack trace: $stackTrace');
       rethrow;
     }
   }

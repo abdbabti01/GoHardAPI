@@ -28,7 +28,6 @@ class RouteNames {
 
   // Settings routes
   static const String settings = '/settings';
-  static const String debugLogs = '/debug-logs';
 
   // Analytics routes
   static const String analytics = '/analytics';
