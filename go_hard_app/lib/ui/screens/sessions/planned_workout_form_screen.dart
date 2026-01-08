@@ -86,12 +86,14 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
       name: _nameController.text.trim(),
       scheduledDate: _selectedDate!,
       type: _selectedType,
-      notes: _notesController.text.trim().isNotEmpty
-          ? _notesController.text.trim()
-          : null,
-      estimatedDuration: _durationController.text.isNotEmpty
-          ? int.tryParse(_durationController.text)
-          : null,
+      notes:
+          _notesController.text.trim().isNotEmpty
+              ? _notesController.text.trim()
+              : null,
+      estimatedDuration:
+          _durationController.text.isNotEmpty
+              ? int.tryParse(_durationController.text)
+              : null,
     );
 
     if (session != null && mounted) {
@@ -128,7 +130,7 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
       'Sep',
       'Oct',
       'Nov',
-      'Dec'
+      'Dec',
     ];
     return '${months[date.month]} ${date.day}';
   }
@@ -136,10 +138,7 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Plan Workout'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Plan Workout'), centerTitle: true),
       body: Form(
         key: _formKey,
         child: ListView(
@@ -152,10 +151,7 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(
-                      Icons.event,
-                      color: Theme.of(context).primaryColor,
-                    ),
+                    Icon(Icons.event, color: Theme.of(context).primaryColor),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -175,9 +171,9 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
             // Date Selection (Required)
             Text(
               'Scheduled Date *',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             InkWell(
@@ -186,9 +182,10 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: _selectedDate == null
-                        ? Colors.grey
-                        : Theme.of(context).primaryColor,
+                    color:
+                        _selectedDate == null
+                            ? Colors.grey
+                            : Theme.of(context).primaryColor,
                     width: 2,
                   ),
                   borderRadius: BorderRadius.circular(8),
@@ -197,9 +194,10 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
                   children: [
                     Icon(
                       Icons.calendar_today,
-                      color: _selectedDate == null
-                          ? Colors.grey
-                          : Theme.of(context).primaryColor,
+                      color:
+                          _selectedDate == null
+                              ? Colors.grey
+                              : Theme.of(context).primaryColor,
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -208,20 +206,23 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
                           : _formatDate(_selectedDate!),
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: _selectedDate == null
-                            ? FontWeight.normal
-                            : FontWeight.bold,
-                        color: _selectedDate == null
-                            ? Colors.grey
-                            : Theme.of(context).primaryColor,
+                        fontWeight:
+                            _selectedDate == null
+                                ? FontWeight.normal
+                                : FontWeight.bold,
+                        color:
+                            _selectedDate == null
+                                ? Colors.grey
+                                : Theme.of(context).primaryColor,
                       ),
                     ),
                     const Spacer(),
                     Icon(
                       Icons.arrow_drop_down,
-                      color: _selectedDate == null
-                          ? Colors.grey
-                          : Theme.of(context).primaryColor,
+                      color:
+                          _selectedDate == null
+                              ? Colors.grey
+                              : Theme.of(context).primaryColor,
                     ),
                   ],
                 ),
@@ -232,9 +233,9 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
             // Workout Name (Required, Autocomplete)
             Text(
               'Workout Name *',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Autocomplete<String>(
@@ -243,16 +244,20 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
                   return WorkoutNames.allWorkoutNames;
                 }
                 return WorkoutNames.allWorkoutNames.where((String option) {
-                  return option
-                      .toLowerCase()
-                      .contains(textEditingValue.text.toLowerCase());
+                  return option.toLowerCase().contains(
+                    textEditingValue.text.toLowerCase(),
+                  );
                 });
               },
               onSelected: (String selection) {
                 _nameController.text = selection;
               },
-              fieldViewBuilder:
-                  (context, controller, focusNode, onFieldSubmitted) {
+              fieldViewBuilder: (
+                context,
+                controller,
+                focusNode,
+                onFieldSubmitted,
+              ) {
                 // Sync with our main controller
                 _nameController.text = controller.text;
                 controller.addListener(() {
@@ -310,9 +315,9 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
             // Workout Type (Optional)
             Text(
               'Workout Type',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
@@ -322,12 +327,10 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
                 hintText: 'Select type (optional)',
                 prefixIcon: Icon(Icons.category),
               ),
-              items: _workoutTypes.map((type) {
-                return DropdownMenuItem(
-                  value: type,
-                  child: Text(type),
-                );
-              }).toList(),
+              items:
+                  _workoutTypes.map((type) {
+                    return DropdownMenuItem(value: type, child: Text(type));
+                  }).toList(),
               onChanged: (value) {
                 setState(() {
                   _selectedType = value;
@@ -339,9 +342,9 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
             // Estimated Duration (Optional)
             Text(
               'Estimated Duration (minutes)',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             TextFormField(
@@ -368,9 +371,9 @@ class _PlannedWorkoutFormScreenState extends State<PlannedWorkoutFormScreen> {
             // Notes (Optional)
             Text(
               'Notes',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             TextFormField(

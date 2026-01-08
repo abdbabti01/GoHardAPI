@@ -312,7 +312,9 @@ class _SessionsScreenState extends State<SessionsScreen> {
           Text(
             '($count)',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.secondary.withValues(alpha: 0.7),
+              color: Theme.of(
+                context,
+              ).colorScheme.secondary.withValues(alpha: 0.7),
             ),
           ),
         ],
@@ -716,34 +718,38 @@ class _SessionsScreenState extends State<SessionsScreen> {
                         ),
                         if (_isPlannedExpanded) ...[
                           () {
-                            final groupedPlanned =
-                                _groupPlannedSessionsByName(plannedSessions);
+                            final groupedPlanned = _groupPlannedSessionsByName(
+                              plannedSessions,
+                            );
 
                             return Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: groupedPlanned.entries.expand((entry) {
-                                final workoutName = entry.key;
-                                final sessions = entry.value;
+                              children:
+                                  groupedPlanned.entries.expand((entry) {
+                                    final workoutName = entry.key;
+                                    final sessions = entry.value;
 
-                                return [
-                                  _buildWorkoutNameSubheader(
-                                    workoutName,
-                                    sessions.length,
-                                  ),
-                                  ...sessions.map(
-                                    (session) => SessionCard(
-                                      session: session,
-                                      onTap:
-                                          () => _handleSessionTap(
-                                            session.id,
-                                            session.status,
-                                          ),
-                                      onDelete:
-                                          () => _handleDeleteSession(session.id),
-                                    ),
-                                  ),
-                                ];
-                              }).toList(),
+                                    return [
+                                      _buildWorkoutNameSubheader(
+                                        workoutName,
+                                        sessions.length,
+                                      ),
+                                      ...sessions.map(
+                                        (session) => SessionCard(
+                                          session: session,
+                                          onTap:
+                                              () => _handleSessionTap(
+                                                session.id,
+                                                session.status,
+                                              ),
+                                          onDelete:
+                                              () => _handleDeleteSession(
+                                                session.id,
+                                              ),
+                                        ),
+                                      ),
+                                    ];
+                                  }).toList(),
                             );
                           }(),
                         ],
