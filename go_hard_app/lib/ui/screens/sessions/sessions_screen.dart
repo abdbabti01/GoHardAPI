@@ -759,7 +759,7 @@ class _SessionsScreenState extends State<SessionsScreen> {
                                     final sessions = entry.value;
                                     final isExpanded =
                                         _expandedWorkoutGroups[workoutName] ??
-                                            false;
+                                        false;
 
                                     return [
                                       _buildWorkoutNameSubheader(
