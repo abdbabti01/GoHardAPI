@@ -84,7 +84,7 @@ namespace GoHardAPI.Controllers
             goal.UserId = userId;
             goal.CreatedAt = DateTime.UtcNow;
             goal.StartDate = goal.StartDate == default ? DateTime.UtcNow : goal.StartDate;
-            goal.CurrentValue = 0;
+            // Keep the user's provided CurrentValue - don't force it to 0
             goal.IsCompleted = false;
 
             _context.Goals.Add(goal);
