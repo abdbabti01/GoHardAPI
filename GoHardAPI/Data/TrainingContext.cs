@@ -27,6 +27,23 @@ namespace GoHardAPI.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            // Configure DateTime to always use UTC for PostgreSQL compatibility
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(DateTime) || property.ClrType == typeof(DateTime?))
+                    {
+                        property.SetValueConverter(
+                            new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
+                                v => v.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(v, DateTimeKind.Utc) : v.ToUniversalTime(),
+                                v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
+                            )
+                        );
+                    }
+                }
+            }
+
             // Configure User-Session relationship
             modelBuilder.Entity<Session>()
                 .HasOne(s => s.User)
