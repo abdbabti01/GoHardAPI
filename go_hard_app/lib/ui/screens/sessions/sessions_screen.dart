@@ -26,6 +26,8 @@ class _SessionsScreenState extends State<SessionsScreen> {
   bool _isPlannedExpanded =
       false; // Track if planned workouts section is expanded
   String _pastWorkoutsFilter = 'Last Month'; // Filter for past workouts
+  final Map<String, bool> _expandedWorkoutGroups =
+      {}; // Track which workout name groups are expanded
 
   @override
   void initState() {
@@ -290,35 +292,60 @@ class _SessionsScreenState extends State<SessionsScreen> {
     return grouped;
   }
 
-  /// Build subheader for workout name groups
+  /// Build subheader for workout name groups (collapsible)
   Widget _buildWorkoutNameSubheader(String workoutName, int count) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 16, 4),
-      child: Row(
-        children: [
-          Icon(
-            Icons.fitness_center,
-            size: 16,
-            color: Theme.of(context).colorScheme.secondary,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            workoutName,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w600,
+    final isExpanded = _expandedWorkoutGroups[workoutName] ?? false;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _expandedWorkoutGroups[workoutName] = !isExpanded;
+        });
+      },
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 12, 16, 8),
+        child: Row(
+          children: [
+            Icon(
+              isExpanded ? Icons.expand_more : Icons.chevron_right,
+              size: 20,
               color: Theme.of(context).colorScheme.secondary,
             ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '($count)',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(
-                context,
-              ).colorScheme.secondary.withValues(alpha: 0.7),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.fitness_center,
+              size: 16,
+              color: Theme.of(context).colorScheme.secondary,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                workoutName,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Theme.of(
+                  context,
+                ).colorScheme.secondary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.secondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -730,26 +757,31 @@ class _SessionsScreenState extends State<SessionsScreen> {
                                   groupedPlanned.entries.expand((entry) {
                                     final workoutName = entry.key;
                                     final sessions = entry.value;
+                                    final isExpanded =
+                                        _expandedWorkoutGroups[workoutName] ??
+                                            false;
 
                                     return [
                                       _buildWorkoutNameSubheader(
                                         workoutName,
                                         sessions.length,
                                       ),
-                                      ...sessions.map(
-                                        (session) => SessionCard(
-                                          session: session,
-                                          onTap:
-                                              () => _handleSessionTap(
-                                                session.id,
-                                                session.status,
-                                              ),
-                                          onDelete:
-                                              () => _handleDeleteSession(
-                                                session.id,
-                                              ),
+                                      // Only show sessions if this group is expanded
+                                      if (isExpanded)
+                                        ...sessions.map(
+                                          (session) => SessionCard(
+                                            session: session,
+                                            onTap:
+                                                () => _handleSessionTap(
+                                                  session.id,
+                                                  session.status,
+                                                ),
+                                            onDelete:
+                                                () => _handleDeleteSession(
+                                                  session.id,
+                                                ),
+                                          ),
                                         ),
-                                      ),
                                     ];
                                   }).toList(),
                             );
