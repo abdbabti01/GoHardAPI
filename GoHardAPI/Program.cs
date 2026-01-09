@@ -107,14 +107,48 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        // Use EnsureCreated for now - it will add missing tables without migrations
-        // This works because Railway database was created with EnsureCreated originally
-        Console.WriteLine("Ensuring database schema is up-to-date...");
-        context.Database.EnsureCreated();
-        Console.WriteLine("Database schema updated successfully");
+        // Railway database was created with EnsureCreated (no migration history)
+        // We need to manually create migration history for existing tables
+        // Then use Migrate() to apply only new migrations (Programs)
+
+        Console.WriteLine("Checking migration history...");
+        var pendingMigrations = context.Database.GetPendingMigrations().ToList();
+        var appliedMigrations = context.Database.GetAppliedMigrations().ToList();
+
+        Console.WriteLine($"Applied migrations: {appliedMigrations.Count}");
+        Console.WriteLine($"Pending migrations: {pendingMigrations.Count}");
+
+        if (appliedMigrations.Count == 0 && pendingMigrations.Count > 0)
+        {
+            Console.WriteLine("No migration history found, but migrations exist.");
+            Console.WriteLine("Manually marking old migrations as applied...");
+
+            // Get all migrations except the Programs one
+            var allMigrations = pendingMigrations.Where(m => !m.Contains("AddProgramTablesOnly")).ToList();
+
+            // Manually insert into __EFMigrationsHistory
+            foreach (var migration in allMigrations)
+            {
+                try
+                {
+                    context.Database.ExecuteSqlRaw(
+                        "INSERT INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ({0}, {1})",
+                        migration, "8.0.10");
+                    Console.WriteLine($"Marked as applied: {migration}");
+                }
+                catch
+                {
+                    // Migration history might already exist, ignore
+                }
+            }
+        }
+
+        // Now apply any remaining migrations (should be just Programs)
+        Console.WriteLine("Applying pending migrations...");
+        context.Database.Migrate();
+        Console.WriteLine("Migrations applied successfully");
 
         // Always run seed data initialization
-        // It will either insert new exercises or update existing ones with video URLs
         SeedData.Initialize(context);
         Console.WriteLine("Database seed/update completed successfully");
     }
