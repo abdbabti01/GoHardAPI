@@ -22,6 +22,8 @@ namespace GoHardAPI.Data
         public DbSet<Goal> Goals { get; set; }
         public DbSet<GoalProgress> GoalProgressHistory { get; set; }
         public DbSet<BodyMetric> BodyMetrics { get; set; }
+        public DbSet<Models.Program> Programs { get; set; }
+        public DbSet<ProgramWorkout> ProgramWorkouts { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -208,6 +210,34 @@ namespace GoHardAPI.Data
             // Add index for body metrics queries
             modelBuilder.Entity<BodyMetric>()
                 .HasIndex(bm => new { bm.UserId, bm.RecordedAt });
+
+            // Configure Program-User relationship
+            modelBuilder.Entity<Models.Program>()
+                .HasOne(p => p.User)
+                .WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure Program-Goal relationship
+            modelBuilder.Entity<Models.Program>()
+                .HasOne(p => p.Goal)
+                .WithMany()
+                .HasForeignKey(p => p.GoalId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure ProgramWorkout-Program relationship
+            modelBuilder.Entity<ProgramWorkout>()
+                .HasOne(pw => pw.Program)
+                .WithMany(p => p.Workouts)
+                .HasForeignKey(pw => pw.ProgramId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add indexes for program queries
+            modelBuilder.Entity<Models.Program>()
+                .HasIndex(p => new { p.UserId, p.IsActive, p.IsCompleted });
+
+            modelBuilder.Entity<ProgramWorkout>()
+                .HasIndex(pw => new { pw.ProgramId, pw.WeekNumber, pw.DayNumber });
         }
     }
 }
