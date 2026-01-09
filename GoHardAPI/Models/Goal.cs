@@ -95,26 +95,31 @@ namespace GoHardAPI.Models
         }
 
         /// <summary>
-        /// Get the starting value (first recorded value from progress history, or current value at creation)
+        /// Get the starting value (CurrentValue represents starting weight/value)
         /// </summary>
-        public decimal StartValue
+        public decimal StartValue => CurrentValue;
+
+        /// <summary>
+        /// Calculate total cumulative progress from all progress history entries
+        /// For weight loss: sum of all pounds lost
+        /// For increase goals: sum of all progress made
+        /// </summary>
+        public decimal TotalProgress
         {
             get
             {
-                // If we have progress history, get the earliest value
-                if (ProgressHistory != null && ProgressHistory.Any())
+                if (ProgressHistory == null || !ProgressHistory.Any())
                 {
-                    return ProgressHistory.OrderBy(p => p.RecordedAt).First().Value;
+                    return 0;
                 }
-                // Otherwise, for decrease goals we start at current value
-                return CurrentValue;
+                // Sum all progress values (each entry is a delta/increment)
+                return ProgressHistory.Sum(p => p.Value);
             }
         }
 
         /// <summary>
         /// Calculate progress percentage correctly for both increase and decrease goals
-        /// For weight loss: (start - current) / (start - target) * 100
-        /// For increase goals: current / target * 100
+        /// Progress entries represent incremental changes (e.g., 2 lbs lost, 3 workouts completed)
         /// </summary>
         public double ProgressPercentage
         {
@@ -122,37 +127,36 @@ namespace GoHardAPI.Models
             {
                 if (IsDecreaseGoal)
                 {
-                    // For weight loss: (start - current) / (start - target) * 100
-                    // Example: Start 200, Current 195, Target 170 = (200-195)/(200-170) = 5/30 = 16.67%
-                    var totalToLose = StartValue - TargetValue;
-                    if (totalToLose <= 0) return 0;
+                    // For weight loss: total progress / goal amount * 100
+                    // Example: Start 200, Target 150, Progress 12 = 12/50 = 24%
+                    var goalAmount = CurrentValue - TargetValue; // 200 - 150 = 50
+                    if (goalAmount <= 0) return 0;
 
-                    var lostSoFar = StartValue - CurrentValue;
-                    return Math.Clamp((double)(lostSoFar / totalToLose * 100), 0, 100);
+                    return Math.Clamp((double)(TotalProgress / goalAmount * 100), 0, 100);
                 }
                 else
                 {
-                    // For increase goals: current / target * 100
+                    // For increase goals: total progress / target * 100
+                    // Example: Target 20 workouts, Progress 5 = 5/20 = 25%
                     if (TargetValue <= 0) return 0;
-                    return Math.Clamp((double)(CurrentValue / TargetValue * 100), 0, 100);
+                    return Math.Clamp((double)(TotalProgress / TargetValue * 100), 0, 100);
                 }
             }
         }
 
         /// <summary>
-        /// Get progress description (e.g., "Lost 10.0 / 20.0 lb" or "15.0 / 20.0 workouts")
+        /// Get progress description (e.g., "Lost 12.0 / 50.0 lb" or "5.0 / 20.0 workouts")
         /// </summary>
         public string GetProgressDescription()
         {
             if (IsDecreaseGoal)
             {
-                var lost = StartValue - CurrentValue;
-                var totalToLose = StartValue - TargetValue;
-                return $"Lost {lost:F1} / {totalToLose:F1} {Unit ?? string.Empty}".Trim();
+                var goalAmount = CurrentValue - TargetValue; // Total to lose
+                return $"Lost {TotalProgress:F1} / {goalAmount:F1} {Unit ?? string.Empty}".Trim();
             }
             else
             {
-                return $"{CurrentValue:F1} / {TargetValue:F1} {Unit ?? string.Empty}".Trim();
+                return $"{TotalProgress:F1} / {TargetValue:F1} {Unit ?? string.Empty}".Trim();
             }
         }
     }

@@ -203,12 +203,13 @@ namespace GoHardAPI.Controllers
 
             _context.GoalProgressHistory.Add(progress);
 
-            // Update current value
-            goal.CurrentValue = progress.Value;
-
-            // Note: Goals are not automatically marked as complete when adding progress.
-            // This prevents premature completion when users enter incorrect values or
-            // when the semantics of progress values are ambiguous (e.g., absolute value vs. delta).
+            // Note: Progress values represent incremental changes (deltas), not absolute values.
+            // For weight loss: each entry is pounds lost (e.g., 2 lbs, 5 lbs)
+            // For increase goals: each entry is progress made (e.g., 1 workout, 3 workouts)
+            // The Goal.CurrentValue remains as the starting value, and progress is calculated
+            // by summing all GoalProgress entries via the TotalProgress property.
+            //
+            // Goals are not automatically marked as complete when adding progress.
             // Users should manually mark goals as complete using the /complete endpoint.
 
             await _context.SaveChangesAsync();
