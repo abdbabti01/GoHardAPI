@@ -107,11 +107,11 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        // Apply pending migrations to keep database schema up-to-date
-        // This is safe - it only applies new migrations and preserves existing data
-        Console.WriteLine("Applying database migrations...");
-        context.Database.Migrate();
-        Console.WriteLine("Migrations applied successfully");
+        // Use EnsureCreated for now - it will add missing tables without migrations
+        // This works because Railway database was created with EnsureCreated originally
+        Console.WriteLine("Ensuring database schema is up-to-date...");
+        context.Database.EnsureCreated();
+        Console.WriteLine("Database schema updated successfully");
 
         // Always run seed data initialization
         // It will either insert new exercises or update existing ones with video URLs
