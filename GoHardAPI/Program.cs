@@ -123,8 +123,10 @@ using (var scope = app.Services.CreateScope())
             Console.WriteLine("No migration history found, but migrations exist.");
             Console.WriteLine("Manually marking old migrations as applied...");
 
-            // Get all migrations except the Programs one
-            var allMigrations = pendingMigrations.Where(m => !m.Contains("AddProgramTablesOnly")).ToList();
+            // Get all migrations except any Programs-related ones
+            var allMigrations = pendingMigrations.Where(m =>
+                !m.Contains("AddProgram") &&
+                !m.StartsWith("202601092")).ToList();
 
             // Manually insert into __EFMigrationsHistory
             foreach (var migration in allMigrations)
