@@ -78,9 +78,83 @@ namespace GoHardAPI.Models
         public User? User { get; set; }
         public ICollection<GoalProgress> ProgressHistory { get; set; } = new List<GoalProgress>();
 
-        // Calculated property
-        public double ProgressPercentage =>
-            TargetValue > 0 ? (double)(CurrentValue / TargetValue * 100) : 0;
+        // Calculated properties
+
+        /// <summary>
+        /// Determine if this is a decrease goal (lower is better) or increase goal (higher is better)
+        /// </summary>
+        public bool IsDecreaseGoal
+        {
+            get
+            {
+                var type = GoalType?.ToLower() ?? string.Empty;
+                return type.Contains("weight") ||
+                       type.Contains("bodyfat") ||
+                       type.Contains("fat");
+            }
+        }
+
+        /// <summary>
+        /// Get the starting value (first recorded value from progress history, or current value at creation)
+        /// </summary>
+        public decimal StartValue
+        {
+            get
+            {
+                // If we have progress history, get the earliest value
+                if (ProgressHistory != null && ProgressHistory.Any())
+                {
+                    return ProgressHistory.OrderBy(p => p.RecordedAt).First().Value;
+                }
+                // Otherwise, for decrease goals we start at current value
+                return CurrentValue;
+            }
+        }
+
+        /// <summary>
+        /// Calculate progress percentage correctly for both increase and decrease goals
+        /// For weight loss: (start - current) / (start - target) * 100
+        /// For increase goals: current / target * 100
+        /// </summary>
+        public double ProgressPercentage
+        {
+            get
+            {
+                if (IsDecreaseGoal)
+                {
+                    // For weight loss: (start - current) / (start - target) * 100
+                    // Example: Start 200, Current 195, Target 170 = (200-195)/(200-170) = 5/30 = 16.67%
+                    var totalToLose = StartValue - TargetValue;
+                    if (totalToLose <= 0) return 0;
+
+                    var lostSoFar = StartValue - CurrentValue;
+                    return Math.Clamp((double)(lostSoFar / totalToLose * 100), 0, 100);
+                }
+                else
+                {
+                    // For increase goals: current / target * 100
+                    if (TargetValue <= 0) return 0;
+                    return Math.Clamp((double)(CurrentValue / TargetValue * 100), 0, 100);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Get progress description (e.g., "Lost 10.0 / 20.0 lb" or "15.0 / 20.0 workouts")
+        /// </summary>
+        public string GetProgressDescription()
+        {
+            if (IsDecreaseGoal)
+            {
+                var lost = StartValue - CurrentValue;
+                var totalToLose = StartValue - TargetValue;
+                return $"Lost {lost:F1} / {totalToLose:F1} {Unit ?? string.Empty}".Trim();
+            }
+            else
+            {
+                return $"{CurrentValue:F1} / {TargetValue:F1} {Unit ?? string.Empty}".Trim();
+            }
+        }
     }
 
     /// <summary>
