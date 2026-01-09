@@ -112,6 +112,19 @@ using (var scope = app.Services.CreateScope())
         // Then use Migrate() to apply only new migrations (Programs)
 
         Console.WriteLine("Checking migration history...");
+
+        // Clean up old broken migration entries that no longer exist in codebase
+        try
+        {
+            var result = context.Database.ExecuteSqlRaw(
+                "DELETE FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" LIKE '20260109202221_%'");
+            if (result > 0)
+            {
+                Console.WriteLine($"Cleaned up {result} old migration entry/entries");
+            }
+        }
+        catch { /* Ignore if table doesn't exist */ }
+
         var pendingMigrations = context.Database.GetPendingMigrations().ToList();
         var appliedMigrations = context.Database.GetAppliedMigrations().ToList();
 
