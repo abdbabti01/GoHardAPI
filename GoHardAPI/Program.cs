@@ -107,18 +107,11 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        // Create database schema if it doesn't exist
-        // EnsureCreated() will NOT delete existing data - it only creates if missing
-        var created = context.Database.EnsureCreated();
-
-        if (created)
-        {
-            Console.WriteLine("New database created - seeding initial data...");
-        }
-        else
-        {
-            Console.WriteLine("Database already exists - checking for updates...");
-        }
+        // Apply pending migrations to keep database schema up-to-date
+        // This is safe - it only applies new migrations and preserves existing data
+        Console.WriteLine("Applying database migrations...");
+        context.Database.Migrate();
+        Console.WriteLine("Migrations applied successfully");
 
         // Always run seed data initialization
         // It will either insert new exercises or update existing ones with video URLs
