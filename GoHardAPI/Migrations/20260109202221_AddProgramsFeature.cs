@@ -15,7 +15,7 @@ namespace GoHardAPI.Migrations
                 name: "BodyMetrics",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     UserId = table.Column<int>(type: "integer", nullable: false),
                     RecordedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     Weight = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
@@ -28,7 +28,7 @@ namespace GoHardAPI.Migrations
                     CalfCircumference = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
                     Notes = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     PhotoUrl = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                 },
                 constraints: table =>
                 {
@@ -45,7 +45,7 @@ namespace GoHardAPI.Migrations
                 name: "Goals",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     UserId = table.Column<int>(type: "integer", nullable: false),
                     GoalType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
                     TargetValue = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
@@ -57,7 +57,7 @@ namespace GoHardAPI.Migrations
                     IsActive = table.Column<bool>(type: "boolean", nullable: false),
                     IsCompleted = table.Column<bool>(type: "boolean", nullable: false),
                     CompletedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                 },
                 constraints: table =>
                 {
@@ -74,7 +74,7 @@ namespace GoHardAPI.Migrations
                 name: "SharedWorkouts",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     OriginalId = table.Column<int>(type: "integer", nullable: false),
                     Type = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
                     SharedByUserId = table.Column<int>(type: "integer", nullable: false),
@@ -105,7 +105,7 @@ namespace GoHardAPI.Migrations
                 name: "WorkoutTemplates",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                     ExercisesJson = table.Column<string>(type: "text", nullable: false),
@@ -121,7 +121,7 @@ namespace GoHardAPI.Migrations
                     CreatedByUserId = table.Column<int>(type: "integer", nullable: true),
                     IsCustom = table.Column<bool>(type: "boolean", nullable: false),
                     Rating = table.Column<double>(type: "float", nullable: true),
-                    RatingCount = table.Column<int>(type: "integer", nullable: false)
+                    RatingCount = table.Column<int>(type: "integer", nullable: false),
                 },
                 constraints: table =>
                 {
@@ -138,7 +138,7 @@ namespace GoHardAPI.Migrations
                 name: "GoalProgressHistory",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     GoalId = table.Column<int>(type: "integer", nullable: false),
                     RecordedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     Value = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
@@ -159,7 +159,7 @@ namespace GoHardAPI.Migrations
                 name: "Programs",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     UserId = table.Column<int>(type: "integer", nullable: false),
                     Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
@@ -196,10 +196,10 @@ namespace GoHardAPI.Migrations
                 name: "SharedWorkoutLikes",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     SharedWorkoutId = table.Column<int>(type: "integer", nullable: false),
                     UserId = table.Column<int>(type: "integer", nullable: false),
-                    LikedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                    LikedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                 },
                 constraints: table =>
                 {
@@ -221,10 +221,10 @@ namespace GoHardAPI.Migrations
                 name: "SharedWorkoutSaves",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     SharedWorkoutId = table.Column<int>(type: "integer", nullable: false),
                     UserId = table.Column<int>(type: "integer", nullable: false),
-                    SavedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                    SavedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                 },
                 constraints: table =>
                 {
@@ -246,11 +246,11 @@ namespace GoHardAPI.Migrations
                 name: "WorkoutTemplateRatings",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     WorkoutTemplateId = table.Column<int>(type: "integer", nullable: false),
                     UserId = table.Column<int>(type: "integer", nullable: false),
                     Rating = table.Column<double>(type: "float", nullable: false),
-                    RatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                    RatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                 },
                 constraints: table =>
                 {
@@ -272,7 +272,7 @@ namespace GoHardAPI.Migrations
                 name: "ProgramWorkouts",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false),
                     ProgramId = table.Column<int>(type: "integer", nullable: false),
                     WeekNumber = table.Column<int>(type: "integer", nullable: false),
                     DayNumber = table.Column<int>(type: "integer", nullable: false),
@@ -287,7 +287,7 @@ namespace GoHardAPI.Migrations
                     IsCompleted = table.Column<bool>(type: "boolean", nullable: false),
                     CompletedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     CompletionNotes = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
-                    OrderIndex = table.Column<int>(type: "integer", nullable: false)
+                    OrderIndex = table.Column<int>(type: "integer", nullable: false),
                 },
                 constraints: table =>
                 {
