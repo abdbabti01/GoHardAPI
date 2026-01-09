@@ -88,8 +88,11 @@ namespace GoHardAPI.Models
             get
             {
                 var type = GoalType?.ToLower() ?? string.Empty;
-                return type.Contains("weight") ||
+                // Weight loss and body fat are decrease goals
+                // Muscle gain is an INCREASE goal
+                return (type.Contains("weight") && type.Contains("loss")) ||
                        type.Contains("bodyfat") ||
+                       type.Contains("body fat") ||
                        type.Contains("fat");
             }
         }
@@ -145,7 +148,7 @@ namespace GoHardAPI.Models
         }
 
         /// <summary>
-        /// Get progress description (e.g., "Lost 12.0 / 50.0 lb" or "5.0 / 20.0 workouts")
+        /// Get progress description (e.g., "Lost 12.0 / 50.0 lb" or "Gained 5.0 / 20.0 lb")
         /// </summary>
         public string GetProgressDescription()
         {
@@ -156,7 +159,18 @@ namespace GoHardAPI.Models
             }
             else
             {
-                return $"{TotalProgress:F1} / {TargetValue:F1} {Unit ?? string.Empty}".Trim();
+                var type = GoalType?.ToLower() ?? string.Empty;
+                // Check if it's a weight/muscle gain goal to show "Gained"
+                if (type.Contains("weight") || type.Contains("muscle"))
+                {
+                    var goalAmount = TargetValue - CurrentValue; // Total to gain
+                    return $"Gained {TotalProgress:F1} / {goalAmount:F1} {Unit ?? string.Empty}".Trim();
+                }
+                else
+                {
+                    // For other goals (workouts, volume, etc.)
+                    return $"{TotalProgress:F1} / {TargetValue:F1} {Unit ?? string.Empty}".Trim();
+                }
             }
         }
     }
