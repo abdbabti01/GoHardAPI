@@ -15,21 +15,20 @@ namespace GoHardAPI.Migrations
                 name: "BodyMetrics",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    RecordedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Weight = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    BodyFatPercentage = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    ChestCircumference = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    WaistCircumference = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    HipCircumference = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    ArmCircumference = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    ThighCircumference = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    CalfCircumference = table.Column<decimal>(type: "decimal(18,2)", nullable: true),
-                    Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    PhotoUrl = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    UserId = table.Column<int>(type: "integer", nullable: false),
+                    RecordedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    Weight = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    BodyFatPercentage = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    ChestCircumference = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    WaistCircumference = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    HipCircumference = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    ArmCircumference = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    ThighCircumference = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    CalfCircumference = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
+                    Notes = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    PhotoUrl = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -46,20 +45,19 @@ namespace GoHardAPI.Migrations
                 name: "Goals",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    GoalType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    TargetValue = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    CurrentValue = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Unit = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    TimeFrame = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    TargetDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    IsCompleted = table.Column<bool>(type: "bit", nullable: false),
-                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    UserId = table.Column<int>(type: "integer", nullable: false),
+                    GoalType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    TargetValue = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    CurrentValue = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    Unit = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    TimeFrame = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    StartDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    TargetDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    IsCompleted = table.Column<bool>(type: "boolean", nullable: false),
+                    CompletedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -76,22 +74,21 @@ namespace GoHardAPI.Migrations
                 name: "SharedWorkouts",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    OriginalId = table.Column<int>(type: "int", nullable: false),
-                    Type = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    SharedByUserId = table.Column<int>(type: "int", nullable: false),
-                    WorkoutName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ExercisesJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    Duration = table.Column<int>(type: "int", nullable: false),
-                    Category = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    Difficulty = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    LikeCount = table.Column<int>(type: "int", nullable: false),
-                    SaveCount = table.Column<int>(type: "int", nullable: false),
-                    CommentCount = table.Column<int>(type: "int", nullable: false),
-                    SharedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    OriginalId = table.Column<int>(type: "integer", nullable: false),
+                    Type = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    SharedByUserId = table.Column<int>(type: "integer", nullable: false),
+                    WorkoutName = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    ExercisesJson = table.Column<string>(type: "text", nullable: false),
+                    Duration = table.Column<int>(type: "integer", nullable: false),
+                    Category = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
+                    Difficulty = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    LikeCount = table.Column<int>(type: "integer", nullable: false),
+                    SaveCount = table.Column<int>(type: "integer", nullable: false),
+                    CommentCount = table.Column<int>(type: "integer", nullable: false),
+                    SharedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -108,24 +105,23 @@ namespace GoHardAPI.Migrations
                 name: "WorkoutTemplates",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    ExercisesJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    RecurrencePattern = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    DaysOfWeek = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    IntervalDays = table.Column<int>(type: "int", nullable: true),
-                    EstimatedDuration = table.Column<int>(type: "int", nullable: true),
-                    Category = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    UsageCount = table.Column<int>(type: "int", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    LastUsedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedByUserId = table.Column<int>(type: "int", nullable: true),
-                    IsCustom = table.Column<bool>(type: "bit", nullable: false),
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    ExercisesJson = table.Column<string>(type: "text", nullable: false),
+                    RecurrencePattern = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    DaysOfWeek = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    IntervalDays = table.Column<int>(type: "integer", nullable: true),
+                    EstimatedDuration = table.Column<int>(type: "integer", nullable: true),
+                    Category = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    UsageCount = table.Column<int>(type: "integer", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    LastUsedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedByUserId = table.Column<int>(type: "integer", nullable: true),
+                    IsCustom = table.Column<bool>(type: "boolean", nullable: false),
                     Rating = table.Column<double>(type: "float", nullable: true),
-                    RatingCount = table.Column<int>(type: "int", nullable: false)
+                    RatingCount = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -142,12 +138,11 @@ namespace GoHardAPI.Migrations
                 name: "GoalProgressHistory",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    GoalId = table.Column<int>(type: "int", nullable: false),
-                    RecordedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Value = table.Column<decimal>(type: "decimal(18,2)", nullable: false),
-                    Notes = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    GoalId = table.Column<int>(type: "integer", nullable: false),
+                    RecordedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    Value = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    Notes = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -164,22 +159,21 @@ namespace GoHardAPI.Migrations
                 name: "Programs",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    Title = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    GoalId = table.Column<int>(type: "int", nullable: true),
-                    TotalWeeks = table.Column<int>(type: "int", nullable: false),
-                    CurrentWeek = table.Column<int>(type: "int", nullable: false),
-                    CurrentDay = table.Column<int>(type: "int", nullable: false),
-                    StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    EndDate = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    IsCompleted = table.Column<bool>(type: "bit", nullable: false),
-                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ProgramStructure = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: true)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    UserId = table.Column<int>(type: "integer", nullable: false),
+                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    GoalId = table.Column<int>(type: "integer", nullable: true),
+                    TotalWeeks = table.Column<int>(type: "integer", nullable: false),
+                    CurrentWeek = table.Column<int>(type: "integer", nullable: false),
+                    CurrentDay = table.Column<int>(type: "integer", nullable: false),
+                    StartDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    EndDate = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false),
+                    IsCompleted = table.Column<bool>(type: "boolean", nullable: false),
+                    CompletedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    ProgramStructure = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -202,11 +196,10 @@ namespace GoHardAPI.Migrations
                 name: "SharedWorkoutLikes",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    SharedWorkoutId = table.Column<int>(type: "int", nullable: false),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    LikedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    SharedWorkoutId = table.Column<int>(type: "integer", nullable: false),
+                    UserId = table.Column<int>(type: "integer", nullable: false),
+                    LikedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -228,11 +221,10 @@ namespace GoHardAPI.Migrations
                 name: "SharedWorkoutSaves",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    SharedWorkoutId = table.Column<int>(type: "int", nullable: false),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    SavedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    SharedWorkoutId = table.Column<int>(type: "integer", nullable: false),
+                    UserId = table.Column<int>(type: "integer", nullable: false),
+                    SavedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -254,12 +246,11 @@ namespace GoHardAPI.Migrations
                 name: "WorkoutTemplateRatings",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    WorkoutTemplateId = table.Column<int>(type: "int", nullable: false),
-                    UserId = table.Column<int>(type: "int", nullable: false),
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    WorkoutTemplateId = table.Column<int>(type: "integer", nullable: false),
+                    UserId = table.Column<int>(type: "integer", nullable: false),
                     Rating = table.Column<double>(type: "float", nullable: false),
-                    RatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    RatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -281,23 +272,22 @@ namespace GoHardAPI.Migrations
                 name: "ProgramWorkouts",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    ProgramId = table.Column<int>(type: "int", nullable: false),
-                    WeekNumber = table.Column<int>(type: "int", nullable: false),
-                    DayNumber = table.Column<int>(type: "int", nullable: false),
-                    DayName = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
-                    WorkoutName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    WorkoutType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
-                    Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    EstimatedDuration = table.Column<int>(type: "int", nullable: true),
-                    ExercisesJson = table.Column<string>(type: "nvarchar(max)", nullable: false),
-                    WarmUp = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    CoolDown = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    IsCompleted = table.Column<bool>(type: "bit", nullable: false),
-                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CompletionNotes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    OrderIndex = table.Column<int>(type: "int", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                    ProgramId = table.Column<int>(type: "integer", nullable: false),
+                    WeekNumber = table.Column<int>(type: "integer", nullable: false),
+                    DayNumber = table.Column<int>(type: "integer", nullable: false),
+                    DayName = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
+                    WorkoutName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    WorkoutType = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
+                    Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    EstimatedDuration = table.Column<int>(type: "integer", nullable: true),
+                    ExercisesJson = table.Column<string>(type: "text", nullable: false),
+                    WarmUp = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    CoolDown = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    IsCompleted = table.Column<bool>(type: "boolean", nullable: false),
+                    CompletedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CompletionNotes = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    OrderIndex = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
