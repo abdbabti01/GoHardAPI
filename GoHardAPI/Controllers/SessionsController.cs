@@ -180,6 +180,12 @@ namespace GoHardAPI.Controllers
                 session.PausedAt = request.PausedAt;
             }
 
+            // Update duration if provided (from timer elapsed time)
+            if (request.Duration.HasValue)
+            {
+                session.Duration = request.Duration.Value;
+            }
+
             await _context.SaveChangesAsync();
 
             return NoContent();
