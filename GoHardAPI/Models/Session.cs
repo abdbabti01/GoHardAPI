@@ -32,8 +32,14 @@ namespace GoHardAPI.Models
 
         public DateTime? PausedAt { get; set; }  // When timer was paused (null if running)
 
+        // Program linkage
+        public int? ProgramId { get; set; }  // Links to Program if this session is from a program
+        public int? ProgramWorkoutId { get; set; }  // Links to ProgramWorkout if this session is from a program workout
+
         // Navigation properties
         public User? User { get; set; }
+        public Program? Program { get; set; }
+        public ProgramWorkout? ProgramWorkout { get; set; }
         public ICollection<Exercise> Exercises { get; set; } = new List<Exercise>();
     }
 }

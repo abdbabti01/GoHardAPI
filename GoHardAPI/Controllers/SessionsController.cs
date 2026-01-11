@@ -1,9 +1,11 @@
 ﻿using GoHardAPI.Data;
+using GoHardAPI.DTOs;
 using GoHardAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace GoHardAPI.Controllers
 {
@@ -68,6 +70,98 @@ namespace GoHardAPI.Controllers
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetSession), new { id = Session.Id }, Session);
+        }
+
+        /// <summary>
+        /// Creates a new session from a program workout
+        /// Copies exercises from the program workout and links the session to the program
+        /// </summary>
+        [HttpPost("from-program-workout")]
+        public async Task<ActionResult<Session>> CreateSessionFromProgramWorkout([FromBody] CreateSessionFromProgramWorkoutDto dto)
+        {
+            var userId = GetCurrentUserId();
+
+            // Get the program workout with its program
+            var programWorkout = await _context.ProgramWorkouts
+                .Include(pw => pw.Program)
+                .FirstOrDefaultAsync(pw => pw.Id == dto.ProgramWorkoutId);
+
+            if (programWorkout == null)
+            {
+                return NotFound("Program workout not found");
+            }
+
+            // Verify user owns the program
+            if (programWorkout.Program.UserId != userId)
+            {
+                return Unauthorized("You don't have access to this program");
+            }
+
+            // Create session linked to program workout
+            var session = new Session
+            {
+                UserId = userId,
+                Date = DateTime.UtcNow.Date,
+                Name = programWorkout.WorkoutName,
+                Type = programWorkout.WorkoutType ?? "Workout",
+                Status = "draft",
+                ProgramId = programWorkout.ProgramId,
+                ProgramWorkoutId = programWorkout.Id
+            };
+
+            _context.Sessions.Add(session);
+            await _context.SaveChangesAsync(); // Save to get the session ID
+
+            // Parse exercises from JSON and create Exercise records
+            try
+            {
+                var exercisesData = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(programWorkout.ExercisesJson);
+
+                if (exercisesData != null)
+                {
+                    foreach (var exerciseData in exercisesData)
+                    {
+                        var exercise = new Exercise
+                        {
+                            SessionId = session.Id,
+                            Name = exerciseData.ContainsKey("name") ? exerciseData["name"].GetString() ?? "Exercise" : "Exercise"
+                        };
+
+                        // Copy other fields if they exist
+                        if (exerciseData.ContainsKey("exerciseTemplateId") && exerciseData["exerciseTemplateId"].ValueKind != JsonValueKind.Null)
+                        {
+                            exercise.ExerciseTemplateId = exerciseData["exerciseTemplateId"].GetInt32();
+                        }
+
+                        if (exerciseData.ContainsKey("notes"))
+                        {
+                            exercise.Notes = exerciseData["notes"].GetString();
+                        }
+
+                        if (exerciseData.ContainsKey("rest") && exerciseData["rest"].ValueKind != JsonValueKind.Null)
+                        {
+                            exercise.RestTime = exerciseData["rest"].GetInt32();
+                        }
+
+                        _context.Exercises.Add(exercise);
+                    }
+
+                    await _context.SaveChangesAsync();
+                }
+            }
+            catch (JsonException ex)
+            {
+                // If JSON parsing fails, return the session without exercises
+                Console.WriteLine($"Error parsing exercises JSON: {ex.Message}");
+            }
+
+            // Reload session with exercises
+            var createdSession = await _context.Sessions
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseSets)
+                .FirstOrDefaultAsync(s => s.Id == session.Id);
+
+            return CreatedAtAction(nameof(GetSession), new { id = session.Id }, createdSession);
         }
 
         [HttpPut("{id}")]
