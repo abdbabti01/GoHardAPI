@@ -61,9 +61,14 @@ namespace GoHardAPI.Services.AI
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await _httpClient.PostAsync("/openai/v1/chat/completions", content);
-                response.EnsureSuccessStatusCode();
 
                 var responseJson = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogError($"Groq API error ({response.StatusCode}): {responseJson}");
+                    response.EnsureSuccessStatusCode(); // This will throw with the status code
+                }
                 var result = JsonSerializer.Deserialize<GroqResponse>(responseJson);
 
                 if (result?.Choices == null || result.Choices.Count == 0)
