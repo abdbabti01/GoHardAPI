@@ -45,7 +45,7 @@ namespace GoHardAPI.Services.AI
             try
             {
                 var messages = BuildMessages(conversationHistory, userMessage, systemPrompt);
-                var model = _configuration["AISettings:Groq:Model"] ?? "mixtral-8x7b-32768";
+                var model = _configuration["AISettings:Groq:Model"] ?? "llama-3.3-70b-versatile";
                 var maxTokens = int.Parse(_configuration["AISettings:MaxTokens"] ?? "4096");
 
                 var requestBody = new
@@ -98,7 +98,7 @@ namespace GoHardAPI.Services.AI
             string systemPrompt)
         {
             var messages = BuildMessages(conversationHistory, userMessage, systemPrompt);
-            var model = _configuration["AISettings:Groq:Model"] ?? "mixtral-8x7b-32768";
+            var model = _configuration["AISettings:Groq:Model"] ?? "llama-3.3-70b-versatile";
             var maxTokens = int.Parse(_configuration["AISettings:MaxTokens"] ?? "4096");
 
             var requestBody = new
