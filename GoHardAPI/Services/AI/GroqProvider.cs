@@ -15,7 +15,7 @@ namespace GoHardAPI.Services.AI
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
         private readonly ILogger<GroqProvider> _logger;
-        private const string GROQ_API_BASE = "https://api.groq.com/openai/v1";
+        private const string GROQ_API_BASE = "https://api.groq.com";
 
         public string ProviderName => "Groq";
 
@@ -60,7 +60,7 @@ namespace GoHardAPI.Services.AI
                 var json = JsonSerializer.Serialize(requestBody);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync("/chat/completions", content);
+                var response = await _httpClient.PostAsync("/openai/v1/chat/completions", content);
                 response.EnsureSuccessStatusCode();
 
                 var responseJson = await response.Content.ReadAsStringAsync();
@@ -108,7 +108,7 @@ namespace GoHardAPI.Services.AI
             var json = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-            var request = new HttpRequestMessage(HttpMethod.Post, "/chat/completions")
+            var request = new HttpRequestMessage(HttpMethod.Post, "/openai/v1/chat/completions")
             {
                 Content = content
             };
