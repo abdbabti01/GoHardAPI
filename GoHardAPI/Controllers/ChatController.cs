@@ -872,6 +872,179 @@ Please provide:
             }
         }
 
+        // POST: api/chat/conversations/5/create-program
+        [HttpPost("conversations/{id}/create-program")]
+        public async Task<ActionResult<object>> CreateProgramFromPlan(int id, [FromBody] CreateProgramRequest request)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+
+                // First check if conversation exists
+                var conversation = await _context.ChatConversations
+                    .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+
+                if (conversation == null)
+                {
+                    return NotFound(new { message = "Conversation not found" });
+                }
+
+                if (conversation.Type != "workout_plan")
+                {
+                    return BadRequest(new { message = "This is not a workout plan conversation" });
+                }
+
+                var workoutData = await ExtractWorkoutPlanData(id, userId);
+
+                if (workoutData == null)
+                {
+                    return BadRequest(new { message = "Could not extract workout plan structure" });
+                }
+
+                if (workoutData.Sessions == null || workoutData.Sessions.Count == 0)
+                {
+                    return BadRequest(new { message = "No workout sessions found in the plan" });
+                }
+
+                // Calculate program duration
+                var startDate = request.StartDate?.Date ?? DateTime.UtcNow.Date;
+                var totalWeeks = request.TotalWeeks ?? CalculateWeeksFromSessions(workoutData.Sessions.Count);
+                var endDate = startDate.AddDays(totalWeeks * 7);
+
+                // Create the program
+                var program = new Models.Program
+                {
+                    UserId = userId,
+                    Title = request.Title ?? conversation.Title ?? "My Workout Program",
+                    Description = request.Description ?? "Generated from AI workout plan",
+                    GoalId = request.GoalId,
+                    TotalWeeks = totalWeeks,
+                    CurrentWeek = 1,
+                    CurrentDay = 1,
+                    StartDate = startDate,
+                    EndDate = endDate,
+                    IsActive = true,
+                    IsCompleted = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Programs.Add(program);
+                await _context.SaveChangesAsync(); // Save to get program ID
+
+                // Create program workouts from sessions
+                var daysPerWeek = request.DaysPerWeek ?? Math.Min(workoutData.Sessions.Count, 5);
+                var createdWorkouts = new List<object>();
+
+                for (int i = 0; i < workoutData.Sessions.Count; i++)
+                {
+                    var sessionData = workoutData.Sessions[i];
+
+                    // Calculate week and day numbers
+                    var weekNumber = (i / daysPerWeek) + 1;
+                    var dayNumber = (i % daysPerWeek) + 1;
+
+                    // Only add workouts up to totalWeeks
+                    if (weekNumber > totalWeeks)
+                    {
+                        break;
+                    }
+
+                    // Convert exercises to JSON
+                    string exercisesJson;
+                    if (sessionData.Exercises != null && sessionData.Exercises.Count > 0)
+                    {
+                        var exercisesList = sessionData.Exercises.Select(e => new
+                        {
+                            name = e.Name,
+                            sets = e.Sets,
+                            reps = e.Reps,
+                            weight = e.Weight,
+                            rest = e.RestTime,
+                            notes = e.Notes
+                        }).ToList();
+                        exercisesJson = System.Text.Json.JsonSerializer.Serialize(exercisesList);
+                    }
+                    else
+                    {
+                        exercisesJson = "[]";
+                    }
+
+                    var programWorkout = new ProgramWorkout
+                    {
+                        ProgramId = program.Id,
+                        WeekNumber = weekNumber,
+                        DayNumber = dayNumber,
+                        WorkoutName = sessionData.Name,
+                        WorkoutType = sessionData.Type ?? "Strength",
+                        ExercisesJson = exercisesJson,
+                        WarmUp = null,
+                        CoolDown = null,
+                        EstimatedDuration = CalculateEstimatedDuration(sessionData.Exercises),
+                        IsCompleted = false
+                    };
+
+                    _context.ProgramWorkouts.Add(programWorkout);
+
+                    createdWorkouts.Add(new
+                    {
+                        weekNumber = weekNumber,
+                        dayNumber = dayNumber,
+                        name = programWorkout.WorkoutName,
+                        exerciseCount = sessionData.Exercises?.Count ?? 0
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+
+                // Reload program with workouts
+                var createdProgram = await _context.Programs
+                    .Include(p => p.Workouts)
+                    .Include(p => p.Goal)
+                    .FirstOrDefaultAsync(p => p.Id == program.Id);
+
+                return Ok(new
+                {
+                    message = $"Successfully created program with {createdWorkouts.Count} workouts",
+                    program = new
+                    {
+                        id = createdProgram!.Id,
+                        title = createdProgram.Title,
+                        totalWeeks = createdProgram.TotalWeeks,
+                        startDate = createdProgram.StartDate,
+                        workoutCount = createdWorkouts.Count
+                    },
+                    workouts = createdWorkouts
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error creating program from workout plan");
+                return StatusCode(500, new { message = "Failed to create program", error = ex.Message });
+            }
+        }
+
+        // Helper method to calculate weeks needed based on number of sessions
+        private int CalculateWeeksFromSessions(int sessionCount)
+        {
+            // Assume 4-5 workouts per week, calculate minimum weeks needed
+            var weeksNeeded = (int)Math.Ceiling(sessionCount / 4.0);
+            return Math.Max(weeksNeeded, 4); // Minimum 4 weeks
+        }
+
+        // Helper method to estimate workout duration
+        private int? CalculateEstimatedDuration(List<ExerciseData>? exercises)
+        {
+            if (exercises == null || exercises.Count == 0)
+            {
+                return null;
+            }
+
+            // Rough estimate: 5 minutes per exercise + rest time
+            var baseTime = exercises.Count * 5;
+            var restTime = exercises.Sum(e => (e.Sets ?? 3) * (e.RestTime ?? 60)) / 60; // Convert to minutes
+            return baseTime + restTime;
+        }
+
         // Helper method to extract workout plan data from conversation
         private async Task<WorkoutPlanData?> ExtractWorkoutPlanData(int conversationId, int userId)
         {
@@ -1035,6 +1208,17 @@ IMPORTANT RULES:
     // Request DTO for creating sessions
     public class CreateSessionsRequest
     {
+        public DateTime? StartDate { get; set; }
+    }
+
+    // Request DTO for creating programs
+    public class CreateProgramRequest
+    {
+        public string? Title { get; set; }
+        public string? Description { get; set; }
+        public int? GoalId { get; set; }
+        public int? TotalWeeks { get; set; }
+        public int? DaysPerWeek { get; set; }
         public DateTime? StartDate { get; set; }
     }
 
