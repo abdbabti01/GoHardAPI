@@ -47,6 +47,7 @@ builder.Services.AddScoped<FileUploadService>();
 // Register AI Services
 builder.Services.AddScoped<GoHardAPI.Services.AI.AnthropicProvider>();
 builder.Services.AddScoped<GoHardAPI.Services.AI.OpenAIProvider>();
+builder.Services.AddScoped<GoHardAPI.Services.AI.GroqProvider>();
 builder.Services.AddScoped<GoHardAPI.Services.AI.AIProviderFactory>();
 builder.Services.AddScoped<AIService>();
 

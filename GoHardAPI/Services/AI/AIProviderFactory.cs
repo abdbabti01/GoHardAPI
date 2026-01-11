@@ -36,8 +36,9 @@ namespace GoHardAPI.Services.AI
             {
                 "anthropic" => _serviceProvider.GetRequiredService<AnthropicProvider>(),
                 "openai" => _serviceProvider.GetRequiredService<OpenAIProvider>(),
-                "gemini" => throw new NotImplementedException("Gemini provider not yet implemented. Use 'Anthropic' or 'OpenAI'."),
-                _ => throw new ArgumentException($"Unknown AI provider: {provider}. Supported providers: Anthropic, OpenAI")
+                "groq" => _serviceProvider.GetRequiredService<GroqProvider>(),
+                "gemini" => throw new NotImplementedException("Gemini provider not yet implemented. Use 'Anthropic', 'OpenAI', or 'Groq'."),
+                _ => throw new ArgumentException($"Unknown AI provider: {provider}. Supported providers: Anthropic, OpenAI, Groq")
             };
         }
     }
