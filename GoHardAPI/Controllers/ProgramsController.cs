@@ -88,7 +88,12 @@ namespace GoHardAPI.Controllers
             program.StartDate = program.StartDate == default ? DateTime.UtcNow : program.StartDate;
             program.IsCompleted = false;
             program.CurrentWeek = 1;
-            program.CurrentDay = 1;
+
+            // Calculate CurrentDay based on the actual day of week from StartDate
+            // DayOfWeek: Sunday=0, Monday=1, ..., Saturday=6
+            // We want: Monday=1, Tuesday=2, ..., Sunday=7
+            var dayOfWeek = (int)program.StartDate.DayOfWeek;
+            program.CurrentDay = dayOfWeek == 0 ? 7 : dayOfWeek; // Convert Sunday from 0 to 7
 
             // Calculate end date if not provided
             if (program.EndDate == null)

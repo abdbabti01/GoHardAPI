@@ -911,6 +911,12 @@ Please provide:
                 var totalWeeks = request.TotalWeeks ?? CalculateWeeksFromSessions(workoutData.Sessions.Count);
                 var endDate = startDate.AddDays(totalWeeks * 7);
 
+                // Calculate CurrentDay based on the actual day of week from StartDate
+                // DayOfWeek: Sunday=0, Monday=1, ..., Saturday=6
+                // We want: Monday=1, Tuesday=2, ..., Sunday=7
+                var dayOfWeek = (int)startDate.DayOfWeek;
+                var currentDay = dayOfWeek == 0 ? 7 : dayOfWeek; // Convert Sunday from 0 to 7
+
                 // Create the program
                 var program = new Models.Program
                 {
@@ -920,7 +926,7 @@ Please provide:
                     GoalId = request.GoalId,
                     TotalWeeks = totalWeeks,
                     CurrentWeek = 1,
-                    CurrentDay = 1,
+                    CurrentDay = currentDay,
                     StartDate = startDate,
                     EndDate = endDate,
                     IsActive = true,
@@ -939,9 +945,16 @@ Please provide:
                 {
                     var sessionData = workoutData.Sessions[i];
 
-                    // Calculate week and day numbers
-                    var weekNumber = (i / daysPerWeek) + 1;
-                    var dayNumber = (i % daysPerWeek) + 1;
+                    // Calculate the actual calendar date for this workout
+                    var workoutDate = startDate.AddDays(i);
+
+                    // Calculate week number based on days since start
+                    var daysSinceStart = (workoutDate - startDate).Days;
+                    var weekNumber = (daysSinceStart / 7) + 1;
+
+                    // Calculate day number (1=Monday, 7=Sunday) based on actual day of week
+                    var workoutDayOfWeek = (int)workoutDate.DayOfWeek;
+                    var dayNumber = workoutDayOfWeek == 0 ? 7 : workoutDayOfWeek;
 
                     // Only add workouts up to totalWeeks
                     if (weekNumber > totalWeeks)
@@ -974,6 +987,7 @@ Please provide:
                         ProgramId = program.Id,
                         WeekNumber = weekNumber,
                         DayNumber = dayNumber,
+                        DayName = GetDayName(dayNumber),
                         WorkoutName = sessionData.Name,
                         WorkoutType = sessionData.Type ?? "Strength",
                         ExercisesJson = exercisesJson,
@@ -1202,6 +1216,22 @@ IMPORTANT RULES:
             }
 
             return null;
+        }
+
+        // Helper method to convert day number to day name
+        private string GetDayName(int dayNumber)
+        {
+            return dayNumber switch
+            {
+                1 => "Monday",
+                2 => "Tuesday",
+                3 => "Wednesday",
+                4 => "Thursday",
+                5 => "Friday",
+                6 => "Saturday",
+                7 => "Sunday",
+                _ => $"Day {dayNumber}"
+            };
         }
     }
 

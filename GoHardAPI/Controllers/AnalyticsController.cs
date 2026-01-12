@@ -68,7 +68,11 @@ namespace GoHardAPI.Controllers
 
             // This week and month
             var now = DateTime.UtcNow;
-            var startOfWeek = now.Date.AddDays(-(int)now.DayOfWeek);
+            // Calculate start of week (Monday) - consistent with Program model
+            // DayOfWeek: Sunday=0, Monday=1, ..., Saturday=6
+            // We want to go back to Monday
+            var daysSinceMonday = ((int)now.DayOfWeek + 6) % 7; // Sunday=6, Monday=0
+            var startOfWeek = now.Date.AddDays(-daysSinceMonday);
             var startOfMonth = new DateTime(now.Year, now.Month, 1);
 
             var workoutsThisWeek = completedSessions.Count(s => s.Date >= startOfWeek);

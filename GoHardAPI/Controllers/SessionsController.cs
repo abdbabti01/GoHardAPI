@@ -97,14 +97,27 @@ namespace GoHardAPI.Controllers
                 return Unauthorized("You don't have access to this program");
             }
 
+            // Calculate the actual scheduled date for this workout
+            // based on program start date + (weekNumber - 1) * 7 days + (dayNumber - 1) days
+            var scheduledDate = programWorkout.Program.StartDate
+                .AddDays((programWorkout.WeekNumber - 1) * 7 + (programWorkout.DayNumber - 1))
+                .Date;
+
+            var today = DateTime.UtcNow.Date;
+
+            // Determine status based on scheduled date
+            // - If scheduled for future: status = 'planned'
+            // - If scheduled for today or past: status = 'draft' (user can start immediately)
+            var status = scheduledDate > today ? "planned" : "draft";
+
             // Create session linked to program workout
             var session = new Session
             {
                 UserId = userId,
-                Date = DateTime.UtcNow.Date,
+                Date = scheduledDate, // Use calculated scheduled date
                 Name = programWorkout.WorkoutName,
                 Type = programWorkout.WorkoutType ?? "Workout",
-                Status = "draft",
+                Status = status, // Use calculated status
                 ProgramId = programWorkout.ProgramId,
                 ProgramWorkoutId = programWorkout.Id
             };
