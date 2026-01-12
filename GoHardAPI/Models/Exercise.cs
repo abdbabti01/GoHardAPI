@@ -22,6 +22,9 @@ namespace GoHardAPI.Models
 
         public int? ExerciseTemplateId { get; set; } // Link to template if used
 
+        // Version tracking for conflict resolution (Issue #13)
+        public int Version { get; set; } = 1;
+
         // Navigation properties
         public Session? Session { get; set; }
         public ExerciseTemplate? ExerciseTemplate { get; set; }

@@ -151,8 +151,18 @@ namespace GoHardAPI.Controllers
             }
             catch (JsonException ex)
             {
-                // If JSON parsing fails, return the session without exercises
+                // If JSON parsing fails, return error instead of silently creating empty session
                 Console.WriteLine($"Error parsing exercises JSON: {ex.Message}");
+
+                // Delete the session since we couldn't create exercises
+                _context.Sessions.Remove(session);
+                await _context.SaveChangesAsync();
+
+                return BadRequest(new
+                {
+                    message = "Failed to parse exercises from program workout",
+                    error = ex.Message
+                });
             }
 
             // Reload session with exercises
@@ -180,6 +190,20 @@ namespace GoHardAPI.Controllers
             {
                 return NotFound();
             }
+
+            // Check version for conflict detection (Issue #13)
+            if (Session.Version != existingSession.Version)
+            {
+                return Conflict(new
+                {
+                    message = "Version conflict - data was modified by another device",
+                    currentVersion = existingSession.Version,
+                    serverData = existingSession
+                });
+            }
+
+            // Increment version on update
+            existingSession.Version = Session.Version + 1;
 
             // Update the existing tracked entity instead of tracking a new one
             existingSession.Name = Session.Name;
@@ -223,6 +247,30 @@ namespace GoHardAPI.Controllers
             }
 
             _context.Sessions.Remove(Session);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        // PATCH: api/Sessions/5/start-planned
+        // Atomic operation to update both date and status when starting a planned workout
+        [HttpPatch("{id}/start-planned")]
+        public async Task<IActionResult> StartPlannedWorkout(int id, [FromBody] StartPlannedWorkoutRequest request)
+        {
+            var userId = GetCurrentUserId();
+            var session = await _context.Sessions.FindAsync(id);
+
+            if (session == null || session.UserId != userId)
+            {
+                return NotFound();
+            }
+
+            // Atomic update: date and status together
+            session.Date = request.Date ?? DateTime.UtcNow.Date;
+            session.Status = "in_progress";
+            session.StartedAt = request.StartedAt ?? DateTime.UtcNow;
+            session.PausedAt = null; // Clear any pause state
+
             await _context.SaveChangesAsync();
 
             return NoContent();
@@ -285,65 +333,8 @@ namespace GoHardAPI.Controllers
             return NoContent();
         }
 
-        // PATCH: api/Sessions/5/pause
-        [HttpPatch("{id}/pause")]
-        public async Task<IActionResult> PauseSession(int id)
-        {
-            var userId = GetCurrentUserId();
-            var session = await _context.Sessions.FindAsync(id);
-
-            if (session == null || session.UserId != userId)
-            {
-                return NotFound();
-            }
-
-            if (session.Status != "in_progress")
-            {
-                return BadRequest(new { message = "Can only pause an in-progress session" });
-            }
-
-            session.PausedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
-        // PATCH: api/Sessions/5/resume
-        [HttpPatch("{id}/resume")]
-        public async Task<IActionResult> ResumeSession(int id)
-        {
-            var userId = GetCurrentUserId();
-            var session = await _context.Sessions.FindAsync(id);
-
-            if (session == null || session.UserId != userId)
-            {
-                return NotFound();
-            }
-
-            if (session.Status != "in_progress")
-            {
-                return BadRequest(new { message = "Can only resume an in-progress session" });
-            }
-
-            if (session.PausedAt == null)
-            {
-                return BadRequest(new { message = "Session is not paused" });
-            }
-
-            // Calculate how long it was paused
-            var pausedDuration = DateTime.UtcNow - session.PausedAt.Value;
-
-            // Adjust StartedAt to account for paused time
-            if (session.StartedAt != null)
-            {
-                session.StartedAt = session.StartedAt.Value.Add(pausedDuration);
-            }
-
-            session.PausedAt = null;
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
+        // NOTE: Pause/Resume endpoints removed - use PATCH /status endpoint instead
+        // The status endpoint handles pause/resume through the pausedAt and startedAt timestamps
 
         // POST: api/Sessions/5/exercises
         [HttpPost("{id}/exercises")]

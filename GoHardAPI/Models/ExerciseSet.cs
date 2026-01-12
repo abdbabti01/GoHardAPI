@@ -25,6 +25,9 @@ namespace GoHardAPI.Models
         [MaxLength(200)]
         public string? Notes { get; set; }
 
+        // Version tracking for conflict resolution (Issue #13)
+        public int Version { get; set; } = 1;
+
         // Navigation property
         public Exercise? Exercise { get; set; }
     }

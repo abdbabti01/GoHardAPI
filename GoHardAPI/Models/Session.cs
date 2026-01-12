@@ -36,6 +36,9 @@ namespace GoHardAPI.Models
         public int? ProgramId { get; set; }  // Links to Program if this session is from a program
         public int? ProgramWorkoutId { get; set; }  // Links to ProgramWorkout if this session is from a program workout
 
+        // Version tracking for conflict resolution (Issue #13)
+        public int Version { get; set; } = 1;
+
         // Navigation properties
         public User? User { get; set; }
         public Program? Program { get; set; }

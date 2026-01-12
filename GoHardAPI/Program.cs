@@ -44,6 +44,9 @@ builder.Services.AddScoped<AuthService>();
 // Register FileUploadService
 builder.Services.AddScoped<FileUploadService>();
 
+// Register background services
+builder.Services.AddHostedService<DraftSessionCleanupService>();
+
 // Register AI Services
 builder.Services.AddScoped<GoHardAPI.Services.AI.AnthropicProvider>();
 builder.Services.AddScoped<GoHardAPI.Services.AI.OpenAIProvider>();
