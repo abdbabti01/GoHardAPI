@@ -81,6 +81,9 @@ namespace GoHardAPI.Controllers
         {
             var userId = GetCurrentUserId();
 
+            // DEBUG: Log received DTO values
+            Console.WriteLine($"🔍 Received DTO - ProgramWorkoutId: {dto.ProgramWorkoutId}, ProgramId: {dto.ProgramId}");
+
             // Get the program workout with its program
             var programWorkout = await _context.ProgramWorkouts
                 .Include(pw => pw.Program)
@@ -121,6 +124,8 @@ namespace GoHardAPI.Controllers
                 ProgramId = dto.ProgramId, // Use ProgramId from request (fixes issue with old ProgramWorkout data)
                 ProgramWorkoutId = programWorkout.Id
             };
+
+            Console.WriteLine($"✅ Creating session with ProgramId: {session.ProgramId}");
 
             _context.Sessions.Add(session);
             await _context.SaveChangesAsync(); // Save to get the session ID
@@ -183,6 +188,8 @@ namespace GoHardAPI.Controllers
                 .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseSets)
                 .FirstOrDefaultAsync(s => s.Id == session.Id);
+
+            Console.WriteLine($"📤 Returning session - ID: {createdSession?.Id}, ProgramId: {createdSession?.ProgramId}");
 
             return CreatedAtAction(nameof(GetSession), new { id = session.Id }, createdSession);
         }
