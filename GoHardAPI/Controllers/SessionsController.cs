@@ -118,7 +118,7 @@ namespace GoHardAPI.Controllers
                 Name = programWorkout.WorkoutName,
                 Type = programWorkout.WorkoutType ?? "Workout",
                 Status = status, // Use calculated status
-                ProgramId = programWorkout.Program.Id, // Use Program.Id instead of ProgramId field (fixes issue with old data)
+                ProgramId = dto.ProgramId, // Use ProgramId from request (fixes issue with old ProgramWorkout data)
                 ProgramWorkoutId = programWorkout.Id
             };
 
