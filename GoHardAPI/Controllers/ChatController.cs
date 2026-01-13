@@ -941,71 +941,105 @@ Please provide:
                 var daysPerWeek = request.DaysPerWeek ?? Math.Min(workoutData.Sessions.Count, 5);
                 var createdWorkouts = new List<object>();
 
-                for (int i = 0; i < workoutData.Sessions.Count; i++)
+                // Filter out rest days from AI sessions (sessions with no exercises or explicitly marked as rest)
+                var workoutSessions = workoutData.Sessions
+                    .Where(s => s.Exercises != null && s.Exercises.Count > 0)
+                    .ToList();
+
+                // Calculate total number of workout slots needed
+                var totalWorkoutSlots = totalWeeks * daysPerWeek;
+
+                // Cycle through AI sessions to fill all weeks
+                var sessionIndex = 0;
+                var currentDate = startDate;
+                var weekNumber = 1;
+
+                for (int weekDay = 1; weekDay <= totalWeeks * 7; weekDay++)
                 {
-                    var sessionData = workoutData.Sessions[i];
+                    var dayNumber = ((weekDay - 1) % 7) + 1; // 1=Monday, 7=Sunday
 
-                    // Calculate the actual calendar date for this workout
-                    var workoutDate = startDate.AddDays(i);
+                    // Calculate which week we're in
+                    weekNumber = ((weekDay - 1) / 7) + 1;
 
-                    // Calculate week number based on days since start
-                    var daysSinceStart = (workoutDate - startDate).Days;
-                    var weekNumber = (daysSinceStart / 7) + 1;
+                    // Determine if this should be a workout day or rest day
+                    // Distribute workout days evenly across the week
+                    var workoutDaysThisWeek = (weekDay - 1) % 7 < daysPerWeek;
 
-                    // Calculate day number (1=Monday, 7=Sunday) based on actual day of week
-                    var workoutDayOfWeek = (int)workoutDate.DayOfWeek;
-                    var dayNumber = workoutDayOfWeek == 0 ? 7 : workoutDayOfWeek;
-
-                    // Only add workouts up to totalWeeks
-                    if (weekNumber > totalWeeks)
+                    if (workoutDaysThisWeek && sessionIndex < workoutSessions.Count * totalWeeks)
                     {
-                        break;
-                    }
+                        // This is a workout day - use a session from AI (cycle through them)
+                        var sessionData = workoutSessions[sessionIndex % workoutSessions.Count];
+                        sessionIndex++;
 
-                    // Convert exercises to JSON
-                    string exercisesJson;
-                    if (sessionData.Exercises != null && sessionData.Exercises.Count > 0)
-                    {
-                        var exercisesList = sessionData.Exercises.Select(e => new
+                        // Convert exercises to JSON
+                        string exercisesJson;
+                        if (sessionData.Exercises != null && sessionData.Exercises.Count > 0)
                         {
-                            name = e.Name,
-                            sets = e.Sets,
-                            reps = e.Reps,
-                            weight = e.Weight,
-                            rest = e.RestTime,
-                            notes = e.Notes
-                        }).ToList();
-                        exercisesJson = System.Text.Json.JsonSerializer.Serialize(exercisesList);
+                            var exercisesList = sessionData.Exercises.Select(e => new
+                            {
+                                name = e.Name,
+                                sets = e.Sets,
+                                reps = e.Reps,
+                                weight = e.Weight,
+                                rest = e.RestTime,
+                                notes = e.Notes
+                            }).ToList();
+                            exercisesJson = System.Text.Json.JsonSerializer.Serialize(exercisesList);
+                        }
+                        else
+                        {
+                            exercisesJson = "[]";
+                        }
+
+                        var programWorkout = new ProgramWorkout
+                        {
+                            ProgramId = program.Id,
+                            WeekNumber = weekNumber,
+                            DayNumber = dayNumber,
+                            DayName = GetDayName(dayNumber),
+                            WorkoutName = sessionData.Name,
+                            WorkoutType = sessionData.Type ?? "Strength",
+                            ExercisesJson = exercisesJson,
+                            WarmUp = null,
+                            CoolDown = null,
+                            EstimatedDuration = CalculateEstimatedDuration(sessionData.Exercises),
+                            IsCompleted = false,
+                            IsRestDay = false
+                        };
+
+                        _context.ProgramWorkouts.Add(programWorkout);
+
+                        createdWorkouts.Add(new
+                        {
+                            weekNumber = weekNumber,
+                            dayNumber = dayNumber,
+                            name = programWorkout.WorkoutName,
+                            exerciseCount = sessionData.Exercises?.Count ?? 0
+                        });
                     }
                     else
                     {
-                        exercisesJson = "[]";
+                        // This is a rest day
+                        var restWorkout = new ProgramWorkout
+                        {
+                            ProgramId = program.Id,
+                            WeekNumber = weekNumber,
+                            DayNumber = dayNumber,
+                            DayName = GetDayName(dayNumber),
+                            WorkoutName = "Rest Day",
+                            WorkoutType = "Rest",
+                            ExercisesJson = "[]",
+                            WarmUp = null,
+                            CoolDown = null,
+                            EstimatedDuration = null,
+                            IsCompleted = false,
+                            IsRestDay = true
+                        };
+
+                        _context.ProgramWorkouts.Add(restWorkout);
                     }
 
-                    var programWorkout = new ProgramWorkout
-                    {
-                        ProgramId = program.Id,
-                        WeekNumber = weekNumber,
-                        DayNumber = dayNumber,
-                        DayName = GetDayName(dayNumber),
-                        WorkoutName = sessionData.Name,
-                        WorkoutType = sessionData.Type ?? "Strength",
-                        ExercisesJson = exercisesJson,
-                        WarmUp = null,
-                        CoolDown = null,
-                        EstimatedDuration = CalculateEstimatedDuration(sessionData.Exercises),
-                        IsCompleted = false
-                    };
-
-                    _context.ProgramWorkouts.Add(programWorkout);
-
-                    createdWorkouts.Add(new
-                    {
-                        weekNumber = weekNumber,
-                        dayNumber = dayNumber,
-                        name = programWorkout.WorkoutName,
-                        exerciseCount = sessionData.Exercises?.Count ?? 0
-                    });
+                    currentDate = currentDate.AddDays(1);
                 }
 
                 await _context.SaveChangesAsync();

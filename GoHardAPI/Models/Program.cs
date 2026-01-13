@@ -231,6 +231,11 @@ namespace GoHardAPI.Models
         /// </summary>
         public int OrderIndex { get; set; }
 
+        /// <summary>
+        /// Whether this is a rest day (no workout exercises)
+        /// </summary>
+        public bool IsRestDay { get; set; }
+
         // Navigation properties
         public Program? Program { get; set; }
     }
