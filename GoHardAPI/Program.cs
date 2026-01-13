@@ -162,26 +162,27 @@ using (var scope = app.Services.CreateScope())
             }
         }
 
-        // List all migrations
-        var allMigrations = context.Database.GetMigrations().ToList();
-        var appliedMigrations = context.Database.GetAppliedMigrations().ToList();
-        var pendingMigrations = context.Database.GetPendingMigrations().ToList();
+        // List all migrations after cleanup
+        var allMigrationsFinal = context.Database.GetMigrations().ToList();
+        var appliedMigrationsFinal = context.Database.GetAppliedMigrations().ToList();
+        var pendingMigrationsFinal = context.Database.GetPendingMigrations().ToList();
 
-        Console.WriteLine($"Total migrations: {allMigrations.Count}");
-        Console.WriteLine($"Applied migrations: {appliedMigrations.Count}");
-        Console.WriteLine($"Pending migrations: {pendingMigrations.Count}");
+        Console.WriteLine($"\n📋 Migration Status:");
+        Console.WriteLine($"Total migrations: {allMigrationsFinal.Count}");
+        Console.WriteLine($"Applied migrations: {appliedMigrationsFinal.Count}");
+        Console.WriteLine($"Pending migrations: {pendingMigrationsFinal.Count}");
 
-        if (pendingMigrations.Any())
+        if (pendingMigrationsFinal.Any())
         {
-            Console.WriteLine("Pending migrations:");
-            foreach (var migration in pendingMigrations)
+            Console.WriteLine("\n⏳ Pending migrations to apply:");
+            foreach (var migration in pendingMigrationsFinal)
             {
                 Console.WriteLine($"  - {migration}");
             }
         }
 
         // Now apply any remaining migrations
-        Console.WriteLine("Applying pending migrations...");
+        Console.WriteLine("\n🔄 Applying pending migrations...");
         context.Database.Migrate();
         Console.WriteLine("✅ Migrations applied successfully!");
 
