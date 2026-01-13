@@ -13,7 +13,7 @@ namespace GoHardAPI.Migrations
             migrationBuilder.AddColumn<bool>(
                 name: "IsRestDay",
                 table: "ProgramWorkouts",
-                type: "bit",
+                type: "boolean",
                 nullable: false,
                 defaultValue: false);
         }
