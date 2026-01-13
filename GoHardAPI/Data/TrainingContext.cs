@@ -232,6 +232,22 @@ namespace GoHardAPI.Data
                 .HasForeignKey(pw => pw.ProgramId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Configure Session-Program relationship (CASCADE DELETE)
+            // When a Program is deleted, delete all Sessions created from it
+            modelBuilder.Entity<Session>()
+                .HasOne(s => s.Program)
+                .WithMany()
+                .HasForeignKey(s => s.ProgramId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure Session-ProgramWorkout relationship (CASCADE DELETE)
+            // When a ProgramWorkout is deleted, delete all Sessions created from it
+            modelBuilder.Entity<Session>()
+                .HasOne(s => s.ProgramWorkout)
+                .WithMany()
+                .HasForeignKey(s => s.ProgramWorkoutId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             // Add indexes for program queries
             modelBuilder.Entity<Models.Program>()
                 .HasIndex(p => new { p.UserId, p.IsActive, p.IsCompleted });
