@@ -162,10 +162,28 @@ using (var scope = app.Services.CreateScope())
             }
         }
 
-        // Now apply any remaining migrations (should be just Programs)
+        // List all migrations
+        var allMigrations = context.Database.GetMigrations().ToList();
+        var appliedMigrations = context.Database.GetAppliedMigrations().ToList();
+        var pendingMigrations = context.Database.GetPendingMigrations().ToList();
+
+        Console.WriteLine($"Total migrations: {allMigrations.Count}");
+        Console.WriteLine($"Applied migrations: {appliedMigrations.Count}");
+        Console.WriteLine($"Pending migrations: {pendingMigrations.Count}");
+
+        if (pendingMigrations.Any())
+        {
+            Console.WriteLine("Pending migrations:");
+            foreach (var migration in pendingMigrations)
+            {
+                Console.WriteLine($"  - {migration}");
+            }
+        }
+
+        // Now apply any remaining migrations
         Console.WriteLine("Applying pending migrations...");
         context.Database.Migrate();
-        Console.WriteLine("Migrations applied successfully");
+        Console.WriteLine("✅ Migrations applied successfully!");
 
         // Always run seed data initialization
         SeedData.Initialize(context);
