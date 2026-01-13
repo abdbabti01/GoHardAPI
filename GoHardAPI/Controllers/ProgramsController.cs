@@ -155,6 +155,32 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
+        /// Get deletion impact for a program (how many sessions will be deleted)
+        /// </summary>
+        [HttpGet("{id}/deletion-impact")]
+        public async Task<ActionResult<object>> GetDeletionImpact(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var program = await _context.Programs.FindAsync(id);
+            if (program == null || program.UserId != userId)
+            {
+                return NotFound();
+            }
+
+            // Count sessions linked to this program
+            var sessionsCount = await _context.Sessions
+                .Where(s => s.ProgramId == id && s.UserId == userId)
+                .CountAsync();
+
+            return Ok(new
+            {
+                sessionsCount
+            });
+        }
+
+        /// <summary>
         /// Delete a program
         /// </summary>
         [HttpDelete("{id}")]

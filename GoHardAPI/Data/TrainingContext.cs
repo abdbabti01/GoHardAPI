@@ -218,14 +218,14 @@ namespace GoHardAPI.Data
                 .HasForeignKey(p => p.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Configure Program-Goal relationship
+            // Configure Program-Goal relationship (CASCADE DELETE)
             modelBuilder.Entity<Models.Program>()
                 .HasOne(p => p.Goal)
                 .WithMany()
                 .HasForeignKey(p => p.GoalId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.Cascade);
 
-            // Configure ProgramWorkout-Program relationship
+            // Configure ProgramWorkout-Program relationship (CASCADE DELETE)
             modelBuilder.Entity<ProgramWorkout>()
                 .HasOne(pw => pw.Program)
                 .WithMany(p => p.Workouts)
