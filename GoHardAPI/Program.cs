@@ -186,6 +186,70 @@ using (var scope = app.Services.CreateScope())
         context.Database.Migrate();
         Console.WriteLine("✅ Migrations applied successfully!");
 
+        // Fix cascade delete constraints (in case migrations didn't apply them)
+        Console.WriteLine("\n🔧 Verifying and fixing cascade delete constraints...");
+        try
+        {
+            // Fix Session -> Program cascade delete
+            context.Database.ExecuteSqlRaw(@"
+                ALTER TABLE ""Sessions""
+                DROP CONSTRAINT IF EXISTS ""FK_Sessions_Programs_ProgramId"";
+
+                ALTER TABLE ""Sessions""
+                ADD CONSTRAINT ""FK_Sessions_Programs_ProgramId""
+                FOREIGN KEY (""ProgramId"")
+                REFERENCES ""Programs""(""Id"")
+                ON DELETE CASCADE;
+            ");
+            Console.WriteLine("  ✓ Session -> Program cascade delete configured");
+
+            // Fix Session -> ProgramWorkout cascade delete
+            context.Database.ExecuteSqlRaw(@"
+                ALTER TABLE ""Sessions""
+                DROP CONSTRAINT IF EXISTS ""FK_Sessions_ProgramWorkouts_ProgramWorkoutId"";
+
+                ALTER TABLE ""Sessions""
+                ADD CONSTRAINT ""FK_Sessions_ProgramWorkouts_ProgramWorkoutId""
+                FOREIGN KEY (""ProgramWorkoutId"")
+                REFERENCES ""ProgramWorkouts""(""Id"")
+                ON DELETE CASCADE;
+            ");
+            Console.WriteLine("  ✓ Session -> ProgramWorkout cascade delete configured");
+
+            // Fix Program -> Goal cascade delete
+            context.Database.ExecuteSqlRaw(@"
+                ALTER TABLE ""Programs""
+                DROP CONSTRAINT IF EXISTS ""FK_Programs_Goals_GoalId"";
+
+                ALTER TABLE ""Programs""
+                ADD CONSTRAINT ""FK_Programs_Goals_GoalId""
+                FOREIGN KEY (""GoalId"")
+                REFERENCES ""Goals""(""Id"")
+                ON DELETE CASCADE;
+            ");
+            Console.WriteLine("  ✓ Program -> Goal cascade delete configured");
+
+            // Fix ProgramWorkout -> Program cascade delete
+            context.Database.ExecuteSqlRaw(@"
+                ALTER TABLE ""ProgramWorkouts""
+                DROP CONSTRAINT IF EXISTS ""FK_ProgramWorkouts_Programs_ProgramId"";
+
+                ALTER TABLE ""ProgramWorkouts""
+                ADD CONSTRAINT ""FK_ProgramWorkouts_Programs_ProgramId""
+                FOREIGN KEY (""ProgramId"")
+                REFERENCES ""Programs""(""Id"")
+                ON DELETE CASCADE;
+            ");
+            Console.WriteLine("  ✓ ProgramWorkout -> Program cascade delete configured");
+
+            Console.WriteLine("✅ All cascade delete constraints verified and fixed!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Warning: Could not update cascade delete constraints: {ex.Message}");
+            // Don't throw - the app can still run, just cascade delete might not work
+        }
+
         // Always run seed data initialization
         SeedData.Initialize(context);
         Console.WriteLine("Database seed/update completed successfully");
