@@ -367,6 +367,9 @@ namespace GoHardAPI.Controllers
             existingWorkout.IsCompleted = workout.IsCompleted;
             existingWorkout.CompletedAt = workout.CompletedAt;
             existingWorkout.CompletionNotes = workout.CompletionNotes;
+            existingWorkout.WeekNumber = workout.WeekNumber;
+            existingWorkout.DayNumber = workout.DayNumber;
+            existingWorkout.OrderIndex = workout.OrderIndex;
 
             try
             {
