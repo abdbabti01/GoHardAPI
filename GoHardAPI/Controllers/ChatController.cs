@@ -911,11 +911,8 @@ Please provide:
                 var totalWeeks = request.TotalWeeks ?? CalculateWeeksFromSessions(workoutData.Sessions.Count);
                 var endDate = startDate.AddDays(totalWeeks * 7);
 
-                // Calculate CurrentDay based on the actual day of week from StartDate
-                // DayOfWeek: Sunday=0, Monday=1, ..., Saturday=6
-                // We want: Monday=1, Tuesday=2, ..., Sunday=7
-                var dayOfWeek = (int)startDate.DayOfWeek;
-                var currentDay = dayOfWeek == 0 ? 7 : dayOfWeek; // Convert Sunday from 0 to 7
+                // Always start at Day 1 (session-based, not calendar)
+                var currentDay = 1;
 
                 // Create the program
                 var program = new Models.Program
