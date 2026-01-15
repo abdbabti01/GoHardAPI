@@ -252,8 +252,10 @@ namespace GoHardAPI.Data
             modelBuilder.Entity<Models.Program>()
                 .HasIndex(p => new { p.UserId, p.IsActive, p.IsCompleted });
 
+            // Add unique constraint to prevent duplicate workouts on same day
             modelBuilder.Entity<ProgramWorkout>()
-                .HasIndex(pw => new { pw.ProgramId, pw.WeekNumber, pw.DayNumber });
+                .HasIndex(pw => new { pw.ProgramId, pw.WeekNumber, pw.DayNumber })
+                .IsUnique();
         }
     }
 }

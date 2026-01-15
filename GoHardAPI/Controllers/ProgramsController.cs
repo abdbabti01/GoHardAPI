@@ -411,6 +411,77 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
+        /// Swap two program workouts atomically (exchanges their day numbers and order indexes)
+        /// </summary>
+        [HttpPost("workouts/swap")]
+        public async Task<IActionResult> SwapWorkouts([FromBody] SwapWorkoutsRequest request)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            // Begin transaction for atomic swap
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                // Fetch both workouts
+                var workout1 = await _context.ProgramWorkouts
+                    .Include(w => w.Program)
+                    .FirstOrDefaultAsync(w => w.Id == request.Workout1Id);
+
+                var workout2 = await _context.ProgramWorkouts
+                    .Include(w => w.Program)
+                    .FirstOrDefaultAsync(w => w.Id == request.Workout2Id);
+
+                // Validate both workouts exist and belong to user
+                if (workout1 == null || workout1.Program?.UserId != userId)
+                {
+                    return NotFound("Workout 1 not found or access denied");
+                }
+
+                if (workout2 == null || workout2.Program?.UserId != userId)
+                {
+                    return NotFound("Workout 2 not found or access denied");
+                }
+
+                // Validate both workouts belong to same program
+                if (workout1.ProgramId != workout2.ProgramId)
+                {
+                    return BadRequest("Workouts must belong to the same program");
+                }
+
+                // Swap day numbers and order indexes
+                var tempDayNumber = workout1.DayNumber;
+                var tempOrderIndex = workout1.OrderIndex;
+
+                workout1.DayNumber = workout2.DayNumber;
+                workout1.OrderIndex = workout2.OrderIndex;
+
+                workout2.DayNumber = tempDayNumber;
+                workout2.OrderIndex = tempOrderIndex;
+
+                // Save changes
+                await _context.SaveChangesAsync();
+
+                // Commit transaction
+                await transaction.CommitAsync();
+
+                return Ok(new
+                {
+                    message = "Workouts swapped successfully",
+                    workout1 = new { workout1.Id, workout1.DayNumber, workout1.OrderIndex },
+                    workout2 = new { workout2.Id, workout2.DayNumber, workout2.OrderIndex }
+                });
+            }
+            catch (Exception ex)
+            {
+                // Rollback on error
+                await transaction.RollbackAsync();
+                return StatusCode(500, new { message = "Failed to swap workouts", error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Delete a workout
         /// </summary>
         [HttpDelete("workouts/{workoutId}")]
