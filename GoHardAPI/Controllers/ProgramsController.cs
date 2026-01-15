@@ -450,18 +450,29 @@ namespace GoHardAPI.Controllers
                     return BadRequest("Workouts must belong to the same program");
                 }
 
-                // Swap day numbers and order indexes
-                var tempDayNumber = workout1.DayNumber;
-                var tempOrderIndex = workout1.OrderIndex;
+                // Store original values
+                var day1 = workout1.DayNumber;
+                var order1 = workout1.OrderIndex;
+                var day2 = workout2.DayNumber;
+                var order2 = workout2.OrderIndex;
 
-                workout1.DayNumber = workout2.DayNumber;
-                workout1.OrderIndex = workout2.OrderIndex;
+                // Use raw SQL to avoid EF circular dependency with unique constraint
+                // Strategy: Use temporary value (-999) to break the circular dependency
 
-                workout2.DayNumber = tempDayNumber;
-                workout2.OrderIndex = tempOrderIndex;
+                // Step 1: Set workout1 to temporary values (outside valid range)
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE \"ProgramWorkouts\" SET \"DayNumber\" = {0}, \"OrderIndex\" = {1} WHERE \"Id\" = {2}",
+                    -999, -999, workout1.Id);
 
-                // Save changes
-                await _context.SaveChangesAsync();
+                // Step 2: Update workout2 to workout1's original values
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE \"ProgramWorkouts\" SET \"DayNumber\" = {0}, \"OrderIndex\" = {1} WHERE \"Id\" = {2}",
+                    day1, order1, workout2.Id);
+
+                // Step 3: Update workout1 to workout2's original values
+                await _context.Database.ExecuteSqlRawAsync(
+                    "UPDATE \"ProgramWorkouts\" SET \"DayNumber\" = {0}, \"OrderIndex\" = {1} WHERE \"Id\" = {2}",
+                    day2, order2, workout1.Id);
 
                 // Commit transaction
                 await transaction.CommitAsync();
@@ -469,8 +480,8 @@ namespace GoHardAPI.Controllers
                 return Ok(new
                 {
                     message = "Workouts swapped successfully",
-                    workout1 = new { workout1.Id, workout1.DayNumber, workout1.OrderIndex },
-                    workout2 = new { workout2.Id, workout2.DayNumber, workout2.OrderIndex }
+                    workout1 = new { Id = workout1.Id, DayNumber = day2, OrderIndex = order2 },
+                    workout2 = new { Id = workout2.Id, DayNumber = day1, OrderIndex = order1 }
                 });
             }
             catch (Exception ex)
