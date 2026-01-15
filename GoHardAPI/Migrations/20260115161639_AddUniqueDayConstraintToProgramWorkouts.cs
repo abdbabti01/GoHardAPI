@@ -14,10 +14,10 @@ namespace GoHardAPI.Migrations
             // Keep the first occurrence (lowest Id), delete duplicates
             migrationBuilder.Sql(@"
                 WITH DuplicateWorkouts AS (
-                    SELECT Id,
+                    SELECT ""Id"",
                            ROW_NUMBER() OVER (
-                               PARTITION BY ProgramId, WeekNumber, DayNumber
-                               ORDER BY Id
+                               PARTITION BY ""ProgramId"", ""WeekNumber"", ""DayNumber""
+                               ORDER BY ""Id""
                            ) AS RowNum
                     FROM ""ProgramWorkouts""
                 )
