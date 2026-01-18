@@ -707,7 +707,7 @@ Please provide:
                 var preview = workoutData.Sessions?.Select((s, index) => new
                 {
                     dayNumber = index + 1,
-                    name = s.Name,
+                    name = CleanWorkoutName(s.Name),
                     type = s.Type ?? "strength",
                     exerciseCount = s.Exercises?.Count ?? 0,
                     exercises = s.Exercises?.Select(e => new
@@ -784,7 +784,7 @@ Please provide:
                     var session = new Models.Session
                     {
                         UserId = userId,
-                        Name = sessionData.Name,
+                        Name = CleanWorkoutName(sessionData.Name),
                         Type = sessionData.Type ?? "strength",
                         Status = "planned",
                         Date = baseDate.AddDays(i * 2), // Space out sessions every 2 days
@@ -994,7 +994,7 @@ Please provide:
                             WeekNumber = weekNumber,
                             DayNumber = dayNumber,
                             DayName = GetDayName(dayNumber),
-                            WorkoutName = sessionData.Name,
+                            WorkoutName = CleanWorkoutName(sessionData.Name),
                             WorkoutType = sessionData.Type ?? "Strength",
                             ExercisesJson = exercisesJson,
                             WarmUp = null,
@@ -1263,6 +1263,37 @@ IMPORTANT RULES:
                 7 => "Sunday",
                 _ => $"Day {dayNumber}"
             };
+        }
+
+        // Helper method to clean workout name by removing day prefixes
+        // AI often generates names like "Day 1: Chest & Triceps" or "Monday: Upper Body"
+        private string CleanWorkoutName(string workoutName)
+        {
+            if (string.IsNullOrWhiteSpace(workoutName))
+            {
+                return workoutName;
+            }
+
+            var colonIndex = workoutName.IndexOf(':');
+            // Only strip if colon is within first 15 chars (likely a day prefix)
+            if (colonIndex != -1 && colonIndex < 15)
+            {
+                var prefix = workoutName.Substring(0, colonIndex).ToLowerInvariant().Trim();
+
+                // Check if prefix is a day name or day number pattern
+                var dayPatterns = new[] {
+                    "day 1", "day 2", "day 3", "day 4", "day 5", "day 6", "day 7",
+                    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+                    "day1", "day2", "day3", "day4", "day5", "day6", "day7"
+                };
+
+                if (dayPatterns.Any(pattern => prefix.StartsWith(pattern) || prefix == pattern))
+                {
+                    return workoutName.Substring(colonIndex + 1).Trim();
+                }
+            }
+
+            return workoutName;
         }
     }
 
