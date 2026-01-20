@@ -29,12 +29,15 @@ namespace GoHardAPI.Services
         public string GenerateJwtToken(User user)
         {
             var jwtSettings = _configuration.GetSection("JwtSettings");
-            var secret = jwtSettings["Secret"];
+            // SECURITY: Read JWT secret from environment variable first, fallback to config
+            var secret = Environment.GetEnvironmentVariable("JWT_SECRET")
+                ?? jwtSettings["Secret"]
+                ?? throw new InvalidOperationException("JWT_SECRET is not configured");
             var issuer = jwtSettings["Issuer"];
             var audience = jwtSettings["Audience"];
             var expirationHours = int.Parse(jwtSettings["ExpirationHours"] ?? "720");
 
-            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret!));
+            var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
             var credentials = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
 
             var claims = new[]

@@ -10,6 +10,7 @@ namespace GoHardAPI.Services.AI
     {
         private readonly IConfiguration _configuration;
         private readonly ILogger<OpenAIProvider> _logger;
+        private readonly string? _apiKey;
 
         public string ProviderName => "OpenAI";
 
@@ -17,6 +18,10 @@ namespace GoHardAPI.Services.AI
         {
             _configuration = configuration;
             _logger = logger;
+
+            // SECURITY: Read API key from environment variable first, fallback to config
+            _apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY")
+                ?? configuration["AISettings:OpenAI:ApiKey"];
         }
 
         public async Task<AIResponse> SendMessageAsync(

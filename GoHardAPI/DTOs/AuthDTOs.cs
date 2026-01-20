@@ -10,7 +10,13 @@ namespace GoHardAPI.DTOs
     public record SignupRequest(
         [Required][MaxLength(100)] string Name,
         [Required][EmailAddress] string Email,
-        [Required][MinLength(6)] string Password
+        [Required]
+        [MinLength(8, ErrorMessage = "Password must be at least 8 characters long")]
+        [MaxLength(128, ErrorMessage = "Password must not exceed 128 characters")]
+        [RegularExpression(
+            @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$",
+            ErrorMessage = "Password must contain at least one uppercase letter, one lowercase letter, and one number")]
+        string Password
     );
 
     public record AuthResponse(

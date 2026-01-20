@@ -3,12 +3,14 @@ using GoHardAPI.DTOs;
 using GoHardAPI.Models;
 using GoHardAPI.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace GoHardAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [EnableRateLimiting("auth")]  // SECURITY: Rate limit auth endpoints to prevent brute force
     public class AuthController : ControllerBase
     {
         private readonly TrainingContext _context;

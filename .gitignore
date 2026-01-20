@@ -363,4 +363,11 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Configuration files with secrets
-appsettings.Development.jsonGoHardAPI/appsettings.Development.json
+appsettings.Development.json
+GoHardAPI/appsettings.Development.json
+
+# Environment files with secrets
+.env
+.env.local
+.env.production
+*.env

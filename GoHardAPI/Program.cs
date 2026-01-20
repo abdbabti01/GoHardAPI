@@ -1,9 +1,11 @@
 using GoHardAPI.Data;
 using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,7 +60,24 @@ builder.Services.AddScoped<AIService>();
 builder.Services.AddHttpClient();
 
 // Configure JWT Authentication
+// SECURITY: JWT secret MUST be set via environment variable in production
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
+var jwtSecret = Environment.GetEnvironmentVariable("JWT_SECRET")
+    ?? jwtSettings["Secret"];
+
+if (string.IsNullOrWhiteSpace(jwtSecret))
+{
+    throw new InvalidOperationException(
+        "JWT_SECRET environment variable is required. " +
+        "Set it in your environment or Railway dashboard.");
+}
+
+if (jwtSecret.Length < 32)
+{
+    throw new InvalidOperationException(
+        "JWT_SECRET must be at least 32 characters long for security.");
+}
+
 builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -75,20 +94,76 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSettings["Issuer"],
         ValidAudience = jwtSettings["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(jwtSettings["Secret"]!))
+            Encoding.UTF8.GetBytes(jwtSecret))
     };
 });
 
-// Add CORS
+// Add CORS - SECURITY: Restrict to known origins in production
+var corsOrigins = builder.Configuration.GetSection("CorsSettings:AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:3000", "http://localhost:5121" };
+
+// Also allow origins from environment variable (comma-separated)
+var envOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS");
+if (!string.IsNullOrEmpty(envOrigins))
+{
+    corsOrigins = corsOrigins.Concat(envOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries)).ToArray();
+}
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
+    options.AddPolicy("AllowConfigured",
+        policy =>
+        {
+            policy.WithOrigins(corsOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        });
+
+    // Separate policy for mobile apps (allow any origin but no credentials)
+    options.AddPolicy("AllowMobileApps",
         policy =>
         {
             policy.AllowAnyOrigin()
                   .AllowAnyMethod()
                   .AllowAnyHeader();
         });
+});
+
+// Add Rate Limiting - SECURITY: Prevent brute force attacks on auth endpoints
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Strict rate limit for authentication endpoints (login/signup)
+    options.AddFixedWindowLimiter("auth", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 5;  // 5 attempts
+        limiterOptions.Window = TimeSpan.FromMinutes(1);  // per minute
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 2;
+    });
+
+    // General API rate limit (more permissive)
+    options.AddFixedWindowLimiter("api", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 100;  // 100 requests
+        limiterOptions.Window = TimeSpan.FromMinutes(1);  // per minute
+        limiterOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 10;
+    });
+
+    // Per-IP rate limiting for unauthenticated requests
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 200,
+                Window = TimeSpan.FromMinutes(1)
+            });
+    });
 });
 
 builder.Services.AddControllers()
@@ -271,7 +346,11 @@ if (app.Environment.IsDevelopment())
 // Disabled for development - app uses HTTP
 // app.UseHttpsRedirection();
 
-app.UseCors("AllowAll");
+// Use rate limiting before other middleware
+app.UseRateLimiter();
+
+// Use CORS - mobile apps use AllowMobileApps, web uses AllowConfigured
+app.UseCors("AllowMobileApps");
 
 // Serve static files (profile photos)
 app.UseStaticFiles();
