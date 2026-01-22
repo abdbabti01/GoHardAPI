@@ -10,6 +10,7 @@ namespace GoHardAPI.Controllers
 {
     [ApiVersion("1.0")]
     [Route("api/v{version:apiVersion}/[controller]")]
+    [Route("api/[controller]")]  // Backwards compatibility for clients not using versioned URLs
     [ApiController]
     [EnableRateLimiting("auth")]  // SECURITY: Rate limit auth endpoints to prevent brute force
     public class AuthController : ControllerBase
