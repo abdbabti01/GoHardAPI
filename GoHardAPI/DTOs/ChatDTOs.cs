@@ -17,6 +17,7 @@ namespace GoHardAPI.DTOs
     public class SendMessageRequest
     {
         [Required]
+        [MaxLength(10000)]
         public string Message { get; set; } = "";
 
         public bool Stream { get; set; } = false;

@@ -150,7 +150,7 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Get deletion impact for a program (how many sessions will be deleted)
+        /// Get deletion impact for a program (comprehensive impact summary)
         /// </summary>
         [HttpGet("{id}/deletion-impact")]
         public async Task<ActionResult<object>> GetDeletionImpact(int id)
@@ -158,20 +158,44 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var program = await _context.Programs.FindAsync(id);
-            if (program == null || program.UserId != userId)
+            var program = await _context.Programs
+                .Include(p => p.Workouts)
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+
+            if (program == null)
             {
                 return NotFound();
             }
 
             // Count sessions linked to this program
-            var sessionsCount = await _context.Sessions
+            var sessions = await _context.Sessions
                 .Where(s => s.ProgramId == id && s.UserId == userId)
-                .CountAsync();
+                .Include(s => s.Exercises)
+                .ThenInclude(e => e.ExerciseSets)
+                .ToListAsync();
+
+            var sessionsCount = sessions.Count;
+            var completedSessionsCount = sessions.Count(s => s.Status == "completed");
+            var exercisesCount = sessions.Sum(s => s.Exercises?.Count ?? 0);
+            var setsCount = sessions.Sum(s => s.Exercises?.Sum(e => e.ExerciseSets?.Count ?? 0) ?? 0);
+
+            // Count program workouts
+            var workoutsCount = program.Workouts?.Count ?? 0;
+            var completedWorkoutsCount = program.Workouts?.Count(w => w.IsCompleted) ?? 0;
 
             return Ok(new
             {
-                sessionsCount
+                programTitle = program.Title,
+                sessionsCount,
+                completedSessionsCount,
+                exercisesCount,
+                setsCount,
+                workoutsCount,
+                completedWorkoutsCount,
+                hasData = sessionsCount > 0 || workoutsCount > 0,
+                warning = sessionsCount > 0
+                    ? $"This will permanently delete {sessionsCount} session(s), including {completedSessionsCount} completed workout(s) with {exercisesCount} exercises and {setsCount} sets."
+                    : null
             });
         }
 
@@ -484,11 +508,11 @@ namespace GoHardAPI.Controllers
                     workout2 = new { Id = workout2.Id, DayNumber = day1, OrderIndex = order1 }
                 });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // Rollback on error
                 await transaction.RollbackAsync();
-                return StatusCode(500, new { message = "Failed to swap workouts", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to swap workouts. Please try again." });
             }
         }
 

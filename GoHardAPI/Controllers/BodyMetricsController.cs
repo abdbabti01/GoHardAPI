@@ -232,34 +232,23 @@ namespace GoHardAPI.Controllers
             foreach (var goal in bodyGoals)
             {
                 decimal? newValue = null;
-                string goalTypeLower = goal.GoalType.ToLower();
+                string goalTypeLower = goal.GoalType.ToLower().Trim();
 
-                // Match metric type to goal type
-                if (goalTypeLower.Contains("weight") && metric.Weight.HasValue)
+                // Match metric type to goal type using explicit matching
+                // GoalType values: Weight, BodyFat, Chest, Waist, Hip, Arm, Thigh, Calf
+                newValue = goalTypeLower switch
                 {
-                    newValue = metric.Weight.Value;
-                }
-                else if (goalTypeLower.Contains("bodyfat") || goalTypeLower.Contains("body fat"))
-                {
-                    if (metric.BodyFatPercentage.HasValue)
-                        newValue = metric.BodyFatPercentage.Value;
-                }
-                else if (goalTypeLower.Contains("chest") && metric.ChestCircumference.HasValue)
-                {
-                    newValue = metric.ChestCircumference.Value;
-                }
-                else if (goalTypeLower.Contains("waist") && metric.WaistCircumference.HasValue)
-                {
-                    newValue = metric.WaistCircumference.Value;
-                }
-                else if (goalTypeLower.Contains("hip") && metric.HipCircumference.HasValue)
-                {
-                    newValue = metric.HipCircumference.Value;
-                }
-                else if (goalTypeLower.Contains("arm") && metric.ArmCircumference.HasValue)
-                {
-                    newValue = metric.ArmCircumference.Value;
-                }
+                    "weight" when metric.Weight.HasValue => metric.Weight.Value,
+                    "bodyfat" when metric.BodyFatPercentage.HasValue => metric.BodyFatPercentage.Value,
+                    "body fat" when metric.BodyFatPercentage.HasValue => metric.BodyFatPercentage.Value,
+                    "chest" when metric.ChestCircumference.HasValue => metric.ChestCircumference.Value,
+                    "waist" when metric.WaistCircumference.HasValue => metric.WaistCircumference.Value,
+                    "hip" when metric.HipCircumference.HasValue => metric.HipCircumference.Value,
+                    "arm" when metric.ArmCircumference.HasValue => metric.ArmCircumference.Value,
+                    "thigh" when metric.ThighCircumference.HasValue => metric.ThighCircumference.Value,
+                    "calf" when metric.CalfCircumference.HasValue => metric.CalfCircumference.Value,
+                    _ => null
+                };
 
                 if (newValue.HasValue)
                 {
@@ -277,23 +266,18 @@ namespace GoHardAPI.Controllers
                     // Update goal's current value
                     goal.CurrentValue = newValue.Value;
 
-                    // Check if goal is achieved
-                    bool goalAchieved = false;
+                    // Check if goal is achieved using the model's IsDecreaseGoal property
+                    bool goalAchieved;
 
-                    if (goalTypeLower.Contains("lose") || goalTypeLower.Contains("decrease"))
+                    if (goal.IsDecreaseGoal)
                     {
                         // For decrease goals (e.g., lose weight), check if current <= target
                         goalAchieved = goal.CurrentValue <= goal.TargetValue;
                     }
-                    else if (goalTypeLower.Contains("gain") || goalTypeLower.Contains("increase"))
+                    else
                     {
                         // For increase goals (e.g., gain muscle), check if current >= target
                         goalAchieved = goal.CurrentValue >= goal.TargetValue;
-                    }
-                    else
-                    {
-                        // For absolute goals (e.g., "reach 75kg"), check if close enough (within 0.5)
-                        goalAchieved = Math.Abs(goal.CurrentValue - goal.TargetValue) <= 0.5m;
                     }
 
                     if (goalAchieved)

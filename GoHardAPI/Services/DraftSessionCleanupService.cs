@@ -4,15 +4,15 @@ using Microsoft.EntityFrameworkCore;
 namespace GoHardAPI.Services
 {
     /// <summary>
-    /// Background service to clean up old draft sessions (older than 7 days)
-    /// Runs daily at 2 AM to remove abandoned drafts
+    /// Background service to clean up old draft sessions (older than 3 days)
+    /// Runs every 6 hours to remove abandoned drafts
     /// </summary>
     public class DraftSessionCleanupService : BackgroundService
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<DraftSessionCleanupService> _logger;
-        private readonly TimeSpan _runInterval = TimeSpan.FromHours(24); // Run daily
-        private readonly TimeSpan _draftRetentionPeriod = TimeSpan.FromDays(7); // Keep drafts for 7 days
+        private readonly TimeSpan _runInterval = TimeSpan.FromHours(6); // Run every 6 hours
+        private readonly TimeSpan _draftRetentionPeriod = TimeSpan.FromDays(3); // Keep drafts for 3 days
 
         public DraftSessionCleanupService(
             IServiceProvider serviceProvider,

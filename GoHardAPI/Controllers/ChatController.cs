@@ -219,7 +219,7 @@ namespace GoHardAPI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending message to AI");
-                return StatusCode(500, new { message = "Failed to get AI response", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to get AI response. Please try again." });
             }
         }
 
@@ -291,7 +291,7 @@ namespace GoHardAPI.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error streaming message");
-                await Response.WriteAsync($"data: {{\"error\": \"{ex.Message}\"}}\n\n");
+                await Response.WriteAsync($"data: {{\"error\": \"An error occurred while processing your message. Please try again.\"}}\n\n");
             }
         }
 
@@ -403,7 +403,7 @@ Please create a detailed workout plan that includes:
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error generating workout plan");
-                return StatusCode(500, new { message = "Failed to generate workout plan", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to generate workout plan. Please try again." });
             }
         }
 
@@ -515,7 +515,7 @@ Please create a detailed meal plan that includes:
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error generating meal plan");
-                return StatusCode(500, new { message = "Failed to generate meal plan", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to generate meal plan. Please try again." });
             }
         }
 
@@ -670,7 +670,7 @@ Please provide:
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error analyzing progress");
-                return StatusCode(500, new { message = "Failed to analyze progress", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to analyze progress. Please try again." });
             }
         }
 
@@ -729,7 +729,7 @@ Please provide:
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error previewing sessions from workout plan");
-                return StatusCode(500, new { message = "Failed to preview sessions", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to preview sessions. Please try again." });
             }
         }
 
@@ -868,7 +868,7 @@ Please provide:
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating sessions from workout plan");
-                return StatusCode(500, new { message = "Failed to create sessions", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to create sessions. Please try again." });
             }
         }
 
@@ -1064,7 +1064,7 @@ Please provide:
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error creating program from workout plan");
-                return StatusCode(500, new { message = "Failed to create program", error = ex.Message });
+                return StatusCode(500, new { message = "Failed to create program. Please try again." });
             }
         }
 
@@ -1193,7 +1193,7 @@ IMPORTANT RULES:
             }
         }
 
-        // Helper method to find best matching exercise template
+        // Helper method to find best matching exercise template using fuzzy matching
         private ExerciseTemplate? FindBestMatchingTemplate(string exerciseName, List<ExerciseTemplate> templates)
         {
             if (string.IsNullOrWhiteSpace(exerciseName))
@@ -1201,7 +1201,7 @@ IMPORTANT RULES:
                 return null;
             }
 
-            var normalizedName = exerciseName.ToLowerInvariant().Trim();
+            var normalizedName = NormalizeExerciseName(exerciseName);
 
             // Try exact match first
             var exactMatch = templates.FirstOrDefault(t =>
@@ -1212,10 +1212,19 @@ IMPORTANT RULES:
                 return exactMatch;
             }
 
+            // Try normalized exact match
+            var normalizedExactMatch = templates.FirstOrDefault(t =>
+                NormalizeExerciseName(t.Name).Equals(normalizedName, StringComparison.OrdinalIgnoreCase));
+
+            if (normalizedExactMatch != null)
+            {
+                return normalizedExactMatch;
+            }
+
             // Try partial match (template name contains exercise name or vice versa)
             var partialMatch = templates.FirstOrDefault(t =>
-                t.Name.ToLowerInvariant().Contains(normalizedName) ||
-                normalizedName.Contains(t.Name.ToLowerInvariant()));
+                NormalizeExerciseName(t.Name).Contains(normalizedName) ||
+                normalizedName.Contains(NormalizeExerciseName(t.Name)));
 
             if (partialMatch != null)
             {
@@ -1225,13 +1234,52 @@ IMPORTANT RULES:
             // Try matching common variations
             var variations = new Dictionary<string, string[]>
             {
-                { "Bench Press", new[] { "bench", "barbell bench", "flat bench" } },
-                { "Squat", new[] { "squat", "back squat", "barbell squat" } },
-                { "Deadlift", new[] { "deadlift", "conventional deadlift" } },
-                { "Pull-ups", new[] { "pullup", "pull up", "pullups" } },
-                { "Push-ups", new[] { "pushup", "push up", "pushups" } },
-                { "Overhead Press", new[] { "ohp", "shoulder press", "military press" } },
-                { "Bent-Over Row", new[] { "barbell row", "bent over row", "bb row" } }
+                // Chest
+                { "Bench Press", new[] { "bench", "barbell bench", "flat bench", "flat press", "chest press" } },
+                { "Incline Dumbbell Press", new[] { "incline bench", "incline press", "incline db press" } },
+                { "Push-ups", new[] { "pushup", "push up", "pushups", "press up", "press ups" } },
+                { "Dumbbell Flyes", new[] { "fly", "flies", "chest fly", "pec fly", "db fly" } },
+                { "Cable Crossovers", new[] { "cable fly", "cable crossover", "cable chest" } },
+                // Back
+                { "Deadlift", new[] { "deadlift", "conventional deadlift", "dl" } },
+                { "Romanian Deadlift", new[] { "rdl", "stiff leg deadlift", "romanian dl" } },
+                { "Pull-ups", new[] { "pullup", "pull up", "pullups", "chin up", "chinup" } },
+                { "Bent-Over Row", new[] { "barbell row", "bent over row", "bb row", "bent row" } },
+                { "Lat Pulldown", new[] { "lat pull", "pulldown", "pull down" } },
+                { "Seated Cable Row", new[] { "cable row", "seated row", "low row" } },
+                { "T-Bar Row", new[] { "t bar", "tbar", "landmine row" } },
+                // Legs
+                { "Squat", new[] { "squat", "back squat", "barbell squat", "bb squat" } },
+                { "Leg Press", new[] { "leg press", "legpress" } },
+                { "Lunges", new[] { "lunge", "walking lunge", "forward lunge" } },
+                { "Bulgarian Split Squat", new[] { "split squat", "rear foot elevated" } },
+                { "Leg Curl", new[] { "hamstring curl", "lying leg curl" } },
+                { "Leg Extension", new[] { "quad extension", "knee extension" } },
+                { "Calf Raises", new[] { "calf raise", "standing calf", "seated calf" } },
+                { "Goblet Squat", new[] { "goblet", "db squat" } },
+                // Shoulders
+                { "Overhead Press", new[] { "ohp", "shoulder press", "military press", "strict press" } },
+                { "Lateral Raises", new[] { "lateral raise", "side raise", "side lateral" } },
+                { "Arnold Press", new[] { "arnold" } },
+                { "Front Raises", new[] { "front raise", "front delt raise" } },
+                { "Rear Delt Flyes", new[] { "rear delt", "reverse fly", "rear fly" } },
+                { "Face Pulls", new[] { "face pull", "facepull" } },
+                // Arms
+                { "Bicep Curls", new[] { "bicep curl", "curl", "barbell curl", "db curl" } },
+                { "Hammer Curls", new[] { "hammer curl", "neutral grip curl" } },
+                { "Preacher Curls", new[] { "preacher curl", "preacher" } },
+                { "Tricep Dips", new[] { "dip", "dips", "parallel bar dip" } },
+                { "Tricep Pushdown", new[] { "pushdown", "cable pushdown", "tricep extension" } },
+                { "Skull Crushers", new[] { "skull crusher", "lying tricep extension", "ez bar extension" } },
+                // Core
+                { "Plank", new[] { "plank", "front plank" } },
+                { "Crunches", new[] { "crunch", "ab crunch" } },
+                { "Russian Twists", new[] { "russian twist", "twist" } },
+                { "Hanging Leg Raises", new[] { "leg raise", "hanging raise" } },
+                // Cardio
+                { "Running", new[] { "run", "jog", "jogging", "treadmill" } },
+                { "Burpees", new[] { "burpee" } },
+                { "Rowing Machine", new[] { "row", "erg", "rowing" } }
             };
 
             foreach (var (templateName, aliases) in variations)
@@ -1246,7 +1294,70 @@ IMPORTANT RULES:
                 }
             }
 
+            // Try word-based matching (if exercise name contains key words from template)
+            var bestWordMatch = FindBestWordMatch(normalizedName, templates);
+            if (bestWordMatch != null)
+            {
+                return bestWordMatch;
+            }
+
             return null;
+        }
+
+        // Normalize exercise name by removing common equipment prefixes
+        private string NormalizeExerciseName(string name)
+        {
+            var normalized = name.ToLowerInvariant().Trim();
+
+            // Remove common equipment/modifier prefixes
+            var prefixesToRemove = new[] {
+                "barbell ", "dumbbell ", "db ", "bb ", "cable ", "machine ",
+                "seated ", "standing ", "lying ", "incline ", "decline ", "flat ",
+                "weighted ", "assisted ", "single arm ", "single leg "
+            };
+
+            foreach (var prefix in prefixesToRemove)
+            {
+                if (normalized.StartsWith(prefix))
+                {
+                    normalized = normalized.Substring(prefix.Length);
+                }
+            }
+
+            return normalized;
+        }
+
+        // Find best match based on common words
+        private ExerciseTemplate? FindBestWordMatch(string normalizedName, List<ExerciseTemplate> templates)
+        {
+            var inputWords = normalizedName.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                .Where(w => w.Length > 2)
+                .ToHashSet();
+
+            if (inputWords.Count == 0) return null;
+
+            ExerciseTemplate? bestMatch = null;
+            int bestScore = 0;
+
+            foreach (var template in templates)
+            {
+                var templateWords = NormalizeExerciseName(template.Name)
+                    .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                    .Where(w => w.Length > 2)
+                    .ToHashSet();
+
+                // Count matching words
+                var matchingWords = inputWords.Intersect(templateWords).Count();
+
+                if (matchingWords > bestScore && matchingWords >= 1)
+                {
+                    bestScore = matchingWords;
+                    bestMatch = template;
+                }
+            }
+
+            // Only return if we have a good match (at least 1 significant word)
+            return bestScore >= 1 ? bestMatch : null;
         }
 
         // Helper method to convert day number to day name
