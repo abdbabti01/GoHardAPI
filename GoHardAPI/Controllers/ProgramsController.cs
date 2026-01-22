@@ -173,7 +173,9 @@ namespace GoHardAPI.Controllers
             var sessions = await _context.Sessions
                 .Where(s => s.ProgramId == id && s.UserId == userId)
                 .Include(s => s.Exercises)
-                .ThenInclude(e => e.ExerciseSets)
+                    .ThenInclude(e => e.ExerciseSets)
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseTemplate)
                 .ToListAsync();
 
             var sessionsCount = sessions.Count;

@@ -350,7 +350,9 @@ namespace GoHardAPI.Controllers
                            s.Status == SessionStatus.Completed &&
                            s.Date >= startDate)
                 .Include(s => s.Exercises)
-                .ThenInclude(e => e.ExerciseSets)
+                    .ThenInclude(e => e.ExerciseSets)
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseTemplate)
                 .OrderBy(s => s.Date)
                 .ToListAsync();
 

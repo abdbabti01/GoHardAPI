@@ -32,6 +32,8 @@ namespace GoHardAPI.Repositories
                 .Where(s => s.UserId == userId)
                 .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseSets)
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseTemplate)
                 .ToListAsync();
         }
 
@@ -40,7 +42,21 @@ namespace GoHardAPI.Repositories
             return await _dbSet
                 .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseSets)
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseTemplate)
                 .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId);
+        }
+
+        public async Task<IEnumerable<Session>> GetCompletedSessionsAsync(int userId)
+        {
+            return await _dbSet
+                .Where(s => s.UserId == userId && s.Status == SessionStatus.Completed)
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseSets)
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseTemplate)
+                .OrderByDescending(s => s.Date)
+                .ToListAsync();
         }
     }
 }

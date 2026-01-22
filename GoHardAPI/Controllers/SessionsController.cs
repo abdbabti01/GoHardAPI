@@ -39,8 +39,10 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             return await _context.Sessions
                 .Where(s => s.UserId == userId)
-                .Include(ts => ts.Exercises)
+                .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseSets)
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseTemplate)
                 .ToListAsync();
         }
 
@@ -49,9 +51,11 @@ namespace GoHardAPI.Controllers
         {
             var userId = GetCurrentUserId();
             var Session = await _context.Sessions
-                .Include(ts => ts.Exercises)
+                .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseSets)
-                .FirstOrDefaultAsync(ts => ts.Id == id && ts.UserId == userId);
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseTemplate)
+                .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
 
             if (Session == null)
             {
@@ -184,6 +188,8 @@ namespace GoHardAPI.Controllers
             var createdSession = await _context.Sessions
                 .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseSets)
+                .Include(s => s.Exercises)
+                    .ThenInclude(e => e.ExerciseTemplate)
                 .FirstOrDefaultAsync(s => s.Id == session.Id);
 
             return CreatedAtAction(nameof(GetSession), new { id = session.Id }, createdSession);
