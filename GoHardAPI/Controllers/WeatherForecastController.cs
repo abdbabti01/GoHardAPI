@@ -5,7 +5,6 @@ namespace GoHardAPI.Controllers
 {
     [ApiVersion("1.0")]
     [Route("api/v{version:apiVersion}/[controller]")]
-    [Route("api/[controller]")]
     [ApiController]
     public class WeatherForecastController : ControllerBase
     {
