@@ -209,6 +209,10 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
+// Add Health Checks
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<TrainingContext>("database");
+
 var app = builder.Build();
 
 // Apply migrations and seed the database
@@ -370,11 +374,9 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Enable Swagger in all environments for API documentation
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Disabled for development - app uses HTTP
 // app.UseHttpsRedirection();
@@ -392,5 +394,8 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Map health check endpoint for monitoring/load balancers
+app.MapHealthChecks("/health");
 
 app.Run();

@@ -48,8 +48,7 @@ namespace GoHardAPI.Tests.Controllers
                 Id = userId,
                 Name = "Test User",
                 Email = $"test{userId}@example.com",
-                PasswordHash = "hash",
-                PasswordSalt = ""
+                PasswordHash = "hash"
             };
             context.Users.Add(user);
             await context.SaveChangesAsync();

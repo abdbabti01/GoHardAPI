@@ -19,10 +19,6 @@ namespace GoHardAPI.Models
         [MaxLength(255)]
         public string PasswordHash { get; set; } = string.Empty;
 
-        [Required]
-        [MaxLength(255)]
-        public string PasswordSalt { get; set; } = string.Empty;
-
         public DateTime DateCreated { get; set; } = DateTime.UtcNow;
 
         public DateTime? LastLoginDate { get; set; }

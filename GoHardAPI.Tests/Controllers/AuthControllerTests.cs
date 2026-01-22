@@ -76,9 +76,7 @@ namespace GoHardAPI.Tests.Controllers
             {
                 Name = "Existing User",
                 Email = "existing@example.com",
-                PasswordHash = _authService.HashPassword("Password123!"),
-                PasswordSalt = string.Empty
-            });
+                PasswordHash = _authService.HashPassword("Password123!")            });
             await context.SaveChangesAsync();
 
             var userRepository = GetUserRepository(context);
@@ -122,8 +120,7 @@ namespace GoHardAPI.Tests.Controllers
                 Name = "Test User",
                 Email = "test@example.com",
                 PasswordHash = passwordHash,
-                PasswordSalt = string.Empty,
-                IsActive = true
+                                IsActive = true
             });
             await context.SaveChangesAsync();
 
@@ -169,8 +166,7 @@ namespace GoHardAPI.Tests.Controllers
                 Name = "Test User",
                 Email = "test@example.com",
                 PasswordHash = passwordHash,
-                PasswordSalt = string.Empty,
-                IsActive = true
+                                IsActive = true
             });
             await context.SaveChangesAsync();
 
@@ -196,8 +192,7 @@ namespace GoHardAPI.Tests.Controllers
                 Name = "Inactive User",
                 Email = "inactive@example.com",
                 PasswordHash = passwordHash,
-                PasswordSalt = string.Empty,
-                IsActive = false
+                                IsActive = false
             });
             await context.SaveChangesAsync();
 
@@ -223,8 +218,7 @@ namespace GoHardAPI.Tests.Controllers
                 Name = "Test User",
                 Email = "test@example.com",
                 PasswordHash = passwordHash,
-                PasswordSalt = string.Empty,
-                IsActive = true,
+                                IsActive = true,
                 LastLoginDate = null
             };
             context.Users.Add(user);

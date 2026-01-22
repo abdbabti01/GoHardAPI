@@ -1,4 +1,5 @@
 using GoHardAPI.Data;
+using GoHardAPI.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace GoHardAPI.Services
@@ -55,7 +56,7 @@ namespace GoHardAPI.Services
             var cutoffDate = DateTime.UtcNow - _draftRetentionPeriod;
 
             var oldDrafts = await context.Sessions
-                .Where(s => s.Status == "draft" && s.Date < cutoffDate)
+                .Where(s => s.Status == SessionStatus.Draft && s.Date < cutoffDate)
                 .ToListAsync(cancellationToken);
 
             if (oldDrafts.Any())

@@ -41,7 +41,6 @@ namespace GoHardAPI.Controllers
                 Name = request.Name,
                 Email = request.Email,
                 PasswordHash = passwordHash,
-                PasswordSalt = string.Empty, // BCrypt includes salt in the hash
                 DateCreated = DateTime.UtcNow,
                 IsActive = true
             };

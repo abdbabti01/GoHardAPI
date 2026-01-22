@@ -39,7 +39,7 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
 
             var completedSessions = await _context.Sessions
-                .Where(s => s.UserId == userId && s.Status == "completed")
+                .Where(s => s.UserId == userId && s.Status == SessionStatus.Completed)
                 .OrderBy(s => s.Date)
                 .ToListAsync();
 
@@ -123,7 +123,7 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
 
             var exercises = await _context.Exercises
-                .Where(e => e.Session.UserId == userId && e.Session.Status == "completed")
+                .Where(e => e.Session.UserId == userId && e.Session.Status == SessionStatus.Completed)
                 .Include(e => e.ExerciseSets)
                 .Include(e => e.ExerciseTemplate)
                 .Include(e => e.Session)
@@ -200,7 +200,7 @@ namespace GoHardAPI.Controllers
 
             var exercises = await _context.Exercises
                 .Where(e => e.Session.UserId == userId &&
-                           e.Session.Status == "completed" &&
+                           e.Session.Status == SessionStatus.Completed &&
                            e.ExerciseTemplateId == exerciseTemplateId &&
                            e.Session.Date >= startDate)
                 .Include(e => e.ExerciseSets)
@@ -237,7 +237,7 @@ namespace GoHardAPI.Controllers
 
             var exercises = await _context.Exercises
                 .Where(e => e.Session.UserId == userId &&
-                           e.Session.Status == "completed" &&
+                           e.Session.Status == SessionStatus.Completed &&
                            e.Session.Date >= startDate)
                 .Include(e => e.ExerciseSets)
                 .Include(e => e.ExerciseTemplate)
@@ -280,7 +280,7 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
 
             var exercises = await _context.Exercises
-                .Where(e => e.Session.UserId == userId && e.Session.Status == "completed")
+                .Where(e => e.Session.UserId == userId && e.Session.Status == SessionStatus.Completed)
                 .Include(e => e.ExerciseSets)
                 .Include(e => e.ExerciseTemplate)
                 .Include(e => e.Session)
@@ -347,7 +347,7 @@ namespace GoHardAPI.Controllers
 
             var sessions = await _context.Sessions
                 .Where(s => s.UserId == userId &&
-                           s.Status == "completed" &&
+                           s.Status == SessionStatus.Completed &&
                            s.Date >= startDate)
                 .Include(s => s.Exercises)
                 .ThenInclude(e => e.ExerciseSets)

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
+using GoHardAPI.Models;
 using GoHardAPI.Services;
 using System.Security.Claims;
 
@@ -66,7 +67,7 @@ namespace GoHardAPI.Controllers
         private async Task<ProfileStats> GetProfileStats(int userId)
         {
             var completedSessions = await _context.Sessions
-                .Where(s => s.UserId == userId && s.Status == "completed")
+                .Where(s => s.UserId == userId && s.Status == SessionStatus.Completed)
                 .OrderBy(s => s.Date)
                 .ToListAsync();
 
@@ -103,7 +104,7 @@ namespace GoHardAPI.Controllers
 
             // Count personal records (distinct exercises with PRs)
             var prCount = await _context.Exercises
-                .Where(e => e.Session.UserId == userId && e.Session.Status == "completed")
+                .Where(e => e.Session.UserId == userId && e.Session.Status == SessionStatus.Completed)
                 .Where(e => e.ExerciseTemplateId.HasValue)
                 .Select(e => e.ExerciseTemplateId)
                 .Distinct()

@@ -177,7 +177,7 @@ namespace GoHardAPI.Controllers
                 .ToListAsync();
 
             var sessionsCount = sessions.Count;
-            var completedSessionsCount = sessions.Count(s => s.Status == "completed");
+            var completedSessionsCount = sessions.Count(s => s.Status == SessionStatus.Completed);
             var exercisesCount = sessions.Sum(s => s.Exercises?.Count ?? 0);
             var setsCount = sessions.Sum(s => s.Exercises?.Sum(e => e.ExerciseSets?.Count ?? 0) ?? 0);
 

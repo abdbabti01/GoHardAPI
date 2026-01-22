@@ -110,7 +110,7 @@ namespace GoHardAPI.Controllers
             // Determine status based on scheduled date
             // - If scheduled for future: status = 'planned'
             // - If scheduled for today or past: status = 'draft' (user can start immediately)
-            var status = scheduledDate > today ? "planned" : "draft";
+            var status = scheduledDate > today ? SessionStatus.Planned : SessionStatus.Draft;
 
             // Create session linked to program workout
             var session = new Session
@@ -282,7 +282,7 @@ namespace GoHardAPI.Controllers
 
             // Atomic update: date and status together
             session.Date = request.Date ?? DateTime.UtcNow.Date;
-            session.Status = "in_progress";
+            session.Status = SessionStatus.InProgress;
             session.StartedAt = request.StartedAt ?? DateTime.UtcNow;
             session.PausedAt = null; // Clear any pause state
 
@@ -309,21 +309,20 @@ namespace GoHardAPI.Controllers
             }
 
             // Validate status
-            var validStatuses = new[] { "draft", "in_progress", "completed" };
-            if (!validStatuses.Contains(request.Status.ToLower()))
+            if (!SessionStatus.IsValid(request.Status))
             {
-                return BadRequest(new { message = "Invalid status. Must be: draft, in_progress, or completed" });
+                return BadRequest(new { message = $"Invalid status. Must be one of: {string.Join(", ", SessionStatus.ValidStatuses)}" });
             }
 
             session.Status = request.Status.ToLower();
 
             // Update timestamps - use client's timestamps if provided (preserves timer state)
             // Otherwise generate server-side timestamps
-            if (request.Status.ToLower() == "in_progress" && session.StartedAt == null)
+            if (request.Status.Equals(SessionStatus.InProgress, StringComparison.OrdinalIgnoreCase) && session.StartedAt == null)
             {
                 session.StartedAt = request.StartedAt ?? DateTime.UtcNow;
             }
-            else if (request.Status.ToLower() == "completed" && session.CompletedAt == null)
+            else if (request.Status.Equals(SessionStatus.Completed, StringComparison.OrdinalIgnoreCase) && session.CompletedAt == null)
             {
                 session.CompletedAt = request.CompletedAt ?? DateTime.UtcNow;
 
