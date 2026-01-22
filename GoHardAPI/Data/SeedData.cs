@@ -672,6 +672,622 @@ namespace GoHardAPI.Data
                     Difficulty = "Advanced",
                     VideoUrl = "https://www.youtube.com/watch?v=eHnuHIOu8zU",
                     Instructions = "Pull bar to shoulders, then jerk overhead in one fluid motion"
+                },
+
+                // Additional Chest Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Dumbbell Bench Press",
+                    Description = "Dumbbell variation of bench press for better range of motion",
+                    Category = "Strength",
+                    MuscleGroup = "Chest",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=VmB1G1K7v94",
+                    Instructions = "Lie on bench, press dumbbells up from chest level, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Chest Dips",
+                    Description = "Bodyweight chest builder with forward lean",
+                    Category = "Strength",
+                    MuscleGroup = "Chest",
+                    Equipment = "Parallel Bars",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=dX_nSOOJIsE",
+                    Instructions = "Lean forward on parallel bars, lower body, push back up focusing on chest"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Landmine Press",
+                    Description = "Angled pressing movement for upper chest",
+                    Category = "Strength",
+                    MuscleGroup = "Chest",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=Oy5LxkPJVdc",
+                    Instructions = "Press barbell from chest at an angle using landmine attachment"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Pec Deck",
+                    Description = "Machine isolation for chest",
+                    Category = "Strength",
+                    MuscleGroup = "Chest",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=Z57CtFmRMxA",
+                    Instructions = "Sit in machine, bring pads together in front of chest, squeeze pecs"
+                },
+
+                // Additional Back Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Single Arm Dumbbell Row",
+                    Description = "Unilateral back exercise for muscle balance",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=pYcpY20QaE8",
+                    Instructions = "One hand on bench, row dumbbell to hip, squeeze back"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Chin-ups",
+                    Description = "Underhand grip pull-up for back and biceps",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Pull-up Bar",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=brhRXlOhsAM",
+                    Instructions = "Hang with underhand grip, pull chin over bar, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Straight Arm Pulldown",
+                    Description = "Lat isolation exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=lueEJGjTuPQ",
+                    Instructions = "Keep arms straight, pull bar down to thighs, squeeze lats"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Meadows Row",
+                    Description = "Landmine row variation for back thickness",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=_EHH9G0mWQs",
+                    Instructions = "Staggered stance, row landmine to hip with one arm"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Inverted Row",
+                    Description = "Bodyweight horizontal pulling movement",
+                    Category = "Strength",
+                    MuscleGroup = "Back",
+                    Equipment = "Barbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=dYF-c8Gf5eg",
+                    Instructions = "Hang under bar, pull chest to bar, lower with control"
+                },
+
+                // Traps Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Barbell Shrugs",
+                    Description = "Primary trap builder",
+                    Category = "Strength",
+                    MuscleGroup = "Traps",
+                    Equipment = "Barbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=NAqCVe2mwzM",
+                    Instructions = "Hold barbell at thighs, shrug shoulders up toward ears, hold and lower"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Dumbbell Shrugs",
+                    Description = "Dumbbell variation for trap development",
+                    Category = "Strength",
+                    MuscleGroup = "Traps",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=cJRVVxmytaM",
+                    Instructions = "Hold dumbbells at sides, shrug shoulders up, squeeze at top"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Farmer's Walk",
+                    Description = "Loaded carry for traps, grip, and core",
+                    Category = "Strength",
+                    MuscleGroup = "Traps",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=Fkzk_RqlYig",
+                    Instructions = "Hold heavy weights at sides, walk with upright posture"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Rack Pulls",
+                    Description = "Partial deadlift for upper back and traps",
+                    Category = "Strength",
+                    MuscleGroup = "Traps",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=bTp2Ny7Y6g8",
+                    Instructions = "Pull barbell from rack at knee height, lockout and squeeze traps"
+                },
+
+                // Forearms Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Wrist Curls",
+                    Description = "Forearm flexor builder",
+                    Category = "Strength",
+                    MuscleGroup = "Forearms",
+                    Equipment = "Barbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=naDgR4sLTbg",
+                    Instructions = "Rest forearms on bench, curl wrists up, lower slowly"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Reverse Wrist Curls",
+                    Description = "Forearm extensor builder",
+                    Category = "Strength",
+                    MuscleGroup = "Forearms",
+                    Equipment = "Barbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=FW8qcRS9weA",
+                    Instructions = "Rest forearms on bench palms down, extend wrists up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Dead Hang",
+                    Description = "Grip strength and shoulder mobility",
+                    Category = "Strength",
+                    MuscleGroup = "Forearms",
+                    Equipment = "Pull-up Bar",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=mFVDlBcSITI",
+                    Instructions = "Hang from bar with straight arms, hold as long as possible"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Plate Pinch",
+                    Description = "Grip strength exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Forearms",
+                    Equipment = "Plate",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=FWxG6LxPxjU",
+                    Instructions = "Pinch two plates together with fingers, hold for time"
+                },
+
+                // Glutes Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Hip Thrust",
+                    Description = "Primary glute builder",
+                    Category = "Strength",
+                    MuscleGroup = "Glutes",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=SEdqd1n0cvg",
+                    Instructions = "Back against bench, thrust hips up with barbell on lap, squeeze glutes"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Glute Bridge",
+                    Description = "Bodyweight glute activation",
+                    Category = "Strength",
+                    MuscleGroup = "Glutes",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=OUgsJ8-Vi0E",
+                    Instructions = "Lie on back, feet flat, lift hips by squeezing glutes"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Cable Pull Through",
+                    Description = "Hip hinge for glutes and hamstrings",
+                    Category = "Strength",
+                    MuscleGroup = "Glutes",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=-aBvQxCs8BY",
+                    Instructions = "Face away from cable, hinge at hips, drive forward squeezing glutes"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Kickbacks",
+                    Description = "Glute isolation exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Glutes",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=xVbDkloLFlA",
+                    Instructions = "Kick leg back against cable resistance, squeeze glute at top"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Sumo Deadlift",
+                    Description = "Wide stance deadlift for glutes and inner thighs",
+                    Category = "Strength",
+                    MuscleGroup = "Glutes",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=dVPi4-xOrSs",
+                    Instructions = "Wide stance, grip inside legs, lift by driving hips forward"
+                },
+
+                // Lower Back Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Back Extensions",
+                    Description = "Lower back strengthening",
+                    Category = "Strength",
+                    MuscleGroup = "Lower Back",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=ph3pddpKzzw",
+                    Instructions = "Lock legs in machine, hinge at hips, extend back up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Good Mornings",
+                    Description = "Hip hinge for posterior chain",
+                    Category = "Strength",
+                    MuscleGroup = "Lower Back",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=YA-h3n9L4YU",
+                    Instructions = "Bar on back, hinge at hips keeping back straight, return upright"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Superman",
+                    Description = "Bodyweight lower back exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Lower Back",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=z6PJMT2y8GQ",
+                    Instructions = "Lie face down, lift arms and legs off ground, hold and lower"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Bird Dog",
+                    Description = "Core stability and lower back exercise",
+                    Category = "Core",
+                    MuscleGroup = "Lower Back",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=wiFNA3sqjCA",
+                    Instructions = "On hands and knees, extend opposite arm and leg, alternate"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Reverse Hypers",
+                    Description = "Lower back and glute exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Lower Back",
+                    Equipment = "Machine",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=3d9_W--eUcI",
+                    Instructions = "Lie face down on machine, lift legs up using lower back and glutes"
+                },
+
+                // Additional Shoulder Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Dumbbell Shoulder Press",
+                    Description = "Seated or standing shoulder press with dumbbells",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=qEwKCR5JCog",
+                    Instructions = "Press dumbbells overhead from shoulder height, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Cable Lateral Raises",
+                    Description = "Constant tension lateral raise",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=_bTHfk1qNjY",
+                    Instructions = "Raise arm out to side against cable resistance"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Push Press",
+                    Description = "Explosive overhead press with leg drive",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=iaBVSJm78ko",
+                    Instructions = "Dip knees slightly, drive bar overhead using leg momentum"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Lu Raises",
+                    Description = "Front raise to lateral raise combination",
+                    Category = "Strength",
+                    MuscleGroup = "Shoulders",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=XnpEW0uNwi4",
+                    Instructions = "Raise dumbbells to front, then out to sides, lower slowly"
+                },
+
+                // Additional Arms Exercises
+                new ExerciseTemplate
+                {
+                    Name = "EZ Bar Curl",
+                    Description = "Comfortable grip bicep curl",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "EZ Bar",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=zG2xJ0Q5QtI",
+                    Instructions = "Curl EZ bar up, keep elbows stationary, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Cable Curls",
+                    Description = "Constant tension bicep exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=NFzTWp2qpiE",
+                    Instructions = "Curl cable bar toward shoulders, squeeze biceps"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Overhead Tricep Extension",
+                    Description = "Tricep long head emphasis",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=YbX7Wd8jQ-Q",
+                    Instructions = "Hold dumbbell overhead, lower behind head, extend back up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Diamond Push-ups",
+                    Description = "Tricep-focused push-up variation",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=J0DnG1_S92I",
+                    Instructions = "Hands close together forming diamond shape, perform push-ups"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Incline Dumbbell Curls",
+                    Description = "Stretched position bicep curls",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=soxrZlIl35U",
+                    Instructions = "Lie on incline bench, curl dumbbells with arms hanging"
+                },
+
+                // Additional Leg Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Hack Squat",
+                    Description = "Machine squat variation",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Machine",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=0tn5K9NlCfo",
+                    Instructions = "Position in hack squat machine, squat down and press up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Front Squat",
+                    Description = "Quad-dominant squat variation",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Barbell",
+                    Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=VfBOBhwXbro",
+                    Instructions = "Bar racked on front delts, squat keeping torso upright"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Step-ups",
+                    Description = "Unilateral leg exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=WCFCdxzFBa4",
+                    Instructions = "Step up onto box driving through front leg, step down"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Sissy Squat",
+                    Description = "Quad isolation exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=LXtOlgfpEws",
+                    Instructions = "Lean back, bend knees while keeping hips extended, return upright"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Nordic Curls",
+                    Description = "Eccentric hamstring exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=FLAdN8Gkw9o",
+                    Instructions = "Kneel, lower body forward under control using hamstrings"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Seated Calf Raises",
+                    Description = "Soleus-focused calf exercise",
+                    Category = "Strength",
+                    MuscleGroup = "Legs",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=Yh5TXz22VDM",
+                    Instructions = "Sit in machine, raise heels by contracting calves"
+                },
+
+                // Additional Core Exercises
+                new ExerciseTemplate
+                {
+                    Name = "Dead Bug",
+                    Description = "Core stability exercise",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=g_BYB0R-4Ws",
+                    Instructions = "Lie on back, extend opposite arm and leg while keeping core braced"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Pallof Press",
+                    Description = "Anti-rotation core exercise",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Cable",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=AH_QZLm_0-s",
+                    Instructions = "Press cable away from body, resist rotation, hold and return"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Bicycle Crunches",
+                    Description = "Rotational ab exercise",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=9FGilxCbdz8",
+                    Instructions = "Alternate bringing elbow to opposite knee in cycling motion"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Reverse Crunches",
+                    Description = "Lower ab focused exercise",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Bodyweight",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=hyv14e2QDq0",
+                    Instructions = "Lie on back, bring knees to chest by curling hips up"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Dragon Flag",
+                    Description = "Advanced core strength exercise",
+                    Category = "Core",
+                    MuscleGroup = "Abs",
+                    Equipment = "Bench",
+                    Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=pvz7k5gO-DE",
+                    Instructions = "Hold bench behind head, lower body keeping straight, raise back up"
+                },
+
+                // Additional Cardio/Conditioning
+                new ExerciseTemplate
+                {
+                    Name = "Sled Push",
+                    Description = "Conditioning and leg drive exercise",
+                    Category = "Cardio",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Sled",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=Zc7l5-NSs2Y",
+                    Instructions = "Push weighted sled across floor using legs"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Kettlebell Swings",
+                    Description = "Hip hinge cardio and power",
+                    Category = "Cardio",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Kettlebell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=YSxHifyI6s8",
+                    Instructions = "Hinge at hips, swing kettlebell using hip drive"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Wall Balls",
+                    Description = "Full body conditioning with medicine ball",
+                    Category = "Cardio",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Medicine Ball",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=fpUD0mcFp_0",
+                    Instructions = "Squat with ball, throw against wall, catch and repeat"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Assault Bike",
+                    Description = "High-intensity full body cardio",
+                    Category = "Cardio",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Bike",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=L1dwDXFr-kc",
+                    Instructions = "Pedal while pushing and pulling handles for max effort"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Stair Climber",
+                    Description = "Low impact cardio machine",
+                    Category = "Cardio",
+                    MuscleGroup = "Legs",
+                    Equipment = "Machine",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=FAQlNzCLF-Q",
+                    Instructions = "Step continuously on rotating stairs at steady pace"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Thrusters",
+                    Description = "Front squat to overhead press combination",
+                    Category = "Strength",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=oDdkytliOqE",
+                    Instructions = "Front squat then drive bar overhead in one fluid motion"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Snatch",
+                    Description = "Olympic lift from floor to overhead",
+                    Category = "Strength",
+                    MuscleGroup = "Full Body",
+                    Equipment = "Barbell",
+                    Difficulty = "Advanced",
+                    VideoUrl = "https://www.youtube.com/watch?v=tuOiNeTgPOM",
+                    Instructions = "Pull bar from floor to overhead in one explosive movement"
                 }
             };
         }
