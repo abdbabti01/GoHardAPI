@@ -2,6 +2,7 @@ using GoHardAPI.Controllers;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
+using GoHardAPI.Repositories;
 using GoHardAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -41,12 +42,18 @@ namespace GoHardAPI.Tests.Controllers
             return new TrainingContext(options);
         }
 
+        private IUserRepository GetUserRepository(TrainingContext context)
+        {
+            return new UserRepository(context);
+        }
+
         [Fact]
         public async Task Signup_NewUser_ReturnsOkWithToken()
         {
             // Arrange
             var context = GetInMemoryContext();
-            var controller = new AuthController(context, _authService);
+            var userRepository = GetUserRepository(context);
+            var controller = new AuthController(userRepository, _authService);
             var request = new SignupRequest("John Doe", "john@example.com", "Password123!");
 
             // Act
@@ -74,7 +81,8 @@ namespace GoHardAPI.Tests.Controllers
             });
             await context.SaveChangesAsync();
 
-            var controller = new AuthController(context, _authService);
+            var userRepository = GetUserRepository(context);
+            var controller = new AuthController(userRepository, _authService);
             var request = new SignupRequest("New User", "existing@example.com", "Password123!");
 
             // Act
@@ -89,7 +97,8 @@ namespace GoHardAPI.Tests.Controllers
         {
             // Arrange
             var context = GetInMemoryContext();
-            var controller = new AuthController(context, _authService);
+            var userRepository = GetUserRepository(context);
+            var controller = new AuthController(userRepository, _authService);
             var request = new SignupRequest("Jane Doe", "jane@example.com", "Password123!");
 
             // Act
@@ -118,7 +127,8 @@ namespace GoHardAPI.Tests.Controllers
             });
             await context.SaveChangesAsync();
 
-            var controller = new AuthController(context, _authService);
+            var userRepository = GetUserRepository(context);
+            var controller = new AuthController(userRepository, _authService);
             var request = new LoginRequest("test@example.com", "Password123!");
 
             // Act
@@ -137,7 +147,8 @@ namespace GoHardAPI.Tests.Controllers
         {
             // Arrange
             var context = GetInMemoryContext();
-            var controller = new AuthController(context, _authService);
+            var userRepository = GetUserRepository(context);
+            var controller = new AuthController(userRepository, _authService);
             var request = new LoginRequest("nonexistent@example.com", "Password123!");
 
             // Act
@@ -163,7 +174,8 @@ namespace GoHardAPI.Tests.Controllers
             });
             await context.SaveChangesAsync();
 
-            var controller = new AuthController(context, _authService);
+            var userRepository = GetUserRepository(context);
+            var controller = new AuthController(userRepository, _authService);
             var request = new LoginRequest("test@example.com", "WrongPassword!");
 
             // Act
@@ -189,7 +201,8 @@ namespace GoHardAPI.Tests.Controllers
             });
             await context.SaveChangesAsync();
 
-            var controller = new AuthController(context, _authService);
+            var userRepository = GetUserRepository(context);
+            var controller = new AuthController(userRepository, _authService);
             var request = new LoginRequest("inactive@example.com", "Password123!");
 
             // Act
@@ -217,7 +230,8 @@ namespace GoHardAPI.Tests.Controllers
             context.Users.Add(user);
             await context.SaveChangesAsync();
 
-            var controller = new AuthController(context, _authService);
+            var userRepository = GetUserRepository(context);
+            var controller = new AuthController(userRepository, _authService);
             var request = new LoginRequest("test@example.com", "Password123!");
 
             // Act

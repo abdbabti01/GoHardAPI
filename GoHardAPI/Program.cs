@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
+using GoHardAPI.Repositories;
 using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -46,6 +47,12 @@ builder.Services.AddScoped<AuthService>();
 
 // Register FileUploadService
 builder.Services.AddScoped<FileUploadService>();
+
+// Register Repositories
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+builder.Services.AddScoped<ISessionRepository, SessionRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<IExerciseTemplateRepository, ExerciseTemplateRepository>();
 
 // Register background services
 builder.Services.AddHostedService<DraftSessionCleanupService>();

@@ -1,11 +1,10 @@
 using Asp.Versioning;
-using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
+using GoHardAPI.Repositories;
 using GoHardAPI.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
 
 namespace GoHardAPI.Controllers
 {
@@ -15,12 +14,12 @@ namespace GoHardAPI.Controllers
     [EnableRateLimiting("auth")]  // SECURITY: Rate limit auth endpoints to prevent brute force
     public class AuthController : ControllerBase
     {
-        private readonly TrainingContext _context;
+        private readonly IUserRepository _userRepository;
         private readonly AuthService _authService;
 
-        public AuthController(TrainingContext context, AuthService authService)
+        public AuthController(IUserRepository userRepository, AuthService authService)
         {
-            _context = context;
+            _userRepository = userRepository;
             _authService = authService;
         }
 
@@ -28,7 +27,7 @@ namespace GoHardAPI.Controllers
         public async Task<ActionResult<AuthResponse>> Signup(SignupRequest request)
         {
             // Check if email already exists
-            if (await _context.Users.AnyAsync(u => u.Email == request.Email))
+            if (await _userRepository.EmailExistsAsync(request.Email))
             {
                 return BadRequest(new { message = "Email already registered" });
             }
@@ -47,8 +46,8 @@ namespace GoHardAPI.Controllers
                 IsActive = true
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            await _userRepository.AddAsync(user);
+            await _userRepository.SaveChangesAsync();
 
             // Generate JWT token
             var token = _authService.GenerateJwtToken(user);
@@ -60,7 +59,7 @@ namespace GoHardAPI.Controllers
         public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
         {
             // Find user by email
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == request.Email);
+            var user = await _userRepository.GetByEmailAsync(request.Email);
 
             if (user == null)
             {
@@ -81,7 +80,7 @@ namespace GoHardAPI.Controllers
 
             // Update last login date
             user.LastLoginDate = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
+            await _userRepository.SaveChangesAsync();
 
             // Generate JWT token
             var token = _authService.GenerateJwtToken(user);
