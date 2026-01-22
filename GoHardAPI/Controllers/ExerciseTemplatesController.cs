@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -5,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GoHardAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiController]
     public class ExerciseTemplatesController : ControllerBase
     {

@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
@@ -8,7 +9,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GoHardAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiController]
     [EnableRateLimiting("auth")]  // SECURITY: Rate limit auth endpoints to prevent brute force
     public class AuthController : ControllerBase

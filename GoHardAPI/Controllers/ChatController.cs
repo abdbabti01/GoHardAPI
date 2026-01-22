@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
@@ -10,7 +11,8 @@ using System.Text;
 
 namespace GoHardAPI.Controllers
 {
-    [Route("api/[controller]")]
+    [ApiVersion("1.0")]
+    [Route("api/v{version:apiVersion}/[controller]")]
     [ApiController]
     [Authorize]
     public class ChatController : ControllerBase

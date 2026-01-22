@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -166,6 +167,23 @@ builder.Services.AddRateLimiter(options =>
     });
 });
 
+// Configure API Versioning
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = ApiVersionReader.Combine(
+        new UrlSegmentApiVersionReader(),
+        new HeaderApiVersionReader("X-Api-Version")
+    );
+})
+.AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -174,7 +192,15 @@ builder.Services.AddControllers()
     });
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "GoHard API",
+        Version = "v1",
+        Description = "Fitness tracking API for workout management, analytics, and AI coaching"
+    });
+});
 
 var app = builder.Build();
 
