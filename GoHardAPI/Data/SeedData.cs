@@ -6,17 +6,27 @@ namespace GoHardAPI.Data
     {
         public static void Initialize(TrainingContext context)
         {
+            var templates = GetAllTemplates();
+
             // Check if we already have exercise templates
             bool hasExistingTemplates = context.ExerciseTemplates.Any();
 
             if (hasExistingTemplates)
             {
-                // Update existing exercises with video URLs if missing
+                // Add any missing templates and update videos
+                AddMissingTemplates(context, templates);
                 UpdateExerciseVideos(context);
                 return;
             }
 
-            var templates = new List<ExerciseTemplate>
+            // First run - add all templates
+            context.ExerciseTemplates.AddRange(templates);
+            context.SaveChanges();
+        }
+
+        private static List<ExerciseTemplate> GetAllTemplates()
+        {
+            return new List<ExerciseTemplate>
             {
                 // Chest Exercises
                 new ExerciseTemplate
@@ -664,9 +674,24 @@ namespace GoHardAPI.Data
                     Instructions = "Pull bar to shoulders, then jerk overhead in one fluid motion"
                 }
             };
+        }
 
-            context.ExerciseTemplates.AddRange(templates);
-            context.SaveChanges();
+        private static void AddMissingTemplates(TrainingContext context, List<ExerciseTemplate> templates)
+        {
+            var existingNames = context.ExerciseTemplates
+                .Select(t => t.Name.ToLower())
+                .ToHashSet();
+
+            var missingTemplates = templates
+                .Where(t => !existingNames.Contains(t.Name.ToLower()))
+                .ToList();
+
+            if (missingTemplates.Any())
+            {
+                context.ExerciseTemplates.AddRange(missingTemplates);
+                context.SaveChanges();
+                Console.WriteLine($"Added {missingTemplates.Count} missing exercise templates");
+            }
         }
 
         private static void UpdateExerciseVideos(TrainingContext context)
