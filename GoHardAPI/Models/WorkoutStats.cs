@@ -11,12 +11,12 @@ namespace GoHardAPI.Models
         public int TotalWorkouts { get; set; }
 
         /// <summary>
-        /// Total workout duration in seconds
+        /// Total workout duration in minutes (sum of all Session.Duration values)
         /// </summary>
         public int TotalDuration { get; set; }
 
         /// <summary>
-        /// Average workout duration in seconds
+        /// Average workout duration in minutes (TotalDuration / TotalWorkouts)
         /// </summary>
         public int AverageDuration { get; set; }
 

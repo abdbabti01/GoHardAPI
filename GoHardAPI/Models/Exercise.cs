@@ -13,6 +13,11 @@ namespace GoHardAPI.Models
         [MaxLength(100)]
         public string Name { get; set; }
 
+        /// <summary>
+        /// Display order within the session (0-indexed). Used for drag-and-drop reordering.
+        /// </summary>
+        public int SortOrder { get; set; } = 0;
+
         public int? Duration { get; set; } // in seconds (for planned/target duration)
 
         public int? RestTime { get; set; } // in seconds (planned rest between sets)

@@ -37,32 +37,34 @@ namespace GoHardAPI.Controllers
         public async Task<ActionResult<IEnumerable<Session>>> GetSessions()
         {
             var userId = GetCurrentUserId();
-            return await _context.Sessions
+            var sessions = await _context.Sessions
                 .Where(s => s.UserId == userId)
-                .Include(s => s.Exercises)
+                .Include(s => s.Exercises.OrderBy(e => e.SortOrder))
                     .ThenInclude(e => e.ExerciseSets)
                 .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseTemplate)
                 .ToListAsync();
+
+            return sessions;
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<Session>> GetSession(int id)
         {
             var userId = GetCurrentUserId();
-            var Session = await _context.Sessions
-                .Include(s => s.Exercises)
+            var session = await _context.Sessions
+                .Include(s => s.Exercises.OrderBy(e => e.SortOrder))
                     .ThenInclude(e => e.ExerciseSets)
                 .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseTemplate)
                 .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
 
-            if (Session == null)
+            if (session == null)
             {
                 return NotFound();
             }
 
-            return Session;
+            return session;
         }
 
         [HttpPost]
@@ -314,30 +316,58 @@ namespace GoHardAPI.Controllers
                 return BadRequest(new { message = "Status cannot be empty." });
             }
 
-            // Validate status
+            // Validate status value
             if (!SessionStatus.IsValid(request.Status))
             {
                 return BadRequest(new { message = $"Invalid status. Must be one of: {string.Join(", ", SessionStatus.ValidStatuses)}" });
             }
 
+            // Validate status transition (Issue #3 - prevent invalid state changes)
+            if (!SessionStatus.IsValidTransition(session.Status, request.Status))
+            {
+                return BadRequest(new {
+                    message = SessionStatus.GetTransitionError(session.Status, request.Status),
+                    currentStatus = session.Status,
+                    requestedStatus = request.Status.ToLower()
+                });
+            }
+
             session.Status = request.Status.ToLower();
 
-            // Update timestamps - use client's timestamps if provided (preserves timer state)
-            // Otherwise generate server-side timestamps
-            if (request.Status.Equals(SessionStatus.InProgress, StringComparison.OrdinalIgnoreCase) && session.StartedAt == null)
+            // Update timestamps - always accept client's timestamps for timer accuracy
+            // This is critical for pause/resume sync (Issue #1 - startedAt must be updatable)
+            if (request.StartedAt.HasValue)
             {
-                session.StartedAt = request.StartedAt ?? DateTime.UtcNow;
+                session.StartedAt = request.StartedAt.Value;
+            }
+            else if (request.Status.Equals(SessionStatus.InProgress, StringComparison.OrdinalIgnoreCase) && session.StartedAt == null)
+            {
+                // Only auto-generate if not provided and session hasn't started
+                session.StartedAt = DateTime.UtcNow;
+            }
+
+            // Handle completion timestamp
+            if (request.CompletedAt.HasValue)
+            {
+                session.CompletedAt = request.CompletedAt.Value;
             }
             else if (request.Status.Equals(SessionStatus.Completed, StringComparison.OrdinalIgnoreCase) && session.CompletedAt == null)
             {
-                session.CompletedAt = request.CompletedAt ?? DateTime.UtcNow;
+                session.CompletedAt = DateTime.UtcNow;
+            }
 
-                // AUTO-UPDATE WORKOUT GOALS
+            // Auto-update workout goals on completion
+            if (request.Status.Equals(SessionStatus.Completed, StringComparison.OrdinalIgnoreCase) && session.CompletedAt != null)
+            {
                 await UpdateWorkoutGoals(userId, session.CompletedAt.Value);
             }
 
-            // Update paused state if provided
-            if (request.PausedAt.HasValue)
+            // Update paused state (Issue #2 - handle clearing pausedAt on resume)
+            if (request.ClearPausedAt)
+            {
+                session.PausedAt = null;
+            }
+            else if (request.PausedAt.HasValue)
             {
                 session.PausedAt = request.PausedAt;
             }
@@ -374,18 +404,66 @@ namespace GoHardAPI.Controllers
                 return NotFound(new { message = "Exercise template not found" });
             }
 
+            // Get the max sort order for existing exercises in this session
+            var maxSortOrder = await _context.Exercises
+                .Where(e => e.SessionId == id)
+                .Select(e => (int?)e.SortOrder)
+                .MaxAsync() ?? -1;
+
             // Create a new exercise instance from the template
             var exercise = new Exercise
             {
                 SessionId = id,
                 Name = template.Name,
-                ExerciseTemplateId = request.ExerciseTemplateId
+                ExerciseTemplateId = request.ExerciseTemplateId,
+                SortOrder = maxSortOrder + 1
             };
 
             _context.Exercises.Add(exercise);
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetSession), new { id = session.Id }, exercise);
+        }
+
+        /// <summary>
+        /// Reorder exercises within a session (drag-and-drop support)
+        /// </summary>
+        [HttpPatch("{id}/exercises/reorder")]
+        public async Task<IActionResult> ReorderExercises(int id, [FromBody] ReorderExercisesRequest request)
+        {
+            var userId = GetCurrentUserId();
+            var session = await _context.Sessions
+                .Include(s => s.Exercises)
+                .FirstOrDefaultAsync(s => s.Id == id && s.UserId == userId);
+
+            if (session == null)
+            {
+                return NotFound(new { message = "Session not found" });
+            }
+
+            // Validate that all exercise IDs belong to this session
+            var sessionExerciseIds = session.Exercises.Select(e => e.Id).ToHashSet();
+            var requestedIds = request.ExerciseIds.ToHashSet();
+
+            if (!requestedIds.SetEquals(sessionExerciseIds))
+            {
+                return BadRequest(new {
+                    message = "Exercise IDs must match exactly the exercises in this session",
+                    expected = sessionExerciseIds.OrderBy(x => x),
+                    received = requestedIds.OrderBy(x => x)
+                });
+            }
+
+            // Update sort order based on position in the list
+            for (int i = 0; i < request.ExerciseIds.Count; i++)
+            {
+                var exercise = session.Exercises.First(e => e.Id == request.ExerciseIds[i]);
+                exercise.SortOrder = i;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
         }
 
         private async Task UpdateWorkoutGoals(int userId, DateTime workoutDate)

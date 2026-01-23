@@ -9,6 +9,10 @@ namespace GoHardAPI.Models
         public DateTime? CompletedAt { get; set; }
         public DateTime? PausedAt { get; set; }
 
+        // Set to true to clear PausedAt (for resume operation)
+        // Needed because PausedAt=null in JSON doesn't trigger HasValue
+        public bool ClearPausedAt { get; set; } = false;
+
         // Optional: Duration in minutes (calculated from timer)
         public int? Duration { get; set; }
     }

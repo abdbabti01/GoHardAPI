@@ -4,6 +4,10 @@ namespace GoHardAPI.Models
 {
     /// <summary>
     /// Defines the possible states of a workout session.
+    /// State machine:
+    ///   draft → in_progress → completed
+    ///   planned → in_progress → completed
+    ///   planned → draft (reschedule)
     /// </summary>
     public static class SessionStatus
     {
@@ -16,6 +20,55 @@ namespace GoHardAPI.Models
 
         public static bool IsValid(string status) =>
             ValidStatuses.Contains(status, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Validates if a status transition is allowed.
+        /// </summary>
+        public static bool IsValidTransition(string fromStatus, string toStatus)
+        {
+            var from = fromStatus.ToLower();
+            var to = toStatus.ToLower();
+
+            // Same status is always valid (no change)
+            if (from == to) return true;
+
+            return (from, to) switch
+            {
+                // Draft can start
+                (Draft, InProgress) => true,
+
+                // Planned can start or be rescheduled to draft
+                (Planned, InProgress) => true,
+                (Planned, Draft) => true,
+
+                // In-progress can complete or go back to draft (cancel start)
+                (InProgress, Completed) => true,
+                (InProgress, Draft) => true,  // Allow canceling a started workout
+
+                // Completed is final - no transitions allowed
+                (Completed, _) => false,
+
+                // All other transitions are invalid
+                _ => false
+            };
+        }
+
+        /// <summary>
+        /// Gets a human-readable error message for invalid transitions.
+        /// </summary>
+        public static string GetTransitionError(string fromStatus, string toStatus)
+        {
+            var from = fromStatus.ToLower();
+            var to = toStatus.ToLower();
+
+            return (from, to) switch
+            {
+                (Completed, _) => "Cannot change status of a completed workout",
+                (Draft, Completed) => "Cannot complete a workout that hasn't started. Start it first.",
+                (Planned, Completed) => "Cannot complete a planned workout that hasn't started. Start it first.",
+                _ => $"Invalid status transition from '{from}' to '{to}'"
+            };
+        }
     }
 
     public class Session
