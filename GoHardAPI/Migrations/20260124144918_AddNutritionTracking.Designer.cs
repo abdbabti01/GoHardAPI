@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GoHardAPI.Migrations
 {
     [DbContext(typeof(TrainingContext))]
-    [Migration("20260124002455_AddNutritionTracking")]
+    [Migration("20260124144918_AddNutritionTracking")]
     partial class AddNutritionTracking
     {
         /// <inheritdoc />

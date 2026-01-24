@@ -9,9 +9,23 @@ namespace GoHardAPI.Data
         {
             var optionsBuilder = new DbContextOptionsBuilder<TrainingContext>();
 
-            // Use SQL Server connection string for local development
-            optionsBuilder.UseSqlServer(
-                "Server=MSI\\MSSQLSERVER01;Database=TrainingAppDb;Trusted_Connection=True;TrustServerCertificate=True");
+            // Check for DATABASE_URL (PostgreSQL on Railway) or use SQL Server for local
+            var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+
+            if (!string.IsNullOrEmpty(databaseUrl))
+            {
+                // Parse PostgreSQL connection string from DATABASE_URL
+                var uri = new Uri(databaseUrl);
+                var userInfo = uri.UserInfo.Split(':');
+                var connectionString = $"Host={uri.Host};Port={uri.Port};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={userInfo[1]};SSL Mode=Require;Trust Server Certificate=true";
+                optionsBuilder.UseNpgsql(connectionString);
+            }
+            else
+            {
+                // Use SQL Server for local development migrations
+                optionsBuilder.UseSqlServer(
+                    "Server=MSI\\MSSQLSERVER01;Database=TrainingAppDb;Trusted_Connection=True;TrustServerCertificate=True");
+            }
 
             return new TrainingContext(optionsBuilder.Options);
         }
