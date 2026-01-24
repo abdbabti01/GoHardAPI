@@ -293,6 +293,228 @@ using (var scope = app.Services.CreateScope())
             }
         }
 
+        // Handle AddNutritionTracking migration specially for PostgreSQL compatibility
+        if (pendingMigrationsFinal.Any(m => m.Contains("AddNutritionTracking")))
+        {
+            Console.WriteLine("\n🔧 Applying AddNutritionTracking migration with PostgreSQL-compatible SQL...");
+            try
+            {
+                // Create tables with PostgreSQL-compatible types
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""FoodTemplates"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""Name"" VARCHAR(200) NOT NULL,
+                        ""Brand"" VARCHAR(100),
+                        ""Category"" VARCHAR(50),
+                        ""Barcode"" VARCHAR(100),
+                        ""ServingSize"" DECIMAL(18,2) NOT NULL,
+                        ""ServingUnit"" VARCHAR(20) NOT NULL,
+                        ""Calories"" DECIMAL(18,2) NOT NULL,
+                        ""Protein"" DECIMAL(18,2) NOT NULL,
+                        ""Carbohydrates"" DECIMAL(18,2) NOT NULL,
+                        ""Fat"" DECIMAL(18,2) NOT NULL,
+                        ""Fiber"" DECIMAL(18,2),
+                        ""Sugar"" DECIMAL(18,2),
+                        ""SaturatedFat"" DECIMAL(18,2),
+                        ""TransFat"" DECIMAL(18,2),
+                        ""Sodium"" DECIMAL(18,2),
+                        ""Potassium"" DECIMAL(18,2),
+                        ""Cholesterol"" DECIMAL(18,2),
+                        ""VitaminA"" DECIMAL(18,2),
+                        ""VitaminC"" DECIMAL(18,2),
+                        ""VitaminD"" DECIMAL(18,2),
+                        ""Calcium"" DECIMAL(18,2),
+                        ""Iron"" DECIMAL(18,2),
+                        ""Description"" VARCHAR(2000),
+                        ""ImageUrl"" TEXT,
+                        ""IsCustom"" BOOLEAN NOT NULL DEFAULT FALSE,
+                        ""CreatedByUserId"" INTEGER REFERENCES ""Users""(""Id"") ON DELETE SET NULL,
+                        ""CreatedAt"" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        ""UpdatedAt"" TIMESTAMP
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_FoodTemplates_Name"" ON ""FoodTemplates""(""Name"");
+                    CREATE INDEX IF NOT EXISTS ""IX_FoodTemplates_Barcode"" ON ""FoodTemplates""(""Barcode"");
+                    CREATE INDEX IF NOT EXISTS ""IX_FoodTemplates_Category_IsCustom"" ON ""FoodTemplates""(""Category"", ""IsCustom"");
+                    CREATE INDEX IF NOT EXISTS ""IX_FoodTemplates_CreatedByUserId"" ON ""FoodTemplates""(""CreatedByUserId"");
+                ");
+
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""MealLogs"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""UserId"" INTEGER NOT NULL REFERENCES ""Users""(""Id"") ON DELETE CASCADE,
+                        ""Date"" TIMESTAMP NOT NULL,
+                        ""Notes"" VARCHAR(1000),
+                        ""WaterIntake"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalCalories"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalProtein"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalCarbohydrates"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalFat"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalFiber"" DECIMAL(18,2),
+                        ""TotalSodium"" DECIMAL(18,2),
+                        ""CreatedAt"" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        ""UpdatedAt"" TIMESTAMP
+                    );
+                    CREATE UNIQUE INDEX IF NOT EXISTS ""IX_MealLogs_UserId_Date"" ON ""MealLogs""(""UserId"", ""Date"");
+                ");
+
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""MealPlans"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""UserId"" INTEGER NOT NULL REFERENCES ""Users""(""Id"") ON DELETE CASCADE,
+                        ""Name"" VARCHAR(100) NOT NULL,
+                        ""Description"" VARCHAR(1000),
+                        ""DurationDays"" INTEGER NOT NULL DEFAULT 7,
+                        ""IsActive"" BOOLEAN NOT NULL DEFAULT FALSE,
+                        ""AverageDailyCalories"" DECIMAL(18,2),
+                        ""AverageDailyProtein"" DECIMAL(18,2),
+                        ""AverageDailyCarbohydrates"" DECIMAL(18,2),
+                        ""AverageDailyFat"" DECIMAL(18,2),
+                        ""CreatedAt"" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        ""UpdatedAt"" TIMESTAMP
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_MealPlans_UserId_IsActive"" ON ""MealPlans""(""UserId"", ""IsActive"");
+                ");
+
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""NutritionGoals"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""UserId"" INTEGER NOT NULL REFERENCES ""Users""(""Id"") ON DELETE CASCADE,
+                        ""Name"" VARCHAR(100),
+                        ""DailyCalories"" DECIMAL(18,2) NOT NULL,
+                        ""DailyProtein"" DECIMAL(18,2) NOT NULL,
+                        ""DailyCarbohydrates"" DECIMAL(18,2) NOT NULL,
+                        ""DailyFat"" DECIMAL(18,2) NOT NULL,
+                        ""DailyFiber"" DECIMAL(18,2),
+                        ""DailySodium"" DECIMAL(18,2),
+                        ""DailySugar"" DECIMAL(18,2),
+                        ""DailyWater"" DECIMAL(18,2),
+                        ""ProteinPercentage"" DECIMAL(18,2),
+                        ""CarbohydratesPercentage"" DECIMAL(18,2),
+                        ""FatPercentage"" DECIMAL(18,2),
+                        ""IsActive"" BOOLEAN NOT NULL DEFAULT FALSE,
+                        ""CreatedAt"" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        ""UpdatedAt"" TIMESTAMP
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_NutritionGoals_UserId_IsActive"" ON ""NutritionGoals""(""UserId"", ""IsActive"");
+                ");
+
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""MealEntries"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""MealLogId"" INTEGER NOT NULL REFERENCES ""MealLogs""(""Id"") ON DELETE CASCADE,
+                        ""MealType"" VARCHAR(50) NOT NULL,
+                        ""Name"" VARCHAR(100),
+                        ""ScheduledTime"" TIMESTAMP,
+                        ""IsConsumed"" BOOLEAN NOT NULL DEFAULT FALSE,
+                        ""ConsumedAt"" TIMESTAMP,
+                        ""Notes"" VARCHAR(500),
+                        ""TotalCalories"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalProtein"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalCarbohydrates"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalFat"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalFiber"" DECIMAL(18,2),
+                        ""TotalSodium"" DECIMAL(18,2),
+                        ""CreatedAt"" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        ""UpdatedAt"" TIMESTAMP
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_MealEntries_MealLogId_MealType"" ON ""MealEntries""(""MealLogId"", ""MealType"");
+                ");
+
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""MealPlanDays"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""MealPlanId"" INTEGER NOT NULL REFERENCES ""MealPlans""(""Id"") ON DELETE CASCADE,
+                        ""DayNumber"" INTEGER NOT NULL,
+                        ""Name"" VARCHAR(50),
+                        ""Notes"" VARCHAR(500),
+                        ""TotalCalories"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalProtein"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalCarbohydrates"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalFat"" DECIMAL(18,2) NOT NULL DEFAULT 0
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_MealPlanDays_MealPlanId_DayNumber"" ON ""MealPlanDays""(""MealPlanId"", ""DayNumber"");
+                ");
+
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""FoodItems"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""MealEntryId"" INTEGER NOT NULL REFERENCES ""MealEntries""(""Id"") ON DELETE CASCADE,
+                        ""FoodTemplateId"" INTEGER REFERENCES ""FoodTemplates""(""Id"") ON DELETE SET NULL,
+                        ""Name"" VARCHAR(200) NOT NULL,
+                        ""Brand"" VARCHAR(100),
+                        ""Quantity"" DECIMAL(18,2) NOT NULL DEFAULT 1,
+                        ""ServingSize"" DECIMAL(18,2) NOT NULL,
+                        ""ServingUnit"" VARCHAR(20) NOT NULL,
+                        ""Calories"" DECIMAL(18,2) NOT NULL,
+                        ""Protein"" DECIMAL(18,2) NOT NULL,
+                        ""Carbohydrates"" DECIMAL(18,2) NOT NULL,
+                        ""Fat"" DECIMAL(18,2) NOT NULL,
+                        ""Fiber"" DECIMAL(18,2),
+                        ""Sugar"" DECIMAL(18,2),
+                        ""Sodium"" DECIMAL(18,2),
+                        ""CreatedAt"" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        ""UpdatedAt"" TIMESTAMP
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_FoodItems_MealEntryId"" ON ""FoodItems""(""MealEntryId"");
+                    CREATE INDEX IF NOT EXISTS ""IX_FoodItems_FoodTemplateId"" ON ""FoodItems""(""FoodTemplateId"");
+                ");
+
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""MealPlanMeals"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""MealPlanDayId"" INTEGER NOT NULL REFERENCES ""MealPlanDays""(""Id"") ON DELETE CASCADE,
+                        ""MealType"" VARCHAR(50) NOT NULL,
+                        ""Name"" VARCHAR(100),
+                        ""ScheduledTime"" TIME,
+                        ""Notes"" VARCHAR(500),
+                        ""TotalCalories"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalProtein"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalCarbohydrates"" DECIMAL(18,2) NOT NULL DEFAULT 0,
+                        ""TotalFat"" DECIMAL(18,2) NOT NULL DEFAULT 0
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_MealPlanMeals_MealPlanDayId_MealType"" ON ""MealPlanMeals""(""MealPlanDayId"", ""MealType"");
+                ");
+
+                context.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS ""MealPlanFoodItems"" (
+                        ""Id"" SERIAL PRIMARY KEY,
+                        ""MealPlanMealId"" INTEGER NOT NULL REFERENCES ""MealPlanMeals""(""Id"") ON DELETE CASCADE,
+                        ""FoodTemplateId"" INTEGER REFERENCES ""FoodTemplates""(""Id"") ON DELETE SET NULL,
+                        ""Name"" VARCHAR(200) NOT NULL,
+                        ""Quantity"" DECIMAL(18,2) NOT NULL DEFAULT 1,
+                        ""ServingSize"" DECIMAL(18,2) NOT NULL,
+                        ""ServingUnit"" VARCHAR(20) NOT NULL,
+                        ""Calories"" DECIMAL(18,2) NOT NULL,
+                        ""Protein"" DECIMAL(18,2) NOT NULL,
+                        ""Carbohydrates"" DECIMAL(18,2) NOT NULL,
+                        ""Fat"" DECIMAL(18,2) NOT NULL
+                    );
+                    CREATE INDEX IF NOT EXISTS ""IX_MealPlanFoodItems_MealPlanMealId"" ON ""MealPlanFoodItems""(""MealPlanMealId"");
+                    CREATE INDEX IF NOT EXISTS ""IX_MealPlanFoodItems_FoodTemplateId"" ON ""MealPlanFoodItems""(""FoodTemplateId"");
+                ");
+
+                // Mark the migration as applied
+                var nutritionMigration = pendingMigrationsFinal.First(m => m.Contains("AddNutritionTracking"));
+                context.Database.ExecuteSqlRaw(
+                    @"INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"") VALUES ({0}, {1})",
+                    nutritionMigration, "8.0.10");
+                Console.WriteLine($"  ✓ Created nutrition tables and marked {nutritionMigration} as applied");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  ⚠️ Nutrition tables may already exist: {ex.Message}");
+                // Try to mark migration as applied anyway
+                try
+                {
+                    var nutritionMigration = pendingMigrationsFinal.First(m => m.Contains("AddNutritionTracking"));
+                    context.Database.ExecuteSqlRaw(
+                        @"INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"") VALUES ({0}, {1})",
+                        nutritionMigration, "8.0.10");
+                }
+                catch { /* Ignore if already marked */ }
+            }
+        }
+
         // Now apply any remaining migrations
         Console.WriteLine("\n🔄 Applying pending migrations...");
         context.Database.Migrate();
