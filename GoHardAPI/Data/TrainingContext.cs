@@ -25,6 +25,17 @@ namespace GoHardAPI.Data
         public DbSet<Models.Program> Programs { get; set; }
         public DbSet<ProgramWorkout> ProgramWorkouts { get; set; }
 
+        // Nutrition Tracking
+        public DbSet<FoodTemplate> FoodTemplates { get; set; }
+        public DbSet<MealLog> MealLogs { get; set; }
+        public DbSet<MealEntry> MealEntries { get; set; }
+        public DbSet<FoodItem> FoodItems { get; set; }
+        public DbSet<NutritionGoal> NutritionGoals { get; set; }
+        public DbSet<MealPlan> MealPlans { get; set; }
+        public DbSet<MealPlanDay> MealPlanDays { get; set; }
+        public DbSet<MealPlanMeal> MealPlanMeals { get; set; }
+        public DbSet<MealPlanFoodItem> MealPlanFoodItems { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -255,6 +266,120 @@ namespace GoHardAPI.Data
             // Add index for program workout queries (non-unique to allow multiple workouts per day)
             modelBuilder.Entity<ProgramWorkout>()
                 .HasIndex(pw => new { pw.ProgramId, pw.WeekNumber, pw.DayNumber });
+
+            // ============ NUTRITION TRACKING CONFIGURATIONS ============
+
+            // Configure FoodTemplate-User relationship (for custom templates)
+            modelBuilder.Entity<FoodTemplate>()
+                .HasOne(ft => ft.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(ft => ft.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Add index for food template queries
+            modelBuilder.Entity<FoodTemplate>()
+                .HasIndex(ft => new { ft.Category, ft.IsCustom });
+
+            modelBuilder.Entity<FoodTemplate>()
+                .HasIndex(ft => ft.Barcode);
+
+            modelBuilder.Entity<FoodTemplate>()
+                .HasIndex(ft => ft.Name);
+
+            // Configure MealLog-User relationship
+            modelBuilder.Entity<MealLog>()
+                .HasOne(ml => ml.User)
+                .WithMany()
+                .HasForeignKey(ml => ml.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add unique index for one meal log per user per date
+            modelBuilder.Entity<MealLog>()
+                .HasIndex(ml => new { ml.UserId, ml.Date })
+                .IsUnique();
+
+            // Configure MealEntry-MealLog relationship
+            modelBuilder.Entity<MealEntry>()
+                .HasOne(me => me.MealLog)
+                .WithMany(ml => ml.MealEntries)
+                .HasForeignKey(me => me.MealLogId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add index for meal entry queries
+            modelBuilder.Entity<MealEntry>()
+                .HasIndex(me => new { me.MealLogId, me.MealType });
+
+            // Configure FoodItem-MealEntry relationship
+            modelBuilder.Entity<FoodItem>()
+                .HasOne(fi => fi.MealEntry)
+                .WithMany(me => me.FoodItems)
+                .HasForeignKey(fi => fi.MealEntryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure FoodItem-FoodTemplate relationship
+            modelBuilder.Entity<FoodItem>()
+                .HasOne(fi => fi.FoodTemplate)
+                .WithMany()
+                .HasForeignKey(fi => fi.FoodTemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure NutritionGoal-User relationship
+            modelBuilder.Entity<NutritionGoal>()
+                .HasOne(ng => ng.User)
+                .WithMany()
+                .HasForeignKey(ng => ng.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add index for nutrition goal queries
+            modelBuilder.Entity<NutritionGoal>()
+                .HasIndex(ng => new { ng.UserId, ng.IsActive });
+
+            // Configure MealPlan-User relationship
+            modelBuilder.Entity<MealPlan>()
+                .HasOne(mp => mp.User)
+                .WithMany()
+                .HasForeignKey(mp => mp.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add index for meal plan queries
+            modelBuilder.Entity<MealPlan>()
+                .HasIndex(mp => new { mp.UserId, mp.IsActive });
+
+            // Configure MealPlanDay-MealPlan relationship
+            modelBuilder.Entity<MealPlanDay>()
+                .HasOne(mpd => mpd.MealPlan)
+                .WithMany(mp => mp.Days)
+                .HasForeignKey(mpd => mpd.MealPlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add index for meal plan day queries
+            modelBuilder.Entity<MealPlanDay>()
+                .HasIndex(mpd => new { mpd.MealPlanId, mpd.DayNumber });
+
+            // Configure MealPlanMeal-MealPlanDay relationship
+            modelBuilder.Entity<MealPlanMeal>()
+                .HasOne(mpm => mpm.MealPlanDay)
+                .WithMany(mpd => mpd.Meals)
+                .HasForeignKey(mpm => mpm.MealPlanDayId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add index for meal plan meal queries
+            modelBuilder.Entity<MealPlanMeal>()
+                .HasIndex(mpm => new { mpm.MealPlanDayId, mpm.MealType });
+
+            // Configure MealPlanFoodItem-MealPlanMeal relationship
+            modelBuilder.Entity<MealPlanFoodItem>()
+                .HasOne(mpfi => mpfi.MealPlanMeal)
+                .WithMany(mpm => mpm.FoodItems)
+                .HasForeignKey(mpfi => mpfi.MealPlanMealId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure MealPlanFoodItem-FoodTemplate relationship
+            modelBuilder.Entity<MealPlanFoodItem>()
+                .HasOne(mpfi => mpfi.FoodTemplate)
+                .WithMany()
+                .HasForeignKey(mpfi => mpfi.FoodTemplateId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

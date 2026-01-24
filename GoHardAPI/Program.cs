@@ -364,6 +364,7 @@ using (var scope = app.Services.CreateScope())
 
         // Always run seed data initialization
         SeedData.Initialize(context);
+        FoodSeedData.Initialize(context);
         Console.WriteLine("Database seed/update completed successfully");
     }
     catch (Exception ex)
