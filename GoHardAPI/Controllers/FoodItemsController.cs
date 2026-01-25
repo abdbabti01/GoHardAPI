@@ -240,6 +240,66 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
+        /// Replace a food item with a suggested alternative
+        /// </summary>
+        [HttpPut("{id}/replace")]
+        public async Task<ActionResult<FoodItem>> ReplaceWithAlternative(int id, [FromBody] ReplaceFoodRequest request)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var existing = await _context.FoodItems
+                .Include(fi => fi.MealEntry)
+                    .ThenInclude(me => me!.MealLog)
+                .FirstOrDefaultAsync(fi => fi.Id == id);
+
+            if (existing == null || existing.MealEntry?.MealLog?.UserId != userId)
+            {
+                return NotFound();
+            }
+
+            // Try to find a matching food template by name
+            FoodTemplate? matchingTemplate = null;
+            if (!string.IsNullOrEmpty(request.Name))
+            {
+                matchingTemplate = await _context.FoodTemplates
+                    .Where(ft => ft.Name.ToLower() == request.Name.ToLower())
+                    .FirstOrDefaultAsync();
+            }
+
+            if (matchingTemplate != null)
+            {
+                // Use the template
+                existing.CalculateFromTemplate(matchingTemplate, request.Quantity);
+            }
+            else
+            {
+                // Use the provided values from AI suggestion
+                existing.FoodTemplateId = null;
+                existing.Name = request.Name;
+                existing.Quantity = request.Quantity;
+                existing.ServingSize = request.ServingSize;
+                existing.ServingUnit = request.ServingUnit;
+                existing.Calories = request.Calories * request.Quantity;
+                existing.Protein = request.Protein * request.Quantity;
+                existing.Carbohydrates = request.Carbohydrates * request.Quantity;
+                existing.Fat = request.Fat * request.Quantity;
+                existing.Fiber = null;
+                existing.Sugar = null;
+                existing.Sodium = null;
+            }
+
+            existing.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            // Recalculate meal entry and meal log totals
+            await RecalculateTotals(existing.MealEntry.MealLog.Id);
+
+            return Ok(existing);
+        }
+
+        /// <summary>
         /// Delete a food item
         /// </summary>
         [HttpDelete("{id}")]
@@ -292,6 +352,18 @@ namespace GoHardAPI.Controllers
     {
         public int MealEntryId { get; set; }
         public int FoodTemplateId { get; set; }
+        public decimal Quantity { get; set; } = 1;
+    }
+
+    public class ReplaceFoodRequest
+    {
+        public string Name { get; set; } = "";
+        public decimal ServingSize { get; set; } = 100;
+        public string ServingUnit { get; set; } = "g";
+        public decimal Calories { get; set; }
+        public decimal Protein { get; set; }
+        public decimal Carbohydrates { get; set; }
+        public decimal Fat { get; set; }
         public decimal Quantity { get; set; } = 1;
     }
 }

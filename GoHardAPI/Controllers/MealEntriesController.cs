@@ -155,6 +155,123 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
+        /// Get planned vs consumed summary for today
+        /// </summary>
+        [HttpGet("today/status")]
+        public async Task<ActionResult<MealStatusResponse>> GetTodayMealStatus()
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+            return await GetMealStatusForDate(userId, today);
+        }
+
+        /// <summary>
+        /// Get planned vs consumed summary for a specific date
+        /// </summary>
+        [HttpGet("date/{date}/status")]
+        public async Task<ActionResult<MealStatusResponse>> GetDateMealStatus(DateTime date)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var targetDate = DateTime.SpecifyKind(date.Date, DateTimeKind.Utc);
+            return await GetMealStatusForDate(userId, targetDate);
+        }
+
+        private async Task<ActionResult<MealStatusResponse>> GetMealStatusForDate(int userId, DateTime date)
+        {
+            var mealLog = await _context.MealLogs
+                .Include(ml => ml.MealEntries)
+                    .ThenInclude(me => me.FoodItems)
+                        .ThenInclude(fi => fi.FoodTemplate)
+                .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date == date);
+
+            if (mealLog == null)
+            {
+                return Ok(new MealStatusResponse
+                {
+                    Date = date,
+                    MealLogId = null,
+                    Meals = new List<MealStatusItem>(),
+                    PlannedTotals = new MacroTotals(),
+                    ConsumedTotals = new MacroTotals(),
+                    MealsConsumed = 0,
+                    TotalMeals = 0
+                });
+            }
+
+            var meals = mealLog.MealEntries
+                .OrderBy(me => GetMealTypeOrder(me.MealType))
+                .Select(me => new MealStatusItem
+                {
+                    MealEntryId = me.Id,
+                    MealType = me.MealType,
+                    Name = me.Name,
+                    ScheduledTime = me.ScheduledTime,
+                    IsConsumed = me.IsConsumed,
+                    ConsumedAt = me.ConsumedAt,
+                    Calories = me.TotalCalories,
+                    Protein = me.TotalProtein,
+                    Carbohydrates = me.TotalCarbohydrates,
+                    Fat = me.TotalFat,
+                    Foods = me.FoodItems.Select(fi => new FoodStatusItem
+                    {
+                        FoodItemId = fi.Id,
+                        Name = fi.Name,
+                        Quantity = fi.Quantity,
+                        ServingSize = fi.ServingSize,
+                        ServingUnit = fi.ServingUnit,
+                        Calories = fi.Calories,
+                        Protein = fi.Protein,
+                        Carbohydrates = fi.Carbohydrates,
+                        Fat = fi.Fat,
+                        FoodTemplateId = fi.FoodTemplateId
+                    }).ToList()
+                }).ToList();
+
+            var consumedMeals = mealLog.MealEntries.Where(me => me.IsConsumed).ToList();
+
+            var response = new MealStatusResponse
+            {
+                Date = date,
+                MealLogId = mealLog.Id,
+                Meals = meals,
+                PlannedTotals = new MacroTotals
+                {
+                    Calories = mealLog.TotalCalories,
+                    Protein = mealLog.TotalProtein,
+                    Carbohydrates = mealLog.TotalCarbohydrates,
+                    Fat = mealLog.TotalFat
+                },
+                ConsumedTotals = new MacroTotals
+                {
+                    Calories = consumedMeals.Sum(me => me.TotalCalories),
+                    Protein = consumedMeals.Sum(me => me.TotalProtein),
+                    Carbohydrates = consumedMeals.Sum(me => me.TotalCarbohydrates),
+                    Fat = consumedMeals.Sum(me => me.TotalFat)
+                },
+                MealsConsumed = consumedMeals.Count,
+                TotalMeals = mealLog.MealEntries.Count
+            };
+
+            return Ok(response);
+        }
+
+        private static int GetMealTypeOrder(string mealType)
+        {
+            return mealType.ToLower() switch
+            {
+                "breakfast" => 1,
+                "lunch" => 2,
+                "dinner" => 3,
+                "snack" => 4,
+                _ => 5
+            };
+        }
+
+        /// <summary>
         /// Delete a meal entry
         /// </summary>
         [HttpDelete("{id}")]
@@ -195,5 +312,53 @@ namespace GoHardAPI.Controllers
     {
         public bool IsConsumed { get; set; } = true;
         public DateTime? ConsumedAt { get; set; }
+    }
+
+    public class MealStatusResponse
+    {
+        public DateTime Date { get; set; }
+        public int? MealLogId { get; set; }
+        public List<MealStatusItem> Meals { get; set; } = new();
+        public MacroTotals PlannedTotals { get; set; } = new();
+        public MacroTotals ConsumedTotals { get; set; } = new();
+        public int MealsConsumed { get; set; }
+        public int TotalMeals { get; set; }
+    }
+
+    public class MealStatusItem
+    {
+        public int MealEntryId { get; set; }
+        public string MealType { get; set; } = "";
+        public string? Name { get; set; }
+        public DateTime? ScheduledTime { get; set; }
+        public bool IsConsumed { get; set; }
+        public DateTime? ConsumedAt { get; set; }
+        public decimal Calories { get; set; }
+        public decimal Protein { get; set; }
+        public decimal Carbohydrates { get; set; }
+        public decimal Fat { get; set; }
+        public List<FoodStatusItem> Foods { get; set; } = new();
+    }
+
+    public class FoodStatusItem
+    {
+        public int FoodItemId { get; set; }
+        public string Name { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public decimal ServingSize { get; set; }
+        public string ServingUnit { get; set; } = "g";
+        public decimal Calories { get; set; }
+        public decimal Protein { get; set; }
+        public decimal Carbohydrates { get; set; }
+        public decimal Fat { get; set; }
+        public int? FoodTemplateId { get; set; }
+    }
+
+    public class MacroTotals
+    {
+        public decimal Calories { get; set; }
+        public decimal Protein { get; set; }
+        public decimal Carbohydrates { get; set; }
+        public decimal Fat { get; set; }
     }
 }
