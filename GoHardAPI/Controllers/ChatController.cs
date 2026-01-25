@@ -1410,6 +1410,351 @@ IMPORTANT RULES:
 
             return workoutName;
         }
+
+        // POST: api/chat/conversations/{id}/apply-meal-plan
+        [HttpPost("conversations/{id}/apply-meal-plan")]
+        public async Task<ActionResult<ApplyMealPlanResponse>> ApplyMealPlanToToday(int id)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+
+                // Get the conversation
+                var conversation = await _context.ChatConversations
+                    .Include(c => c.Messages)
+                    .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+
+                if (conversation == null)
+                {
+                    return NotFound(new { message = "Conversation not found" });
+                }
+
+                if (conversation.Type != "meal_plan")
+                {
+                    return BadRequest(new { message = "This is not a meal plan conversation" });
+                }
+
+                // Get the AI's meal plan message
+                var mealPlanMessage = conversation.Messages
+                    .Where(m => m.Role == "assistant")
+                    .OrderBy(m => m.CreatedAt)
+                    .FirstOrDefault();
+
+                if (mealPlanMessage == null)
+                {
+                    return BadRequest(new { message = "No meal plan found in conversation" });
+                }
+
+                // Ask AI to extract structured meal data
+                var extractionPrompt = @"Extract the meals from the previous meal plan into structured JSON format.
+Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
+{
+  ""meals"": [
+    {
+      ""mealType"": ""Breakfast"",
+      ""foods"": [
+        {
+          ""name"": ""Oatmeal with Berries"",
+          ""servingSize"": 1,
+          ""servingUnit"": ""bowl"",
+          ""calories"": 350,
+          ""protein"": 12,
+          ""carbohydrates"": 55,
+          ""fat"": 8
+        }
+      ]
+    },
+    {
+      ""mealType"": ""Lunch"",
+      ""foods"": [...]
+    },
+    {
+      ""mealType"": ""Dinner"",
+      ""foods"": [...]
+    },
+    {
+      ""mealType"": ""Snack"",
+      ""foods"": [...]
+    }
+  ]
+}
+
+IMPORTANT RULES:
+- mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
+- All numeric values must be numbers (not strings)
+- Include all meals from the plan
+- Estimate calories and macros if not explicitly stated";
+
+                var messages = new List<ChatMessage>
+                {
+                    new ChatMessage
+                    {
+                        Role = "assistant",
+                        Content = mealPlanMessage.Content
+                    }
+                };
+
+                var extractionResponse = await _aiService.SendMessageAsync(
+                    extractionPrompt,
+                    messages,
+                    "meal_plan"
+                );
+
+                // Parse the JSON response
+                var jsonContent = extractionResponse.Content.Trim();
+
+                // Remove markdown code blocks if present
+                if (jsonContent.StartsWith("```"))
+                {
+                    var lines = jsonContent.Split('\n');
+                    jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+                }
+
+                _logger.LogInformation("Extracted meal plan JSON: {json}", jsonContent);
+
+                ChatMealPlanExtraction? mealPlanData;
+                try
+                {
+                    var options = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    };
+                    mealPlanData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanExtraction>(jsonContent, options);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to parse meal plan JSON: {json}", jsonContent);
+                    return BadRequest(new { message = "Failed to parse meal plan structure" });
+                }
+
+                if (mealPlanData?.Meals == null || mealPlanData.Meals.Count == 0)
+                {
+                    return BadRequest(new { message = "No meals found in the meal plan" });
+                }
+
+                // Get or create today's meal log
+                var today = DateTime.UtcNow.Date;
+                var mealLog = await _context.MealLogs
+                    .Include(ml => ml.MealEntries)
+                    .ThenInclude(me => me.FoodItems)
+                    .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == today);
+
+                if (mealLog == null)
+                {
+                    mealLog = new Models.MealLog
+                    {
+                        UserId = userId,
+                        Date = today,
+                        TotalCalories = 0,
+                        TotalProtein = 0,
+                        TotalCarbohydrates = 0,
+                        TotalFat = 0,
+                        WaterIntake = 0,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.MealLogs.Add(mealLog);
+                    await _context.SaveChangesAsync();
+                }
+
+                // Ensure meal entries exist for each meal type
+                var mealTypes = new[] { "Breakfast", "Lunch", "Dinner", "Snack" };
+                foreach (var mealType in mealTypes)
+                {
+                    if (!mealLog.MealEntries.Any(me => me.MealType == mealType))
+                    {
+                        var mealEntry = new Models.MealEntry
+                        {
+                            MealLogId = mealLog.Id,
+                            MealType = mealType,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.MealEntries.Add(mealEntry);
+                        mealLog.MealEntries.Add(mealEntry);
+                    }
+                }
+                await _context.SaveChangesAsync();
+
+                // Add foods to meal entries
+                var addedFoods = new List<object>();
+                decimal totalCaloriesAdded = 0;
+                decimal totalProteinAdded = 0;
+                decimal totalCarbsAdded = 0;
+                decimal totalFatAdded = 0;
+
+                foreach (var mealData in mealPlanData.Meals)
+                {
+                    var mealEntry = mealLog.MealEntries.FirstOrDefault(me =>
+                        me.MealType.Equals(mealData.MealType, StringComparison.OrdinalIgnoreCase));
+
+                    if (mealEntry == null) continue;
+
+                    foreach (var foodData in mealData.Foods ?? new List<ChatMealPlanFoodData>())
+                    {
+                        var foodItem = new Models.FoodItem
+                        {
+                            MealEntryId = mealEntry.Id,
+                            Name = foodData.Name ?? "Unknown",
+                            Quantity = 1,
+                            ServingSize = foodData.ServingSize ?? 1,
+                            ServingUnit = foodData.ServingUnit ?? "serving",
+                            Calories = foodData.Calories ?? 0,
+                            Protein = foodData.Protein ?? 0,
+                            Carbohydrates = foodData.Carbohydrates ?? 0,
+                            Fat = foodData.Fat ?? 0,
+                            CreatedAt = DateTime.UtcNow
+                        };
+
+                        _context.FoodItems.Add(foodItem);
+
+                        totalCaloriesAdded += foodItem.Calories;
+                        totalProteinAdded += foodItem.Protein;
+                        totalCarbsAdded += foodItem.Carbohydrates;
+                        totalFatAdded += foodItem.Fat;
+
+                        addedFoods.Add(new
+                        {
+                            mealType = mealData.MealType,
+                            name = foodItem.Name,
+                            calories = foodItem.Calories
+                        });
+                    }
+                }
+
+                // Update meal log totals
+                mealLog.TotalCalories += totalCaloriesAdded;
+                mealLog.TotalProtein += totalProteinAdded;
+                mealLog.TotalCarbohydrates += totalCarbsAdded;
+                mealLog.TotalFat += totalFatAdded;
+                mealLog.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new ApplyMealPlanResponse
+                {
+                    Success = true,
+                    Message = $"Added {addedFoods.Count} foods to today's meal log",
+                    FoodsAdded = addedFoods.Count,
+                    TotalCaloriesAdded = totalCaloriesAdded,
+                    TotalProteinAdded = totalProteinAdded,
+                    TotalCarbsAdded = totalCarbsAdded,
+                    TotalFatAdded = totalFatAdded,
+                    Foods = addedFoods
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying meal plan to today");
+                return StatusCode(500, new { message = "Failed to apply meal plan. Please try again." });
+            }
+        }
+
+        // POST: api/chat/food-suggestion
+        [HttpPost("food-suggestion")]
+        public async Task<ActionResult<FoodSuggestionResponse>> SuggestFoodAlternatives(FoodSuggestionRequest request)
+        {
+            try
+            {
+                var prompt = $@"I need healthy food alternatives for: {request.FoodName}
+
+Current nutritional values (per serving):
+- Calories: {request.Calories} kcal
+- Protein: {request.Protein}g
+- Carbs: {request.Carbohydrates}g
+- Fat: {request.Fat}g
+
+Please suggest 3-5 alternative foods that:
+1. Have similar macronutrients (within 20% variance)
+2. Are healthy and commonly available
+3. Could be used as a substitute in similar meals
+
+Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
+{{
+  ""alternatives"": [
+    {{
+      ""name"": ""Food Name"",
+      ""servingSize"": 100,
+      ""servingUnit"": ""g"",
+      ""calories"": 150,
+      ""protein"": 10,
+      ""carbohydrates"": 15,
+      ""fat"": 5,
+      ""reason"": ""Brief reason why this is a good alternative""
+    }}
+  ]
+}}";
+
+                // Get AI response without creating a conversation
+                var aiResponse = await _aiService.SendMessageAsync(
+                    prompt,
+                    new List<ChatMessage>(),
+                    "nutrition"
+                );
+
+                // Parse the JSON response
+                var jsonContent = aiResponse.Content.Trim();
+
+                // Remove markdown code blocks if present
+                if (jsonContent.StartsWith("```"))
+                {
+                    var lines = jsonContent.Split('\n');
+                    jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+                }
+
+                try
+                {
+                    var options = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    };
+                    var result = System.Text.Json.JsonSerializer.Deserialize<FoodSuggestionResponse>(jsonContent, options);
+                    return Ok(result);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to parse food suggestion JSON: {json}", jsonContent);
+                    // Return the raw response as a fallback
+                    return Ok(new FoodSuggestionResponse
+                    {
+                        Alternatives = new List<FoodAlternative>(),
+                        RawResponse = aiResponse.Content
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error generating food suggestions");
+                return StatusCode(500, new { message = "Failed to generate food suggestions. Please try again." });
+            }
+        }
+    }
+
+    // Request DTO for food suggestion
+    public class FoodSuggestionRequest
+    {
+        public string FoodName { get; set; } = "";
+        public double Calories { get; set; }
+        public double Protein { get; set; }
+        public double Carbohydrates { get; set; }
+        public double Fat { get; set; }
+    }
+
+    // Response DTO for food suggestion
+    public class FoodSuggestionResponse
+    {
+        public List<FoodAlternative> Alternatives { get; set; } = new();
+        public string? RawResponse { get; set; }
+    }
+
+    public class FoodAlternative
+    {
+        public string Name { get; set; } = "";
+        public double ServingSize { get; set; }
+        public string ServingUnit { get; set; } = "g";
+        public double Calories { get; set; }
+        public double Protein { get; set; }
+        public double Carbohydrates { get; set; }
+        public double Fat { get; set; }
+        public string? Reason { get; set; }
     }
 
     // Request DTO for creating sessions
@@ -1451,5 +1796,40 @@ IMPORTANT RULES:
         public double? Weight { get; set; }
         public int? RestTime { get; set; }
         public string? Notes { get; set; }
+    }
+
+    // DTOs for meal plan extraction from chat
+    public class ChatMealPlanExtraction
+    {
+        public List<ChatMealPlanMealData> Meals { get; set; } = new();
+    }
+
+    public class ChatMealPlanMealData
+    {
+        public string MealType { get; set; } = "";
+        public List<ChatMealPlanFoodData>? Foods { get; set; }
+    }
+
+    public class ChatMealPlanFoodData
+    {
+        public string? Name { get; set; }
+        public decimal? ServingSize { get; set; }
+        public string? ServingUnit { get; set; }
+        public decimal? Calories { get; set; }
+        public decimal? Protein { get; set; }
+        public decimal? Carbohydrates { get; set; }
+        public decimal? Fat { get; set; }
+    }
+
+    public class ApplyMealPlanResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = "";
+        public int FoodsAdded { get; set; }
+        public decimal TotalCaloriesAdded { get; set; }
+        public decimal TotalProteinAdded { get; set; }
+        public decimal TotalCarbsAdded { get; set; }
+        public decimal TotalFatAdded { get; set; }
+        public object? Foods { get; set; }
     }
 }
