@@ -87,7 +87,13 @@ namespace GoHardAPI.Controllers
 
             program.UserId = userId;
             program.CreatedAt = DateTime.UtcNow;
-            program.StartDate = program.StartDate == default ? DateTime.UtcNow : program.StartDate;
+
+            // Set start date and adjust to Monday of the week
+            // Programs always start on Monday to align calendar days with actual weekdays
+            var baseDate = program.StartDate == default ? DateTime.UtcNow : program.StartDate;
+            var daysSinceMonday = ((int)baseDate.DayOfWeek + 6) % 7; // Monday=0, Tuesday=1, ..., Sunday=6
+            program.StartDate = baseDate.Date.AddDays(-daysSinceMonday);
+
             program.IsCompleted = false;
             program.CurrentWeek = 1;
             program.CurrentDay = 1; // Always start at Day 1 (session-based, not calendar)
@@ -222,6 +228,51 @@ namespace GoHardAPI.Controllers
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        /// <summary>
+        /// Recalibrate a program's start date to Monday of its week
+        /// Fixes calendar alignment issues for programs created on non-Monday days
+        /// </summary>
+        [HttpPut("{id}/recalibrate")]
+        public async Task<IActionResult> RecalibrateProgram(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var program = await _context.Programs.FindAsync(id);
+            if (program == null || program.UserId != userId)
+            {
+                return NotFound();
+            }
+
+            // Calculate Monday of the program's start week
+            var daysSinceMonday = ((int)program.StartDate.DayOfWeek + 6) % 7; // Monday=0, ..., Sunday=6
+            var mondayOfWeek = program.StartDate.Date.AddDays(-daysSinceMonday);
+
+            // Only update if not already on Monday
+            if (daysSinceMonday != 0)
+            {
+                program.StartDate = mondayOfWeek;
+
+                // Also update end date to maintain same duration
+                if (program.EndDate != null)
+                {
+                    program.EndDate = mondayOfWeek.AddDays(program.TotalWeeks * 7);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return Ok(new
+                {
+                    message = "Program start date recalibrated to Monday",
+                    oldStartDate = program.StartDate.AddDays(daysSinceMonday),
+                    newStartDate = program.StartDate,
+                    daysAdjusted = daysSinceMonday
+                });
+            }
+
+            return Ok(new { message = "Program already starts on Monday", startDate = program.StartDate });
         }
 
         /// <summary>
