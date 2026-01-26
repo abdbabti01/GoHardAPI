@@ -284,5 +284,64 @@ namespace GoHardAPI.Controllers
 
             return NoContent();
         }
+
+        /// <summary>
+        /// Clear all food items from a meal log (keeps meal entries, removes food items and resets totals)
+        /// </summary>
+        [HttpPost("{id}/clear")]
+        public async Task<ActionResult<MealLog>> ClearAllFood(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var mealLog = await _context.MealLogs
+                .Include(ml => ml.MealEntries)
+                    .ThenInclude(me => me.FoodItems)
+                .FirstOrDefaultAsync(ml => ml.Id == id && ml.UserId == userId);
+
+            if (mealLog == null)
+            {
+                return NotFound();
+            }
+
+            // Remove all food items from all meal entries
+            foreach (var entry in mealLog.MealEntries)
+            {
+                if (entry.FoodItems != null && entry.FoodItems.Any())
+                {
+                    _context.FoodItems.RemoveRange(entry.FoodItems);
+                }
+
+                // Reset meal entry totals and consumption status
+                entry.TotalCalories = 0;
+                entry.TotalProtein = 0;
+                entry.TotalCarbohydrates = 0;
+                entry.TotalFat = 0;
+                entry.TotalFiber = 0;
+                entry.TotalSodium = 0;
+                entry.IsConsumed = false;
+                entry.ConsumedAt = null;
+                entry.UpdatedAt = DateTime.UtcNow;
+            }
+
+            // Reset meal log totals
+            mealLog.TotalCalories = 0;
+            mealLog.TotalProtein = 0;
+            mealLog.TotalCarbohydrates = 0;
+            mealLog.TotalFat = 0;
+            mealLog.TotalFiber = 0;
+            mealLog.TotalSodium = 0;
+            mealLog.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+
+            // Reload to get the updated data
+            mealLog = await _context.MealLogs
+                .Include(ml => ml.MealEntries)
+                    .ThenInclude(me => me.FoodItems)
+                .FirstOrDefaultAsync(ml => ml.Id == id);
+
+            return Ok(mealLog);
+        }
     }
 }
