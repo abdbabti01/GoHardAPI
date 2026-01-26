@@ -138,6 +138,7 @@ namespace GoHardAPI.Controllers
 
             var entry = await _context.MealEntries
                 .Include(me => me.MealLog)
+                .Include(me => me.FoodItems)
                 .FirstOrDefaultAsync(me => me.Id == id);
 
             if (entry == null || entry.MealLog?.UserId != userId)
@@ -150,6 +151,24 @@ namespace GoHardAPI.Controllers
             entry.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
+
+            // Recalculate MealLog totals (only count consumed meals)
+            var mealLog = await _context.MealLogs
+                .Include(ml => ml.MealEntries)
+                .ThenInclude(me => me.FoodItems)
+                .FirstOrDefaultAsync(ml => ml.Id == entry.MealLogId);
+
+            if (mealLog != null)
+            {
+                var consumedEntries = mealLog.MealEntries.Where(me => me.IsConsumed).ToList();
+                mealLog.TotalCalories = consumedEntries.Sum(e => e.FoodItems.Sum(f => f.Calories));
+                mealLog.TotalProtein = consumedEntries.Sum(e => e.FoodItems.Sum(f => f.Protein));
+                mealLog.TotalCarbohydrates = consumedEntries.Sum(e => e.FoodItems.Sum(f => f.Carbohydrates));
+                mealLog.TotalFat = consumedEntries.Sum(e => e.FoodItems.Sum(f => f.Fat));
+                mealLog.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+            }
 
             return NoContent();
         }
