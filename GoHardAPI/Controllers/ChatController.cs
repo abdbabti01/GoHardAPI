@@ -1445,15 +1445,23 @@ IMPORTANT RULES:
                     return BadRequest(new { message = "No meal plan found in conversation" });
                 }
 
+                // Get user's nutrition goal for context
+                var nutritionGoal = await _context.NutritionGoals
+                    .Where(ng => ng.UserId == userId && ng.IsActive)
+                    .FirstOrDefaultAsync();
+                var targetCalories = nutritionGoal?.DailyCalories ?? 2000m;
+
                 // Ask AI to extract structured meal data
-                var extractionPrompt = @"Extract the meals from the previous meal plan into structured JSON format.
+                var extractionPrompt = $@"Extract the meals from the previous meal plan into structured JSON format.
+The meal plan was designed for approximately {targetCalories:F0} calories per day.
+
 Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
-{
+{{
   ""meals"": [
-    {
+    {{
       ""mealType"": ""Breakfast"",
       ""foods"": [
-        {
+        {{
           ""name"": ""Oatmeal with Berries"",
           ""servingSize"": 1,
           ""servingUnit"": ""bowl"",
@@ -1461,29 +1469,32 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
           ""protein"": 12,
           ""carbohydrates"": 55,
           ""fat"": 8
-        }
+        }}
       ]
-    },
-    {
+    }},
+    {{
       ""mealType"": ""Lunch"",
       ""foods"": [...]
-    },
-    {
+    }},
+    {{
       ""mealType"": ""Dinner"",
       ""foods"": [...]
-    },
-    {
+    }},
+    {{
       ""mealType"": ""Snack"",
       ""foods"": [...]
-    }
+    }}
   ]
-}
+}}
 
-IMPORTANT RULES:
+CRITICAL RULES:
 - mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
 - All numeric values must be numbers (not strings)
 - Include all meals from the plan
-- Estimate calories and macros if not explicitly stated";
+- Calories are the TOTAL calories for one serving of that food item (NOT per 100g)
+- The sum of all food calories should approximately match the daily target of {targetCalories:F0} kcal
+- Typical food portions: oatmeal bowl ~300-400 kcal, chicken breast ~250-350 kcal, salad ~150-300 kcal
+- If a single food item seems to have more than 800 calories, verify it's correct for a normal portion";
 
                 var messages = new List<ChatMessage>
                 {
@@ -1532,113 +1543,103 @@ IMPORTANT RULES:
                     return BadRequest(new { message = "No meals found in the meal plan" });
                 }
 
-                // Get or create today's meal log
-                var today = DateTime.UtcNow.Date;
-                var mealLog = await _context.MealLogs
-                    .Include(ml => ml.MealEntries)
-                    .ThenInclude(me => me.FoodItems)
-                    .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == today);
+                // Validate extracted values - check if total calories are reasonable
+                var extractedTotalCalories = mealPlanData.Meals
+                    .SelectMany(m => m.Foods ?? new List<ChatMealPlanFoodData>())
+                    .Sum(f => f.Calories ?? 0);
 
-                if (mealLog == null)
-                {
-                    mealLog = new Models.MealLog
-                    {
-                        UserId = userId,
-                        Date = today,
-                        TotalCalories = 0,
-                        TotalProtein = 0,
-                        TotalCarbohydrates = 0,
-                        TotalFat = 0,
-                        WaterIntake = 0,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    _context.MealLogs.Add(mealLog);
-                    await _context.SaveChangesAsync();
-                }
+                _logger.LogInformation("Extracted meal plan totals: {extractedCalories} kcal (target: {targetCalories} kcal)",
+                    extractedTotalCalories, targetCalories);
 
-                // Ensure meal entries exist for each meal type
-                var mealTypes = new[] { "Breakfast", "Lunch", "Dinner", "Snack" };
-                foreach (var mealType in mealTypes)
+                // If extracted calories are more than 3x the target, something went wrong
+                // (likely AI confused per-100g with per-serving values)
+                if (extractedTotalCalories > targetCalories * 3)
                 {
-                    if (!mealLog.MealEntries.Any(me => me.MealType == mealType))
+                    _logger.LogWarning("Extracted calories ({extracted}) significantly exceed target ({target}). Scaling down values.",
+                        extractedTotalCalories, targetCalories);
+
+                    // Calculate scaling factor to bring values in line with target
+                    var scaleFactor = targetCalories / extractedTotalCalories;
+
+                    foreach (var meal in mealPlanData.Meals)
                     {
-                        var mealEntry = new Models.MealEntry
+                        if (meal.Foods != null)
                         {
-                            MealLogId = mealLog.Id,
-                            MealType = mealType,
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        _context.MealEntries.Add(mealEntry);
-                        mealLog.MealEntries.Add(mealEntry);
+                            foreach (var food in meal.Foods)
+                            {
+                                food.Calories = food.Calories * scaleFactor;
+                                food.Protein = food.Protein * scaleFactor;
+                                food.Carbohydrates = food.Carbohydrates * scaleFactor;
+                                food.Fat = food.Fat * scaleFactor;
+                            }
+                        }
                     }
-                }
-                await _context.SaveChangesAsync();
 
-                // Add foods to meal entries
-                var addedFoods = new List<object>();
-                decimal totalCaloriesAdded = 0;
-                decimal totalProteinAdded = 0;
-                decimal totalCarbsAdded = 0;
-                decimal totalFatAdded = 0;
+                    _logger.LogInformation("Scaled meal plan values by factor {factor:F2}", scaleFactor);
+                }
+
+                // Calculate total macros from the meal plan
+                decimal totalCalories = 0;
+                decimal totalProtein = 0;
+                decimal totalCarbs = 0;
+                decimal totalFat = 0;
 
                 foreach (var mealData in mealPlanData.Meals)
                 {
-                    var mealEntry = mealLog.MealEntries.FirstOrDefault(me =>
-                        me.MealType.Equals(mealData.MealType, StringComparison.OrdinalIgnoreCase));
-
-                    if (mealEntry == null) continue;
-
                     foreach (var foodData in mealData.Foods ?? new List<ChatMealPlanFoodData>())
                     {
-                        var foodItem = new Models.FoodItem
-                        {
-                            MealEntryId = mealEntry.Id,
-                            Name = foodData.Name ?? "Unknown",
-                            Quantity = 1,
-                            ServingSize = foodData.ServingSize ?? 1,
-                            ServingUnit = foodData.ServingUnit ?? "serving",
-                            Calories = foodData.Calories ?? 0,
-                            Protein = foodData.Protein ?? 0,
-                            Carbohydrates = foodData.Carbohydrates ?? 0,
-                            Fat = foodData.Fat ?? 0,
-                            CreatedAt = DateTime.UtcNow
-                        };
-
-                        _context.FoodItems.Add(foodItem);
-
-                        totalCaloriesAdded += foodItem.Calories;
-                        totalProteinAdded += foodItem.Protein;
-                        totalCarbsAdded += foodItem.Carbohydrates;
-                        totalFatAdded += foodItem.Fat;
-
-                        addedFoods.Add(new
-                        {
-                            mealType = mealData.MealType,
-                            name = foodItem.Name,
-                            calories = foodItem.Calories
-                        });
+                        totalCalories += foodData.Calories ?? 0;
+                        totalProtein += foodData.Protein ?? 0;
+                        totalCarbs += foodData.Carbohydrates ?? 0;
+                        totalFat += foodData.Fat ?? 0;
                     }
                 }
 
-                // Update meal log totals
-                mealLog.TotalCalories += totalCaloriesAdded;
-                mealLog.TotalProtein += totalProteinAdded;
-                mealLog.TotalCarbohydrates += totalCarbsAdded;
-                mealLog.TotalFat += totalFatAdded;
-                mealLog.UpdatedAt = DateTime.UtcNow;
+                _logger.LogInformation("Meal plan totals - Calories: {cal}, Protein: {prot}g, Carbs: {carb}g, Fat: {fat}g",
+                    totalCalories, totalProtein, totalCarbs, totalFat);
+
+                // Update or create the user's nutrition goal
+                if (nutritionGoal == null)
+                {
+                    // Create new nutrition goal
+                    nutritionGoal = new Models.NutritionGoal
+                    {
+                        UserId = userId,
+                        Name = "Meal Plan Goals",
+                        DailyCalories = totalCalories,
+                        DailyProtein = totalProtein,
+                        DailyCarbohydrates = totalCarbs,
+                        DailyFat = totalFat,
+                        DailyWater = 2000, // Default water goal
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.NutritionGoals.Add(nutritionGoal);
+                    _logger.LogInformation("Created new nutrition goal from meal plan for user {userId}", userId);
+                }
+                else
+                {
+                    // Update existing nutrition goal
+                    nutritionGoal.DailyCalories = totalCalories;
+                    nutritionGoal.DailyProtein = totalProtein;
+                    nutritionGoal.DailyCarbohydrates = totalCarbs;
+                    nutritionGoal.DailyFat = totalFat;
+                    nutritionGoal.UpdatedAt = DateTime.UtcNow;
+                    _logger.LogInformation("Updated nutrition goal from meal plan for user {userId}", userId);
+                }
 
                 await _context.SaveChangesAsync();
 
                 return Ok(new ApplyMealPlanResponse
                 {
                     Success = true,
-                    Message = $"Added {addedFoods.Count} foods to today's meal log",
-                    FoodsAdded = addedFoods.Count,
-                    TotalCaloriesAdded = totalCaloriesAdded,
-                    TotalProteinAdded = totalProteinAdded,
-                    TotalCarbsAdded = totalCarbsAdded,
-                    TotalFatAdded = totalFatAdded,
-                    Foods = addedFoods
+                    Message = "Nutrition goals updated from meal plan",
+                    FoodsAdded = 0,
+                    TotalCaloriesAdded = totalCalories,
+                    TotalProteinAdded = totalProtein,
+                    TotalCarbsAdded = totalCarbs,
+                    TotalFatAdded = totalFat,
+                    Foods = new List<object>()
                 });
             }
             catch (Exception ex)

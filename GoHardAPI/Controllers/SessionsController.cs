@@ -325,7 +325,8 @@ namespace GoHardAPI.Controllers
             // Validate status transition (Issue #3 - prevent invalid state changes)
             if (!SessionStatus.IsValidTransition(session.Status, request.Status))
             {
-                return BadRequest(new {
+                return BadRequest(new
+                {
                     message = SessionStatus.GetTransitionError(session.Status, request.Status),
                     currentStatus = session.Status,
                     requestedStatus = request.Status.ToLower()
@@ -447,7 +448,8 @@ namespace GoHardAPI.Controllers
 
             if (!requestedIds.SetEquals(sessionExerciseIds))
             {
-                return BadRequest(new {
+                return BadRequest(new
+                {
                     message = "Exercise IDs must match exactly the exercises in this session",
                     expected = sessionExerciseIds.OrderBy(x => x),
                     received = requestedIds.OrderBy(x => x)
