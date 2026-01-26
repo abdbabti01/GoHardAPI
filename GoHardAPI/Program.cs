@@ -584,6 +584,45 @@ using (var scope = app.Services.CreateScope())
             // Don't throw - the app can still run, just cascade delete might not work
         }
 
+        // Recalibrate any programs with misaligned start dates (not on Monday)
+        // This is a one-time fix for programs created before the Monday-alignment feature
+        Console.WriteLine("\n🔧 Checking program start date alignment...");
+        try
+        {
+            var misalignedPrograms = context.Programs
+                .Where(p => ((int)p.StartDate.DayOfWeek + 6) % 7 != 0) // Not Monday
+                .ToList();
+
+            if (misalignedPrograms.Any())
+            {
+                Console.WriteLine($"  Found {misalignedPrograms.Count} program(s) with misaligned start dates");
+                foreach (var program in misalignedPrograms)
+                {
+                    var oldDate = program.StartDate;
+                    var daysSinceMonday = ((int)program.StartDate.DayOfWeek + 6) % 7;
+                    program.StartDate = program.StartDate.Date.AddDays(-daysSinceMonday);
+
+                    // Also update end date to maintain same duration
+                    if (program.EndDate != null)
+                    {
+                        program.EndDate = program.StartDate.AddDays(program.TotalWeeks * 7);
+                    }
+
+                    Console.WriteLine($"  ✓ Recalibrated \"{program.Title}\": {oldDate:yyyy-MM-dd} ({oldDate.DayOfWeek}) → {program.StartDate:yyyy-MM-dd} (Monday)");
+                }
+                context.SaveChanges();
+                Console.WriteLine($"✅ Recalibrated {misalignedPrograms.Count} program(s) to start on Monday");
+            }
+            else
+            {
+                Console.WriteLine("  ✓ All programs already aligned to Monday");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Warning: Could not recalibrate programs: {ex.Message}");
+        }
+
         // Always run seed data initialization
         SeedData.Initialize(context);
         FoodSeedData.Initialize(context);
