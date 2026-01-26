@@ -256,8 +256,8 @@ namespace GoHardAPI.Controllers
                 entry.RecalculateTotals();
             }
 
-            // Then recalculate the meal log totals
-            mealLog.RecalculateTotals();
+            // Then recalculate the meal log totals (consumed meals only)
+            mealLog.RecalculateTotals(consumedOnly: true);
 
             await _context.SaveChangesAsync();
 

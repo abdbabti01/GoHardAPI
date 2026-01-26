@@ -342,7 +342,8 @@ namespace GoHardAPI.Controllers
                 {
                     entry.RecalculateTotals();
                 }
-                mealLog.RecalculateTotals();
+                // Only count consumed meals in the MealLog totals
+                mealLog.RecalculateTotals(consumedOnly: true);
                 await _context.SaveChangesAsync();
             }
         }

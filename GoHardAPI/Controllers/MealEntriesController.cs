@@ -160,13 +160,13 @@ namespace GoHardAPI.Controllers
 
             if (mealLog != null)
             {
-                var consumedEntries = mealLog.MealEntries.Where(me => me.IsConsumed).ToList();
-                mealLog.TotalCalories = consumedEntries.Sum(e => e.FoodItems.Sum(f => f.Calories));
-                mealLog.TotalProtein = consumedEntries.Sum(e => e.FoodItems.Sum(f => f.Protein));
-                mealLog.TotalCarbohydrates = consumedEntries.Sum(e => e.FoodItems.Sum(f => f.Carbohydrates));
-                mealLog.TotalFat = consumedEntries.Sum(e => e.FoodItems.Sum(f => f.Fat));
-                mealLog.UpdatedAt = DateTime.UtcNow;
-
+                // Recalculate each entry's totals first
+                foreach (var mealEntry in mealLog.MealEntries)
+                {
+                    mealEntry.RecalculateTotals();
+                }
+                // Then recalculate meal log totals (consumed only)
+                mealLog.RecalculateTotals(consumedOnly: true);
                 await _context.SaveChangesAsync();
             }
 
@@ -250,7 +250,10 @@ namespace GoHardAPI.Controllers
                     }).ToList()
                 }).ToList();
 
-            var consumedMeals = mealLog.MealEntries.Where(me => me.IsConsumed).ToList();
+            // Calculate planned totals (ALL meals) and consumed totals (only consumed)
+            var plannedTotals = mealLog.GetPlannedTotals();
+            var consumedTotals = mealLog.GetConsumedTotals();
+            var consumedMealsCount = mealLog.MealEntries.Count(me => me.IsConsumed);
 
             var response = new MealStatusResponse
             {
@@ -259,19 +262,19 @@ namespace GoHardAPI.Controllers
                 Meals = meals,
                 PlannedTotals = new MacroTotals
                 {
-                    Calories = mealLog.TotalCalories,
-                    Protein = mealLog.TotalProtein,
-                    Carbohydrates = mealLog.TotalCarbohydrates,
-                    Fat = mealLog.TotalFat
+                    Calories = plannedTotals.Calories,
+                    Protein = plannedTotals.Protein,
+                    Carbohydrates = plannedTotals.Carbohydrates,
+                    Fat = plannedTotals.Fat
                 },
                 ConsumedTotals = new MacroTotals
                 {
-                    Calories = consumedMeals.Sum(me => me.TotalCalories),
-                    Protein = consumedMeals.Sum(me => me.TotalProtein),
-                    Carbohydrates = consumedMeals.Sum(me => me.TotalCarbohydrates),
-                    Fat = consumedMeals.Sum(me => me.TotalFat)
+                    Calories = consumedTotals.Calories,
+                    Protein = consumedTotals.Protein,
+                    Carbohydrates = consumedTotals.Carbohydrates,
+                    Fat = consumedTotals.Fat
                 },
-                MealsConsumed = consumedMeals.Count,
+                MealsConsumed = consumedMealsCount,
                 TotalMeals = mealLog.MealEntries.Count
             };
 
@@ -308,18 +311,23 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
+            var mealLogId = entry.MealLogId;
             _context.MealEntries.Remove(entry);
             await _context.SaveChangesAsync();
 
-            // Recalculate meal log totals
+            // Recalculate meal log totals (consumed meals only)
             var mealLog = await _context.MealLogs
                 .Include(ml => ml.MealEntries)
                     .ThenInclude(me => me.FoodItems)
-                .FirstOrDefaultAsync(ml => ml.Id == entry.MealLogId);
+                .FirstOrDefaultAsync(ml => ml.Id == mealLogId);
 
             if (mealLog != null)
             {
-                mealLog.RecalculateTotals();
+                foreach (var mealEntry in mealLog.MealEntries)
+                {
+                    mealEntry.RecalculateTotals();
+                }
+                mealLog.RecalculateTotals(consumedOnly: true);
                 await _context.SaveChangesAsync();
             }
 

@@ -40,17 +40,53 @@ namespace GoHardAPI.Models
         public ICollection<MealEntry> MealEntries { get; set; } = new List<MealEntry>();
 
         /// <summary>
-        /// Recalculate totals from all meal entries
+        /// Recalculate totals from meal entries
         /// </summary>
-        public void RecalculateTotals()
+        /// <param name="consumedOnly">If true, only include consumed meals in totals</param>
+        public void RecalculateTotals(bool consumedOnly = true)
         {
-            TotalCalories = MealEntries.Sum(e => e.TotalCalories);
-            TotalProtein = MealEntries.Sum(e => e.TotalProtein);
-            TotalCarbohydrates = MealEntries.Sum(e => e.TotalCarbohydrates);
-            TotalFat = MealEntries.Sum(e => e.TotalFat);
-            TotalFiber = MealEntries.Sum(e => e.TotalFiber ?? 0);
-            TotalSodium = MealEntries.Sum(e => e.TotalSodium ?? 0);
+            var entries = consumedOnly
+                ? MealEntries.Where(e => e.IsConsumed).ToList()
+                : MealEntries.ToList();
+
+            TotalCalories = entries.Sum(e => e.TotalCalories);
+            TotalProtein = entries.Sum(e => e.TotalProtein);
+            TotalCarbohydrates = entries.Sum(e => e.TotalCarbohydrates);
+            TotalFat = entries.Sum(e => e.TotalFat);
+            TotalFiber = entries.Sum(e => e.TotalFiber ?? 0);
+            TotalSodium = entries.Sum(e => e.TotalSodium ?? 0);
             UpdatedAt = DateTime.UtcNow;
+        }
+
+        /// <summary>
+        /// Get planned totals (all meals regardless of consumption status)
+        /// </summary>
+        public (decimal Calories, decimal Protein, decimal Carbohydrates, decimal Fat, decimal Fiber, decimal Sodium) GetPlannedTotals()
+        {
+            return (
+                MealEntries.Sum(e => e.TotalCalories),
+                MealEntries.Sum(e => e.TotalProtein),
+                MealEntries.Sum(e => e.TotalCarbohydrates),
+                MealEntries.Sum(e => e.TotalFat),
+                MealEntries.Sum(e => e.TotalFiber ?? 0),
+                MealEntries.Sum(e => e.TotalSodium ?? 0)
+            );
+        }
+
+        /// <summary>
+        /// Get consumed totals (only consumed meals)
+        /// </summary>
+        public (decimal Calories, decimal Protein, decimal Carbohydrates, decimal Fat, decimal Fiber, decimal Sodium) GetConsumedTotals()
+        {
+            var consumed = MealEntries.Where(e => e.IsConsumed).ToList();
+            return (
+                consumed.Sum(e => e.TotalCalories),
+                consumed.Sum(e => e.TotalProtein),
+                consumed.Sum(e => e.TotalCarbohydrates),
+                consumed.Sum(e => e.TotalFat),
+                consumed.Sum(e => e.TotalFiber ?? 0),
+                consumed.Sum(e => e.TotalSodium ?? 0)
+            );
         }
     }
 }
