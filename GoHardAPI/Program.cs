@@ -584,12 +584,10 @@ using (var scope = app.Services.CreateScope())
             // Don't throw - the app can still run, just cascade delete might not work
         }
 
-        // Recalibrate any programs with misaligned start dates (not on Monday)
-        // This is a one-time fix for programs created before the Monday-alignment feature
+        // Fix existing programs to start on Monday (next Monday from their original start date)
         Console.WriteLine("\n🔧 Checking program start date alignment...");
         try
         {
-            // Fetch all programs and filter in memory (DayOfWeek doesn't translate to SQL)
             var allPrograms = context.Programs.ToList();
             var misalignedPrograms = allPrograms
                 .Where(p => p.StartDate.DayOfWeek != DayOfWeek.Monday)
@@ -597,34 +595,34 @@ using (var scope = app.Services.CreateScope())
 
             if (misalignedPrograms.Any())
             {
-                Console.WriteLine($"  Found {misalignedPrograms.Count} program(s) with misaligned start dates");
+                Console.WriteLine($"  Found {misalignedPrograms.Count} program(s) not starting on Monday");
                 foreach (var program in misalignedPrograms)
                 {
                     var oldDate = program.StartDate;
-                    // Calculate days since Monday: Monday=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
-                    var dow = (int)program.StartDate.DayOfWeek;
-                    var daysSinceMonday = dow == 0 ? 6 : dow - 1; // Sunday=0 in .NET, so Sunday becomes 6
-                    program.StartDate = program.StartDate.Date.AddDays(-daysSinceMonday);
+                    // Calculate days until next Monday (0 if already Monday)
+                    var daysUntilMonday = ((int)DayOfWeek.Monday - (int)program.StartDate.DayOfWeek + 7) % 7;
+                    if (daysUntilMonday == 0) daysUntilMonday = 7; // If somehow Monday, skip to next (shouldn't happen)
+                    program.StartDate = program.StartDate.Date.AddDays(daysUntilMonday);
 
-                    // Also update end date to maintain same duration
+                    // Update end date to maintain same duration
                     if (program.EndDate != null)
                     {
                         program.EndDate = program.StartDate.AddDays(program.TotalWeeks * 7);
                     }
 
-                    Console.WriteLine($"  ✓ Recalibrated \"{program.Title}\": {oldDate:yyyy-MM-dd} ({oldDate.DayOfWeek}) → {program.StartDate:yyyy-MM-dd} (Monday)");
+                    Console.WriteLine($"  ✓ Fixed \"{program.Title}\": {oldDate:yyyy-MM-dd} ({oldDate.DayOfWeek}) → {program.StartDate:yyyy-MM-dd} (Monday)");
                 }
                 context.SaveChanges();
-                Console.WriteLine($"✅ Recalibrated {misalignedPrograms.Count} program(s) to start on Monday");
+                Console.WriteLine($"✅ Fixed {misalignedPrograms.Count} program(s) to start on Monday");
             }
             else
             {
-                Console.WriteLine("  ✓ All programs already aligned to Monday");
+                Console.WriteLine("  ✓ All programs already start on Monday");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"⚠️ Warning: Could not recalibrate programs: {ex.Message}");
+            Console.WriteLine($"⚠️ Warning: Could not fix program dates: {ex.Message}");
         }
 
         // Always run seed data initialization

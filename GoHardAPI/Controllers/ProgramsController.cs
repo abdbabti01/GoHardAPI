@@ -88,11 +88,12 @@ namespace GoHardAPI.Controllers
             program.UserId = userId;
             program.CreatedAt = DateTime.UtcNow;
 
-            // Set start date and adjust to Monday of the week
-            // Programs always start on Monday to align calendar days with actual weekdays
-            var baseDate = program.StartDate == default ? DateTime.UtcNow : program.StartDate;
-            var daysSinceMonday = ((int)baseDate.DayOfWeek + 6) % 7; // Monday=0, Tuesday=1, ..., Sunday=6
-            program.StartDate = baseDate.Date.AddDays(-daysSinceMonday);
+            // Programs always start on Monday
+            // If today is Monday, start today. Otherwise, start next Monday.
+            var baseDate = program.StartDate == default ? DateTime.UtcNow.Date : program.StartDate.Date;
+            var daysUntilMonday = ((int)DayOfWeek.Monday - (int)baseDate.DayOfWeek + 7) % 7;
+            // If today is Monday, daysUntilMonday will be 0, which is correct
+            program.StartDate = baseDate.AddDays(daysUntilMonday);
 
             program.IsCompleted = false;
             program.CurrentWeek = 1;
