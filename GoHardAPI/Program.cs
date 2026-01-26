@@ -589,8 +589,10 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine("\n🔧 Checking program start date alignment...");
         try
         {
-            var misalignedPrograms = context.Programs
-                .Where(p => ((int)p.StartDate.DayOfWeek + 6) % 7 != 0) // Not Monday
+            // Fetch all programs and filter in memory (DayOfWeek doesn't translate to SQL)
+            var allPrograms = context.Programs.ToList();
+            var misalignedPrograms = allPrograms
+                .Where(p => p.StartDate.DayOfWeek != DayOfWeek.Monday)
                 .ToList();
 
             if (misalignedPrograms.Any())
@@ -599,7 +601,9 @@ using (var scope = app.Services.CreateScope())
                 foreach (var program in misalignedPrograms)
                 {
                     var oldDate = program.StartDate;
-                    var daysSinceMonday = ((int)program.StartDate.DayOfWeek + 6) % 7;
+                    // Calculate days since Monday: Monday=0, Tue=1, Wed=2, Thu=3, Fri=4, Sat=5, Sun=6
+                    var dow = (int)program.StartDate.DayOfWeek;
+                    var daysSinceMonday = dow == 0 ? 6 : dow - 1; // Sunday=0 in .NET, so Sunday becomes 6
                     program.StartDate = program.StartDate.Date.AddDays(-daysSinceMonday);
 
                     // Also update end date to maintain same duration
