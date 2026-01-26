@@ -1734,12 +1734,43 @@ CRITICAL RULES:
                     }
                 }
 
-                // 5. UPDATE MEAL LOG TOTALS (replace, not add)
-                mealLog!.TotalCalories = totalCaloriesAdded;
-                mealLog.TotalProtein = totalProteinAdded;
-                mealLog.TotalCarbohydrates = totalCarbsAdded;
-                mealLog.TotalFat = totalFatAdded;
-                mealLog.UpdatedAt = DateTime.UtcNow;
+                // 5. UPDATE MEAL ENTRY TOTALS (but keep IsConsumed = false, so they're "Planned")
+                // Reload meal entries to update their totals
+                var updatedMealLog = await _context.MealLogs
+                    .Include(ml => ml.MealEntries)
+                    .ThenInclude(me => me.FoodItems)
+                    .FirstOrDefaultAsync(ml => ml.Id == mealLog!.Id);
+
+                if (updatedMealLog != null)
+                {
+                    foreach (var entry in updatedMealLog.MealEntries)
+                    {
+                        // Update entry totals from food items
+                        entry.TotalCalories = entry.FoodItems.Sum(f => f.Calories);
+                        entry.TotalProtein = entry.FoodItems.Sum(f => f.Protein);
+                        entry.TotalCarbohydrates = entry.FoodItems.Sum(f => f.Carbohydrates);
+                        entry.TotalFat = entry.FoodItems.Sum(f => f.Fat);
+                        // Keep IsConsumed = false (Planned status)
+                        entry.IsConsumed = false;
+                        entry.ConsumedAt = null;
+                    }
+
+                    // MealLog totals should only count CONSUMED meals, so keep at 0
+                    // (or recalculate from only consumed entries)
+                    updatedMealLog.TotalCalories = updatedMealLog.MealEntries
+                        .Where(e => e.IsConsumed)
+                        .Sum(e => e.TotalCalories);
+                    updatedMealLog.TotalProtein = updatedMealLog.MealEntries
+                        .Where(e => e.IsConsumed)
+                        .Sum(e => e.TotalProtein);
+                    updatedMealLog.TotalCarbohydrates = updatedMealLog.MealEntries
+                        .Where(e => e.IsConsumed)
+                        .Sum(e => e.TotalCarbohydrates);
+                    updatedMealLog.TotalFat = updatedMealLog.MealEntries
+                        .Where(e => e.IsConsumed)
+                        .Sum(e => e.TotalFat);
+                    updatedMealLog.UpdatedAt = DateTime.UtcNow;
+                }
 
                 await _context.SaveChangesAsync();
 
