@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +15,12 @@ namespace GoHardAPI.Controllers
     public class FoodTemplatesController : ControllerBase
     {
         private readonly TrainingContext _context;
+        private readonly IOpenFoodFactsService _openFoodFactsService;
 
-        public FoodTemplatesController(TrainingContext context)
+        public FoodTemplatesController(TrainingContext context, IOpenFoodFactsService openFoodFactsService)
         {
             _context = context;
+            _openFoodFactsService = openFoodFactsService;
         }
 
         private int? GetCurrentUserId()
@@ -125,20 +128,33 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Get a food template by barcode
+        /// Get a food template by barcode. If not found locally, fetches from Open Food Facts API.
         /// </summary>
         [HttpGet("barcode/{barcode}")]
         public async Task<ActionResult<FoodTemplate>> GetByBarcode(string barcode)
         {
+            // First check local database
             var template = await _context.FoodTemplates
                 .FirstOrDefaultAsync(ft => ft.Barcode == barcode);
 
-            if (template == null)
+            if (template != null)
+            {
+                return Ok(template);
+            }
+
+            // If not found locally, try Open Food Facts
+            var offTemplate = await _openFoodFactsService.GetFoodByBarcodeAsync(barcode);
+
+            if (offTemplate == null)
             {
                 return NotFound(new { message = "No food found with this barcode" });
             }
 
-            return Ok(template);
+            // Save to database for future lookups
+            _context.FoodTemplates.Add(offTemplate);
+            await _context.SaveChangesAsync();
+
+            return Ok(offTemplate);
         }
 
         /// <summary>

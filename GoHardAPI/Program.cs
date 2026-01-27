@@ -67,6 +67,13 @@ builder.Services.AddScoped<AIService>();
 // Add HttpClient for AI providers (required by Anthropic SDK)
 builder.Services.AddHttpClient();
 
+// Register OpenFoodFacts Service
+builder.Services.AddHttpClient<IOpenFoodFactsService, OpenFoodFactsService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Add("User-Agent", "GoHardAPI/1.0");
+});
+
 // Configure JWT Authentication
 // SECURITY: JWT secret MUST be set via environment variable in production
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
