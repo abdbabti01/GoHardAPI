@@ -11,11 +11,20 @@ namespace GoHardAPI.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<DateTime>(
-                name: "ScheduledDate",
-                table: "ProgramWorkouts",
-                type: "datetime2",
-                nullable: true);
+            // Use raw SQL to handle both SQL Server and PostgreSQL
+            if (migrationBuilder.ActiveProvider == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            {
+                migrationBuilder.Sql(
+                    "ALTER TABLE \"ProgramWorkouts\" ADD COLUMN \"ScheduledDate\" timestamp without time zone NULL;");
+            }
+            else
+            {
+                migrationBuilder.AddColumn<DateTime>(
+                    name: "ScheduledDate",
+                    table: "ProgramWorkouts",
+                    type: "datetime2",
+                    nullable: true);
+            }
         }
 
         /// <inheritdoc />
