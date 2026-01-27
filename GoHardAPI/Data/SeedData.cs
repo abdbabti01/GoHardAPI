@@ -157,7 +157,7 @@ namespace GoHardAPI.Data
                     Instructions = "Hold dumbbells at sides, raise arms out to shoulder height, lower with control"
                 },
 
-                // Arms
+                // Arms - Biceps
                 new ExerciseTemplate
                 {
                     Name = "Bicep Curls",
@@ -169,6 +169,85 @@ namespace GoHardAPI.Data
                     VideoUrl = "https://www.youtube.com/watch?v=ykJmrZ5v0Oo",
                     Instructions = "Hold dumbbells, curl up toward shoulders, lower with control"
                 },
+                new ExerciseTemplate
+                {
+                    Name = "Hammer Curls",
+                    Description = "Targets biceps and brachialis with neutral grip",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=zC3nLlEvin4",
+                    Instructions = "Hold dumbbells with palms facing each other, curl up keeping wrists neutral, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Preacher Curls",
+                    Description = "Isolation bicep exercise using preacher bench",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Barbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=fIWP-FRFNU0",
+                    Instructions = "Rest arms on preacher bench pad, curl bar up toward shoulders, lower slowly"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Concentration Curls",
+                    Description = "Single-arm bicep isolation for peak contraction",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=0AUGkch3tzc",
+                    Instructions = "Sit with elbow braced against inner thigh, curl dumbbell up, squeeze at top"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Barbell Curls",
+                    Description = "Classic bicep builder with barbell",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Barbell",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=LY1V6UbRHFM",
+                    Instructions = "Stand with barbell, curl up toward shoulders keeping elbows stationary, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Incline Dumbbell Curls",
+                    Description = "Bicep curls on incline bench for full stretch",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Dumbbell",
+                    Difficulty = "Intermediate",
+                    VideoUrl = "https://www.youtube.com/watch?v=soxrZlIl35U",
+                    Instructions = "Lie back on incline bench, let arms hang, curl dumbbells up, lower slowly"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "Cable Curls",
+                    Description = "Constant tension bicep exercise using cable machine",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "Cable Machine",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=NFzTWp2qpiE",
+                    Instructions = "Stand facing cable machine, curl handle up toward shoulders, lower with control"
+                },
+                new ExerciseTemplate
+                {
+                    Name = "EZ Bar Curls",
+                    Description = "Bicep curls with EZ bar for wrist comfort",
+                    Category = "Strength",
+                    MuscleGroup = "Arms",
+                    Equipment = "EZ Bar",
+                    Difficulty = "Beginner",
+                    VideoUrl = "https://www.youtube.com/watch?v=zG2xJ0Q5QtI",
+                    Instructions = "Grip EZ bar at angled portions, curl up toward shoulders, lower with control"
+                },
+
+                // Arms - Triceps
                 new ExerciseTemplate
                 {
                     Name = "Tricep Dips",
