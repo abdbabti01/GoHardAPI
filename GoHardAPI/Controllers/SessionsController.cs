@@ -105,11 +105,12 @@ namespace GoHardAPI.Controllers
                 return Unauthorized("You don't have access to this program");
             }
 
-            // Calculate the actual scheduled date for this workout
-            // based on program start date + (weekNumber - 1) * 7 days + (dayNumber - 1) days
-            var scheduledDate = programWorkout.Program.StartDate
-                .AddDays((programWorkout.WeekNumber - 1) * 7 + (programWorkout.DayNumber - 1))
-                .Date;
+            // Use the stored ScheduledDate if available, otherwise calculate it
+            // ScheduledDate is set when the program is created to avoid timezone issues
+            var scheduledDate = programWorkout.ScheduledDate?.Date
+                ?? programWorkout.Program.StartDate
+                    .AddDays((programWorkout.WeekNumber - 1) * 7 + (programWorkout.DayNumber - 1))
+                    .Date;
 
             var today = DateTime.UtcNow.Date;
 

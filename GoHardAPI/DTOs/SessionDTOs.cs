@@ -4,6 +4,7 @@ namespace GoHardAPI.DTOs
     {
         public int ProgramWorkoutId { get; set; }
         public int ProgramId { get; set; } // Pass programId to fix old data issue
+        public DateTime? ScheduledDate { get; set; } // Optional: client-calculated date (in local timezone)
     }
 
     public class StartPlannedWorkoutRequest

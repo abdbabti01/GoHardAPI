@@ -236,6 +236,12 @@ namespace GoHardAPI.Models
         /// </summary>
         public bool IsRestDay { get; set; }
 
+        /// <summary>
+        /// The actual calendar date this workout is scheduled for.
+        /// Calculated once when program is created/updated, stored to avoid timezone issues.
+        /// </summary>
+        public DateTime? ScheduledDate { get; set; }
+
         // Navigation properties
         public Program? Program { get; set; }
     }

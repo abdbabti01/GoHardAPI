@@ -105,6 +105,17 @@ namespace GoHardAPI.Controllers
                 program.EndDate = program.StartDate.AddDays(program.TotalWeeks * 7);
             }
 
+            // Calculate ScheduledDate for each workout based on program's StartDate
+            if (program.Workouts != null)
+            {
+                foreach (var workout in program.Workouts)
+                {
+                    workout.ScheduledDate = program.StartDate
+                        .AddDays((workout.WeekNumber - 1) * 7 + (workout.DayNumber - 1))
+                        .Date;
+                }
+            }
+
             _context.Programs.Add(program);
             await _context.SaveChangesAsync();
 
@@ -451,6 +462,14 @@ namespace GoHardAPI.Controllers
             existingWorkout.DayNumber = workout.DayNumber;
             existingWorkout.OrderIndex = workout.OrderIndex;
 
+            // Recalculate ScheduledDate when week/day changes
+            if (existingWorkout.Program != null)
+            {
+                existingWorkout.ScheduledDate = existingWorkout.Program.StartDate
+                    .AddDays((workout.WeekNumber - 1) * 7 + (workout.DayNumber - 1))
+                    .Date;
+            }
+
             try
             {
                 await _context.SaveChangesAsync();
@@ -536,6 +555,11 @@ namespace GoHardAPI.Controllers
                 var day2 = workout2.DayNumber;
                 var order2 = workout2.OrderIndex;
 
+                // Calculate new ScheduledDates after swap
+                var programStartDate = workout1.Program!.StartDate;
+                var scheduledDate1 = programStartDate.AddDays((workout1.WeekNumber - 1) * 7 + (day2 - 1)).Date;
+                var scheduledDate2 = programStartDate.AddDays((workout2.WeekNumber - 1) * 7 + (day1 - 1)).Date;
+
                 // Use raw SQL to avoid EF circular dependency with unique constraint
                 // Strategy: Use temporary value (-999) to break the circular dependency
 
@@ -544,15 +568,15 @@ namespace GoHardAPI.Controllers
                     "UPDATE \"ProgramWorkouts\" SET \"DayNumber\" = {0}, \"OrderIndex\" = {1} WHERE \"Id\" = {2}",
                     -999, -999, workout1.Id);
 
-                // Step 2: Update workout2 to workout1's original values
+                // Step 2: Update workout2 to workout1's original values + new ScheduledDate
                 await _context.Database.ExecuteSqlRawAsync(
-                    "UPDATE \"ProgramWorkouts\" SET \"DayNumber\" = {0}, \"OrderIndex\" = {1} WHERE \"Id\" = {2}",
-                    day1, order1, workout2.Id);
+                    "UPDATE \"ProgramWorkouts\" SET \"DayNumber\" = {0}, \"OrderIndex\" = {1}, \"ScheduledDate\" = {2} WHERE \"Id\" = {3}",
+                    day1, order1, scheduledDate2, workout2.Id);
 
-                // Step 3: Update workout1 to workout2's original values
+                // Step 3: Update workout1 to workout2's original values + new ScheduledDate
                 await _context.Database.ExecuteSqlRawAsync(
-                    "UPDATE \"ProgramWorkouts\" SET \"DayNumber\" = {0}, \"OrderIndex\" = {1} WHERE \"Id\" = {2}",
-                    day2, order2, workout1.Id);
+                    "UPDATE \"ProgramWorkouts\" SET \"DayNumber\" = {0}, \"OrderIndex\" = {1}, \"ScheduledDate\" = {2} WHERE \"Id\" = {3}",
+                    day2, order2, scheduledDate1, workout1.Id);
 
                 // Commit transaction
                 await transaction.CommitAsync();
@@ -560,8 +584,8 @@ namespace GoHardAPI.Controllers
                 return Ok(new
                 {
                     message = "Workouts swapped successfully",
-                    workout1 = new { Id = workout1.Id, DayNumber = day2, OrderIndex = order2 },
-                    workout2 = new { Id = workout2.Id, DayNumber = day1, OrderIndex = order1 }
+                    workout1 = new { Id = workout1.Id, DayNumber = day2, OrderIndex = order2, ScheduledDate = scheduledDate1 },
+                    workout2 = new { Id = workout2.Id, DayNumber = day1, OrderIndex = order1, ScheduledDate = scheduledDate2 }
                 });
             }
             catch (Exception)
