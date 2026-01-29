@@ -59,17 +59,17 @@ namespace GoHardAPI.Controllers
 
             if (goal == null)
             {
-                // Return a default goal if none exists
+                // Return empty goal if none exists (user should set their own goals)
                 return Ok(new NutritionGoal
                 {
                     UserId = userId,
-                    Name = "Default",
-                    DailyCalories = 2000,
-                    DailyProtein = 150,
-                    DailyCarbohydrates = 200,
-                    DailyFat = 65,
-                    DailyFiber = 25,
-                    DailyWater = 2000
+                    Name = "Not Set",
+                    DailyCalories = 0,
+                    DailyProtein = 0,
+                    DailyCarbohydrates = 0,
+                    DailyFat = 0,
+                    DailyFiber = 0,
+                    DailyWater = 0
                 });
             }
 
@@ -217,10 +217,10 @@ namespace GoHardAPI.Controllers
                 Date = targetDate,
                 Goal = goal ?? new NutritionGoal
                 {
-                    DailyCalories = 2000,
-                    DailyProtein = 150,
-                    DailyCarbohydrates = 200,
-                    DailyFat = 65
+                    DailyCalories = 0,
+                    DailyProtein = 0,
+                    DailyCarbohydrates = 0,
+                    DailyFat = 0
                 },
                 Consumed = new NutritionTotals
                 {
