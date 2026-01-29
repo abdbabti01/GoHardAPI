@@ -11,6 +11,12 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// CRITICAL FIX: Enable legacy timestamp behavior for Npgsql 6.0+
+// Without this, Npgsql converts UTC DateTime to local time when writing to PostgreSQL
+// 'timestamp' (without timezone) columns, causing the 5-hour timer bug.
+// This must be set BEFORE any Npgsql operations.
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+
 // Add services to the container.
 // Support both SQL Server (local) and PostgreSQL (Railway production)
 var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
