@@ -132,7 +132,7 @@ namespace GoHardAPI.Controllers
         /// Send a message to a friend
         /// </summary>
         [HttpPost("conversations/{friendId}/messages")]
-        public async Task<ActionResult<MessageDto>> SendMessage(int friendId, [FromBody] SendMessageRequest request)
+        public async Task<ActionResult<MessageDto>> SendMessage(int friendId, [FromBody] SendDMRequest request)
         {
             var userId = GetCurrentUserId();
 
@@ -284,7 +284,7 @@ namespace GoHardAPI.Controllers
         public bool IsFromMe { get; set; }
     }
 
-    public class SendMessageRequest
+    public class SendDMRequest
     {
         public string Content { get; set; } = string.Empty;
     }

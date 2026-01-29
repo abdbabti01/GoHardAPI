@@ -1,0 +1,163 @@
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace GoHardAPI.Migrations
+{
+    /// <inheritdoc />
+    public partial class AddFriendsAndMessaging : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<string>(
+                name: "Username",
+                table: "Users",
+                type: "nvarchar(30)",
+                maxLength: 30,
+                nullable: false,
+                defaultValue: "");
+
+            migrationBuilder.CreateTable(
+                name: "DirectMessages",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    SenderId = table.Column<int>(type: "int", nullable: false),
+                    ReceiverId = table.Column<int>(type: "int", nullable: false),
+                    Content = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
+                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    ReadAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DirectMessages", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_DirectMessages_Users_ReceiverId",
+                        column: x => x.ReceiverId,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_DirectMessages_Users_SenderId",
+                        column: x => x.SenderId,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "DMConversations",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    User1Id = table.Column<int>(type: "int", nullable: false),
+                    User2Id = table.Column<int>(type: "int", nullable: false),
+                    LastMessageAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    UnreadCountUser1 = table.Column<int>(type: "int", nullable: false),
+                    UnreadCountUser2 = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DMConversations", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_DMConversations_Users_User1Id",
+                        column: x => x.User1Id,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_DMConversations_Users_User2Id",
+                        column: x => x.User2Id,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Friendships",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RequesterId = table.Column<int>(type: "int", nullable: false),
+                    AddresseeId = table.Column<int>(type: "int", nullable: false),
+                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    RequestedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    RespondedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Friendships", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Friendships_Users_AddresseeId",
+                        column: x => x.AddresseeId,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_Friendships_Users_RequesterId",
+                        column: x => x.RequesterId,
+                        principalTable: "Users",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Users_Username",
+                table: "Users",
+                column: "Username",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DirectMessages_ReceiverId",
+                table: "DirectMessages",
+                column: "ReceiverId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DirectMessages_SenderId_ReceiverId_SentAt",
+                table: "DirectMessages",
+                columns: new[] { "SenderId", "ReceiverId", "SentAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DMConversations_User1Id_User2Id",
+                table: "DMConversations",
+                columns: new[] { "User1Id", "User2Id" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DMConversations_User2Id",
+                table: "DMConversations",
+                column: "User2Id");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Friendships_AddresseeId_Status",
+                table: "Friendships",
+                columns: new[] { "AddresseeId", "Status" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Friendships_RequesterId_AddresseeId",
+                table: "Friendships",
+                columns: new[] { "RequesterId", "AddresseeId" },
+                unique: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropTable(
+                name: "DirectMessages");
+
+            migrationBuilder.DropTable(
+                name: "DMConversations");
+
+            migrationBuilder.DropTable(
+                name: "Friendships");
+
+            migrationBuilder.DropIndex(
+                name: "IX_Users_Username",
+                table: "Users");
+
+            migrationBuilder.DropColumn(
+                name: "Username",
+                table: "Users");
+        }
+    }
+}
