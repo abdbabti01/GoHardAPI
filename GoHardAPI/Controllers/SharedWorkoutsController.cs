@@ -47,6 +47,7 @@ namespace GoHardAPI.Controllers
                 .AsQueryable();
 
             // Filter by friends only (default behavior)
+            // Shows only friends' shares, not the current user's own shares
             if (friendsOnly)
             {
                 var friendIds = await _context.Friendships
@@ -54,9 +55,6 @@ namespace GoHardAPI.Controllers
                                 && f.Status == "accepted")
                     .Select(f => f.RequesterId == userId ? f.AddresseeId : f.RequesterId)
                     .ToListAsync();
-
-                // Include current user's own shares as well
-                friendIds.Add(userId);
 
                 query = query.Where(sw => friendIds.Contains(sw.SharedByUserId));
             }
