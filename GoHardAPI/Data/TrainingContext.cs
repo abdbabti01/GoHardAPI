@@ -36,6 +36,11 @@ namespace GoHardAPI.Data
         public DbSet<MealPlanMeal> MealPlanMeals { get; set; }
         public DbSet<MealPlanFoodItem> MealPlanFoodItems { get; set; }
 
+        // Friends & Messaging
+        public DbSet<Friendship> Friendships { get; set; }
+        public DbSet<DirectMessage> DirectMessages { get; set; }
+        public DbSet<DMConversation> DMConversations { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -380,6 +385,70 @@ namespace GoHardAPI.Data
                 .WithMany()
                 .HasForeignKey(mpfi => mpfi.FoodTemplateId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // ============ FRIENDS & MESSAGING CONFIGURATIONS ============
+
+            // Add unique index on Username
+            modelBuilder.Entity<User>()
+                .HasIndex(u => u.Username)
+                .IsUnique();
+
+            // Configure Friendship relationships
+            modelBuilder.Entity<Friendship>()
+                .HasOne(f => f.Requester)
+                .WithMany()
+                .HasForeignKey(f => f.RequesterId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<Friendship>()
+                .HasOne(f => f.Addressee)
+                .WithMany()
+                .HasForeignKey(f => f.AddresseeId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // Add unique index to prevent duplicate friend requests
+            modelBuilder.Entity<Friendship>()
+                .HasIndex(f => new { f.RequesterId, f.AddresseeId })
+                .IsUnique();
+
+            // Add index for friendship queries
+            modelBuilder.Entity<Friendship>()
+                .HasIndex(f => new { f.AddresseeId, f.Status });
+
+            // Configure DirectMessage relationships
+            modelBuilder.Entity<DirectMessage>()
+                .HasOne(dm => dm.Sender)
+                .WithMany()
+                .HasForeignKey(dm => dm.SenderId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<DirectMessage>()
+                .HasOne(dm => dm.Receiver)
+                .WithMany()
+                .HasForeignKey(dm => dm.ReceiverId)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // Add index for message queries
+            modelBuilder.Entity<DirectMessage>()
+                .HasIndex(dm => new { dm.SenderId, dm.ReceiverId, dm.SentAt });
+
+            // Configure DMConversation relationships
+            modelBuilder.Entity<DMConversation>()
+                .HasOne(c => c.User1)
+                .WithMany()
+                .HasForeignKey(c => c.User1Id)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            modelBuilder.Entity<DMConversation>()
+                .HasOne(c => c.User2)
+                .WithMany()
+                .HasForeignKey(c => c.User2Id)
+                .OnDelete(DeleteBehavior.NoAction);
+
+            // Add unique index for conversation pair
+            modelBuilder.Entity<DMConversation>()
+                .HasIndex(c => new { c.User1Id, c.User2Id })
+                .IsUnique();
         }
     }
 }

@@ -1046,6 +1046,9 @@ namespace GoHardAPI.Migrations
                     b.Property<int>("ProgramId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("ScheduledDate")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("WarmUp")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");

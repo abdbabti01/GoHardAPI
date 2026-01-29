@@ -32,6 +32,12 @@ namespace GoHardAPI.Controllers
                 return BadRequest(new { message = "Email already registered" });
             }
 
+            // Check if username already exists
+            if (await _userRepository.UsernameExistsAsync(request.Username))
+            {
+                return BadRequest(new { message = "Username already taken" });
+            }
+
             // Hash the password
             var passwordHash = _authService.HashPassword(request.Password);
 
@@ -39,6 +45,7 @@ namespace GoHardAPI.Controllers
             var user = new User
             {
                 Name = request.Name,
+                Username = request.Username,
                 Email = request.Email,
                 PasswordHash = passwordHash,
                 DateCreated = DateTime.UtcNow,
@@ -51,7 +58,7 @@ namespace GoHardAPI.Controllers
             // Generate JWT token
             var token = _authService.GenerateJwtToken(user);
 
-            return Ok(new AuthResponse(token, user.Id, user.Name, user.Email));
+            return Ok(new AuthResponse(token, user.Id, user.Name, user.Username, user.Email));
         }
 
         [HttpPost("login")]
@@ -84,7 +91,7 @@ namespace GoHardAPI.Controllers
             // Generate JWT token
             var token = _authService.GenerateJwtToken(user);
 
-            return Ok(new AuthResponse(token, user.Id, user.Name, user.Email));
+            return Ok(new AuthResponse(token, user.Id, user.Name, user.Username, user.Email));
         }
     }
 }

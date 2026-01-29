@@ -22,5 +22,15 @@ namespace GoHardAPI.Repositories
         {
             return await _dbSet.AnyAsync(u => u.Email == email);
         }
+
+        public async Task<User?> GetByUsernameAsync(string username)
+        {
+            return await _dbSet.FirstOrDefaultAsync(u => u.Username == username);
+        }
+
+        public async Task<bool> UsernameExistsAsync(string username)
+        {
+            return await _dbSet.AnyAsync(u => u.Username == username);
+        }
     }
 }

@@ -11,6 +11,10 @@ namespace GoHardAPI.Models
         public string Name { get; set; }
 
         [Required]
+        [MaxLength(30)]
+        public string Username { get; set; } = string.Empty;
+
+        [Required]
         [EmailAddress]
         [MaxLength(255)]
         public string Email { get; set; }
