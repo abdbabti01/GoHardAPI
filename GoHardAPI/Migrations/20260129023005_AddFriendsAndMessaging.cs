@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -15,7 +16,6 @@ namespace GoHardAPI.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "Username",
                 table: "Users",
-                type: "nvarchar(30)",
                 maxLength: 30,
                 nullable: true);
 
@@ -30,7 +30,6 @@ namespace GoHardAPI.Migrations
             migrationBuilder.AlterColumn<string>(
                 name: "Username",
                 table: "Users",
-                type: "nvarchar(30)",
                 maxLength: 30,
                 nullable: false,
                 defaultValue: "");
@@ -39,13 +38,13 @@ namespace GoHardAPI.Migrations
                 name: "DirectMessages",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    SenderId = table.Column<int>(type: "int", nullable: false),
-                    ReceiverId = table.Column<int>(type: "int", nullable: false),
-                    Content = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
-                    SentAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ReadAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    SenderId = table.Column<int>(nullable: false),
+                    ReceiverId = table.Column<int>(nullable: false),
+                    Content = table.Column<string>(maxLength: 2000, nullable: false),
+                    SentAt = table.Column<DateTime>(nullable: false),
+                    ReadAt = table.Column<DateTime>(nullable: true)
                 },
                 constraints: table =>
                 {
@@ -66,13 +65,13 @@ namespace GoHardAPI.Migrations
                 name: "DMConversations",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    User1Id = table.Column<int>(type: "int", nullable: false),
-                    User2Id = table.Column<int>(type: "int", nullable: false),
-                    LastMessageAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    UnreadCountUser1 = table.Column<int>(type: "int", nullable: false),
-                    UnreadCountUser2 = table.Column<int>(type: "int", nullable: false)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    User1Id = table.Column<int>(nullable: false),
+                    User2Id = table.Column<int>(nullable: false),
+                    LastMessageAt = table.Column<DateTime>(nullable: false),
+                    UnreadCountUser1 = table.Column<int>(nullable: false),
+                    UnreadCountUser2 = table.Column<int>(nullable: false)
                 },
                 constraints: table =>
                 {
@@ -93,13 +92,13 @@ namespace GoHardAPI.Migrations
                 name: "Friendships",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    RequesterId = table.Column<int>(type: "int", nullable: false),
-                    AddresseeId = table.Column<int>(type: "int", nullable: false),
-                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    RequestedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    RespondedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    RequesterId = table.Column<int>(nullable: false),
+                    AddresseeId = table.Column<int>(nullable: false),
+                    Status = table.Column<string>(maxLength: 20, nullable: false),
+                    RequestedAt = table.Column<DateTime>(nullable: false),
+                    RespondedAt = table.Column<DateTime>(nullable: true)
                 },
                 constraints: table =>
                 {
