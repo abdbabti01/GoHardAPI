@@ -11,7 +11,23 @@ namespace GoHardAPI.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Step 1: Add Username column as nullable first
             migrationBuilder.AddColumn<string>(
+                name: "Username",
+                table: "Users",
+                type: "nvarchar(30)",
+                maxLength: 30,
+                nullable: true);
+
+            // Step 2: Generate unique usernames for existing users (user_<id>)
+            migrationBuilder.Sql(@"
+                UPDATE ""Users""
+                SET ""Username"" = 'user_' || CAST(""Id"" AS VARCHAR)
+                WHERE ""Username"" IS NULL OR ""Username"" = ''
+            ");
+
+            // Step 3: Make column required
+            migrationBuilder.AlterColumn<string>(
                 name: "Username",
                 table: "Users",
                 type: "nvarchar(30)",
