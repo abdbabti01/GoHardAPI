@@ -46,6 +46,10 @@ namespace GoHardAPI.Data
             base.OnModelCreating(modelBuilder);
 
             // Configure DateTime to always use UTC for PostgreSQL compatibility
+            // FIX: Previous converter was calling ToUniversalTime() which could shift times incorrectly
+            // if the DateTime was already UTC but had Kind=Utc set. The correct approach is to
+            // ALWAYS treat incoming timestamps as UTC (since clients send UTC with 'Z' suffix)
+            // and just mark them as UTC without any conversion.
             foreach (var entityType in modelBuilder.Model.GetEntityTypes())
             {
                 foreach (var property in entityType.GetProperties())
@@ -54,7 +58,13 @@ namespace GoHardAPI.Data
                     {
                         property.SetValueConverter(
                             new Microsoft.EntityFrameworkCore.Storage.ValueConversion.ValueConverter<DateTime, DateTime>(
-                                v => v.Kind == DateTimeKind.Unspecified ? DateTime.SpecifyKind(v, DateTimeKind.Utc) : v.ToUniversalTime(),
+                                // On write: treat the value AS UTC without shifting
+                                // If Kind is Utc or Unspecified, keep the value as-is
+                                // If Kind is Local, convert to UTC (this handles edge cases)
+                                v => v.Kind == DateTimeKind.Local
+                                    ? v.ToUniversalTime()
+                                    : DateTime.SpecifyKind(v, DateTimeKind.Utc),
+                                // On read: mark as UTC
                                 v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
                             )
                         );

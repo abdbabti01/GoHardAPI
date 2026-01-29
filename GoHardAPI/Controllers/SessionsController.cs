@@ -307,6 +307,23 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             var session = await _context.Sessions.FindAsync(id);
 
+            // DEBUG: Log what we received
+            Console.WriteLine($"🔽 SERVER RECEIVED UpdateStatusRequest:");
+            Console.WriteLine($"   Status: {request.Status}");
+            Console.WriteLine($"   StartedAt.HasValue: {request.StartedAt.HasValue}");
+            if (request.StartedAt.HasValue)
+            {
+                Console.WriteLine($"   StartedAt.Value: {request.StartedAt.Value}");
+                Console.WriteLine($"   StartedAt.Kind: {request.StartedAt.Value.Kind}");
+                Console.WriteLine($"   StartedAt.Hour: {request.StartedAt.Value.Hour}");
+            }
+            Console.WriteLine($"   PausedAt.HasValue: {request.PausedAt.HasValue}");
+            if (request.PausedAt.HasValue)
+            {
+                Console.WriteLine($"   PausedAt.Value: {request.PausedAt.Value}");
+                Console.WriteLine($"   PausedAt.Kind: {request.PausedAt.Value.Kind}");
+            }
+
             if (session == null || session.UserId != userId)
             {
                 return NotFound();
@@ -340,12 +357,16 @@ namespace GoHardAPI.Controllers
             // This is critical for pause/resume sync (Issue #1 - startedAt must be updatable)
             if (request.StartedAt.HasValue)
             {
+                Console.WriteLine($"   🕐 Setting session.StartedAt from request: {request.StartedAt.Value} (Kind: {request.StartedAt.Value.Kind})");
                 session.StartedAt = request.StartedAt.Value;
+                Console.WriteLine($"   🕐 After assignment - session.StartedAt: {session.StartedAt} (Kind: {session.StartedAt?.Kind})");
             }
             else if (request.Status.Equals(SessionStatus.InProgress, StringComparison.OrdinalIgnoreCase) && session.StartedAt == null)
             {
                 // Only auto-generate if not provided and session hasn't started
-                session.StartedAt = DateTime.UtcNow;
+                var utcNow = DateTime.UtcNow;
+                Console.WriteLine($"   🕐 Auto-generating session.StartedAt: {utcNow} (Kind: {utcNow.Kind})");
+                session.StartedAt = utcNow;
             }
 
             // Handle completion timestamp
