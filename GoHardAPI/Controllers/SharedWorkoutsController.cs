@@ -38,12 +38,28 @@ namespace GoHardAPI.Controllers
         public async Task<ActionResult<IEnumerable<object>>> GetSharedWorkouts(
             [FromQuery] string? category = null,
             [FromQuery] string? difficulty = null,
+            [FromQuery] bool friendsOnly = true,
             [FromQuery] int limit = 50)
         {
             var userId = GetCurrentUserId();
             var query = _context.SharedWorkouts
                 .Include(sw => sw.SharedByUser)
                 .AsQueryable();
+
+            // Filter by friends only (default behavior)
+            if (friendsOnly)
+            {
+                var friendIds = await _context.Friendships
+                    .Where(f => (f.RequesterId == userId || f.AddresseeId == userId)
+                                && f.Status == "accepted")
+                    .Select(f => f.RequesterId == userId ? f.AddresseeId : f.RequesterId)
+                    .ToListAsync();
+
+                // Include current user's own shares as well
+                friendIds.Add(userId);
+
+                query = query.Where(sw => friendIds.Contains(sw.SharedByUserId));
+            }
 
             if (!string.IsNullOrEmpty(category))
             {
