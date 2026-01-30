@@ -41,6 +41,9 @@ namespace GoHardAPI.Data
         public DbSet<DirectMessage> DirectMessages { get; set; }
         public DbSet<DMConversation> DMConversations { get; set; }
 
+        // Running/Cardio
+        public DbSet<RunSession> RunSessions { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -459,6 +462,22 @@ namespace GoHardAPI.Data
             modelBuilder.Entity<DMConversation>()
                 .HasIndex(c => new { c.User1Id, c.User2Id })
                 .IsUnique();
+
+            // ============ RUNNING/CARDIO CONFIGURATIONS ============
+
+            // Configure RunSession-User relationship
+            modelBuilder.Entity<RunSession>()
+                .HasOne(rs => rs.User)
+                .WithMany()
+                .HasForeignKey(rs => rs.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Add index for run session queries
+            modelBuilder.Entity<RunSession>()
+                .HasIndex(rs => new { rs.UserId, rs.Date });
+
+            modelBuilder.Entity<RunSession>()
+                .HasIndex(rs => new { rs.UserId, rs.Status });
         }
     }
 }
