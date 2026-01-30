@@ -239,6 +239,66 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
+        // FIRST: Create RunSessions table if not exists (PostgreSQL compatible)
+        Console.WriteLine("🏃 Creating RunSessions table if not exists...");
+        try
+        {
+            context.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""RunSessions"" (
+                    ""Id"" SERIAL PRIMARY KEY,
+                    ""UserId"" INTEGER NOT NULL,
+                    ""Name"" VARCHAR(100) NULL,
+                    ""Date"" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    ""Distance"" DOUBLE PRECISION NULL,
+                    ""Duration"" INTEGER NULL,
+                    ""AveragePace"" DOUBLE PRECISION NULL,
+                    ""Calories"" INTEGER NULL,
+                    ""Status"" VARCHAR(20) NOT NULL DEFAULT 'draft',
+                    ""StartedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                    ""CompletedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                    ""PausedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                    ""RouteJson"" TEXT NULL
+                )
+            ");
+            Console.WriteLine("  ✓ RunSessions table ready");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  RunSessions: {ex.Message}");
+        }
+
+        // Add FK and indexes for RunSessions
+        try
+        {
+            context.Database.ExecuteSqlRaw(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_RunSessions_Users_UserId') THEN
+                        ALTER TABLE ""RunSessions"" ADD CONSTRAINT ""FK_RunSessions_Users_UserId""
+                        FOREIGN KEY (""UserId"") REFERENCES ""Users""(""Id"") ON DELETE CASCADE;
+                    END IF;
+                END $$
+            ");
+            context.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Date"" ON ""RunSessions""(""UserId"", ""Date"")");
+            context.Database.ExecuteSqlRaw(@"CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Status"" ON ""RunSessions""(""UserId"", ""Status"")");
+            Console.WriteLine("  ✓ RunSessions indexes ready");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  RunSessions indexes: {ex.Message}");
+        }
+
+        // Mark RunSessions migration as applied
+        try
+        {
+            context.Database.ExecuteSqlRaw(@"
+                INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+                SELECT '20260130195057_AddRunSessions', '8.0.10'
+                WHERE NOT EXISTS (SELECT 1 FROM ""__EFMigrationsHistory"" WHERE ""MigrationId"" = '20260130195057_AddRunSessions')
+            ");
+        }
+        catch { }
+
         // Railway database was created with EnsureCreated (no migration history)
         // We need to manually create migration history for existing tables
         // Then use Migrate() to apply only new migrations (Programs)
