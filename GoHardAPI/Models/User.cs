@@ -67,6 +67,10 @@ namespace GoHardAPI.Models
         [MaxLength(1000)]
         public string? FavoriteExercises { get; set; } // JSON array or comma-separated
 
+        // Push Notifications
+        [MaxLength(500)]
+        public string? FcmToken { get; set; } // Firebase Cloud Messaging token
+
         // Navigation property
         public ICollection<Session> Sessions { get; set; } = new List<Session>();
     }

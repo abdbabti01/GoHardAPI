@@ -80,6 +80,9 @@ builder.Services.AddHttpClient<IOpenFoodFactsService, OpenFoodFactsService>(clie
     client.DefaultRequestHeaders.Add("User-Agent", "GoHardAPI/1.0");
 });
 
+// Register Push Notification Service
+builder.Services.AddHttpClient<IPushNotificationService, PushNotificationService>();
+
 // Configure JWT Authentication
 // SECURITY: JWT secret MUST be set via environment variable in production
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -610,6 +613,26 @@ using (var scope = app.Services.CreateScope())
                 }
                 catch { /* Ignore if already marked */ }
             }
+        }
+
+        // Add FcmToken column to Users if it doesn't exist (for push notifications)
+        Console.WriteLine("\n🔧 Checking for FcmToken column...");
+        try
+        {
+            context.Database.ExecuteSqlRaw(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name = 'Users' AND column_name = 'FcmToken') THEN
+                        ALTER TABLE ""Users"" ADD COLUMN ""FcmToken"" VARCHAR(500);
+                    END IF;
+                END $$;
+            ");
+            Console.WriteLine("  ✓ FcmToken column exists");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠️ FcmToken column check error: {ex.Message}");
         }
 
         // Now apply any remaining migrations

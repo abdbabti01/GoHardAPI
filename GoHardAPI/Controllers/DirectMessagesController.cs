@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,10 +16,12 @@ namespace GoHardAPI.Controllers
     public class DirectMessagesController : ControllerBase
     {
         private readonly TrainingContext _context;
+        private readonly IPushNotificationService _pushNotificationService;
 
-        public DirectMessagesController(TrainingContext context)
+        public DirectMessagesController(TrainingContext context, IPushNotificationService pushNotificationService)
         {
             _context = context;
+            _pushNotificationService = pushNotificationService;
         }
 
         private int GetCurrentUserId()
@@ -194,6 +197,30 @@ namespace GoHardAPI.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            // Send push notification to recipient (non-blocking)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var sender = await _context.Users.FindAsync(userId);
+                    var recipient = await _context.Users.FindAsync(friendId);
+
+                    if (sender != null && recipient != null && !string.IsNullOrEmpty(recipient.FcmToken))
+                    {
+                        await _pushNotificationService.SendMessageNotificationAsync(
+                            recipient.FcmToken,
+                            sender.Name,
+                            message.Content,
+                            userId
+                        );
+                    }
+                }
+                catch
+                {
+                    // Don't let push notification failures affect the message send
+                }
+            });
 
             return Ok(new MessageDto
             {

@@ -178,6 +178,60 @@ namespace GoHardAPI.Controllers
 
             return NoContent();
         }
+
+        /// <summary>
+        /// Register FCM token for push notifications
+        /// </summary>
+        [HttpPost("fcm-token")]
+        [Authorize]
+        public async Task<IActionResult> RegisterFcmToken([FromBody] FcmTokenDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Token))
+            {
+                return BadRequest(new { message = "Token is required" });
+            }
+
+            var userId = GetCurrentUserId();
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            user.FcmToken = dto.Token;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "FCM token registered successfully" });
+        }
+
+        /// <summary>
+        /// Unregister FCM token (call on logout)
+        /// </summary>
+        [HttpDelete("fcm-token")]
+        [Authorize]
+        public async Task<IActionResult> UnregisterFcmToken([FromBody] FcmTokenDto dto)
+        {
+            var userId = GetCurrentUserId();
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            // Only clear if it matches (in case user logged in on another device)
+            if (user.FcmToken == dto.Token)
+            {
+                user.FcmToken = null;
+                await _context.SaveChangesAsync();
+            }
+
+            return Ok(new { message = "FCM token unregistered successfully" });
+        }
+    }
+
+    public class FcmTokenDto
+    {
+        public string Token { get; set; } = string.Empty;
     }
 
     public class UserSearchResultDto
