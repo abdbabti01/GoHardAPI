@@ -5,7 +5,7 @@ WORKDIR /src
 COPY GoHardAPI/GoHardAPI.csproj GoHardAPI/
 RUN dotnet restore GoHardAPI/GoHardAPI.csproj
 
-# Copy everything else and build
+# Copy everything else and build (v2 - force rebuild)
 COPY GoHardAPI/ GoHardAPI/
 WORKDIR /src/GoHardAPI
 RUN dotnet publish -c Release -o /app/publish
