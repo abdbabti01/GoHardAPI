@@ -635,25 +635,10 @@ using (var scope = app.Services.CreateScope())
             Console.WriteLine($"  ⚠️ FcmToken column check error: {ex.Message}");
         }
 
-        // Now apply any remaining migrations
-        Console.WriteLine("\n🔄 Applying pending migrations...");
-        context.Database.Migrate();
-        Console.WriteLine("✅ Migrations applied successfully!");
-
-        // Ensure RunSessions table exists (manual creation for PostgreSQL compatibility)
-        Console.WriteLine("\n🏃 Ensuring RunSessions table exists...");
+        // Create RunSessions table BEFORE migrations (to avoid migration failures)
+        Console.WriteLine("\n🏃 Creating RunSessions table (if not exists)...");
         try
         {
-            // Check if table exists
-            var tableExists = context.Database.ExecuteSqlRaw(@"
-                SELECT 1 FROM information_schema.tables
-                WHERE table_name = 'RunSessions' LIMIT 1;
-            ");
-        }
-        catch
-        {
-            // Table doesn't exist, create it
-            Console.WriteLine("  Creating RunSessions table...");
             context.Database.ExecuteSqlRaw(@"
                 CREATE TABLE IF NOT EXISTS ""RunSessions"" (
                     ""Id"" SERIAL PRIMARY KEY,
@@ -668,39 +653,75 @@ using (var scope = app.Services.CreateScope())
                     ""StartedAt"" TIMESTAMP WITH TIME ZONE NULL,
                     ""CompletedAt"" TIMESTAMP WITH TIME ZONE NULL,
                     ""PausedAt"" TIMESTAMP WITH TIME ZONE NULL,
-                    ""RouteJson"" TEXT NULL,
-                    CONSTRAINT ""FK_RunSessions_Users_UserId"" FOREIGN KEY (""UserId"")
-                        REFERENCES ""Users"" (""Id"") ON DELETE CASCADE
+                    ""RouteJson"" TEXT NULL
                 );
+            ");
+            Console.WriteLine("  ✓ RunSessions table created/exists");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠️ RunSessions table creation: {ex.Message}");
+        }
 
+        // Add foreign key if missing
+        try
+        {
+            context.Database.ExecuteSqlRaw(@"
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.table_constraints
+                        WHERE constraint_name = 'FK_RunSessions_Users_UserId'
+                    ) THEN
+                        ALTER TABLE ""RunSessions""
+                        ADD CONSTRAINT ""FK_RunSessions_Users_UserId""
+                        FOREIGN KEY (""UserId"") REFERENCES ""Users"" (""Id"") ON DELETE CASCADE;
+                    END IF;
+                END $$;
+            ");
+            Console.WriteLine("  ✓ RunSessions foreign key ready");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠️ RunSessions FK: {ex.Message}");
+        }
+
+        // Add indexes if missing
+        try
+        {
+            context.Database.ExecuteSqlRaw(@"
                 CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Date"" ON ""RunSessions"" (""UserId"", ""Date"");
                 CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Status"" ON ""RunSessions"" (""UserId"", ""Status"");
             ");
+            Console.WriteLine("  ✓ RunSessions indexes ready");
         }
-        // Also run CREATE TABLE IF NOT EXISTS to ensure it's there
-        context.Database.ExecuteSqlRaw(@"
-            CREATE TABLE IF NOT EXISTS ""RunSessions"" (
-                ""Id"" SERIAL PRIMARY KEY,
-                ""UserId"" INTEGER NOT NULL,
-                ""Name"" VARCHAR(100) NULL,
-                ""Date"" TIMESTAMP WITH TIME ZONE NOT NULL,
-                ""Distance"" DOUBLE PRECISION NULL,
-                ""Duration"" INTEGER NULL,
-                ""AveragePace"" DOUBLE PRECISION NULL,
-                ""Calories"" INTEGER NULL,
-                ""Status"" VARCHAR(20) NOT NULL DEFAULT 'draft',
-                ""StartedAt"" TIMESTAMP WITH TIME ZONE NULL,
-                ""CompletedAt"" TIMESTAMP WITH TIME ZONE NULL,
-                ""PausedAt"" TIMESTAMP WITH TIME ZONE NULL,
-                ""RouteJson"" TEXT NULL,
-                CONSTRAINT ""FK_RunSessions_Users_UserId"" FOREIGN KEY (""UserId"")
-                    REFERENCES ""Users"" (""Id"") ON DELETE CASCADE
-            );
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠️ RunSessions indexes: {ex.Message}");
+        }
 
-            CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Date"" ON ""RunSessions"" (""UserId"", ""Date"");
-            CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Status"" ON ""RunSessions"" (""UserId"", ""Status"");
-        ");
-        Console.WriteLine("  ✓ RunSessions table ready");
+        // Mark migration as applied if not already
+        try
+        {
+            context.Database.ExecuteSqlRaw(@"
+                INSERT INTO ""__EFMigrationsHistory"" (""MigrationId"", ""ProductVersion"")
+                SELECT '20260130195057_AddRunSessions', '8.0.10'
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM ""__EFMigrationsHistory""
+                    WHERE ""MigrationId"" = '20260130195057_AddRunSessions'
+                );
+            ");
+            Console.WriteLine("  ✓ RunSessions migration marked as applied");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ⚠️ Migration history: {ex.Message}");
+        }
+
+        // Now apply any remaining migrations
+        Console.WriteLine("\n🔄 Applying pending migrations...");
+        context.Database.Migrate();
+        Console.WriteLine("✅ Migrations applied successfully!");
 
         // Fix cascade delete constraints (in case migrations didn't apply them)
         Console.WriteLine("\n🔧 Verifying and fixing cascade delete constraints...");
