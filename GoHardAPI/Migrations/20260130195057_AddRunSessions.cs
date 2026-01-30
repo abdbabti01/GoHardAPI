@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -15,20 +16,21 @@ namespace GoHardAPI.Migrations
                 name: "RunSessions",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "int", nullable: false)
+                    Id = table.Column<int>(nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<int>(type: "int", nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    Date = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    Distance = table.Column<double>(type: "float", nullable: true),
-                    Duration = table.Column<int>(type: "int", nullable: true),
-                    AveragePace = table.Column<double>(type: "float", nullable: true),
-                    Calories = table.Column<int>(type: "int", nullable: true),
-                    Status = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    StartedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    PausedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    RouteJson = table.Column<string>(type: "text", nullable: true)
+                    UserId = table.Column<int>(nullable: false),
+                    Name = table.Column<string>(maxLength: 100, nullable: true),
+                    Date = table.Column<DateTime>(nullable: false),
+                    Distance = table.Column<double>(nullable: true),
+                    Duration = table.Column<int>(nullable: true),
+                    AveragePace = table.Column<double>(nullable: true),
+                    Calories = table.Column<int>(nullable: true),
+                    Status = table.Column<string>(maxLength: 20, nullable: false),
+                    StartedAt = table.Column<DateTime>(nullable: true),
+                    CompletedAt = table.Column<DateTime>(nullable: true),
+                    PausedAt = table.Column<DateTime>(nullable: true),
+                    RouteJson = table.Column<string>(nullable: true)
                 },
                 constraints: table =>
                 {
