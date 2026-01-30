@@ -640,6 +640,68 @@ using (var scope = app.Services.CreateScope())
         context.Database.Migrate();
         Console.WriteLine("✅ Migrations applied successfully!");
 
+        // Ensure RunSessions table exists (manual creation for PostgreSQL compatibility)
+        Console.WriteLine("\n🏃 Ensuring RunSessions table exists...");
+        try
+        {
+            // Check if table exists
+            var tableExists = context.Database.ExecuteSqlRaw(@"
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'RunSessions' LIMIT 1;
+            ");
+        }
+        catch
+        {
+            // Table doesn't exist, create it
+            Console.WriteLine("  Creating RunSessions table...");
+            context.Database.ExecuteSqlRaw(@"
+                CREATE TABLE IF NOT EXISTS ""RunSessions"" (
+                    ""Id"" SERIAL PRIMARY KEY,
+                    ""UserId"" INTEGER NOT NULL,
+                    ""Name"" VARCHAR(100) NULL,
+                    ""Date"" TIMESTAMP WITH TIME ZONE NOT NULL,
+                    ""Distance"" DOUBLE PRECISION NULL,
+                    ""Duration"" INTEGER NULL,
+                    ""AveragePace"" DOUBLE PRECISION NULL,
+                    ""Calories"" INTEGER NULL,
+                    ""Status"" VARCHAR(20) NOT NULL DEFAULT 'draft',
+                    ""StartedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                    ""CompletedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                    ""PausedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                    ""RouteJson"" TEXT NULL,
+                    CONSTRAINT ""FK_RunSessions_Users_UserId"" FOREIGN KEY (""UserId"")
+                        REFERENCES ""Users"" (""Id"") ON DELETE CASCADE
+                );
+
+                CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Date"" ON ""RunSessions"" (""UserId"", ""Date"");
+                CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Status"" ON ""RunSessions"" (""UserId"", ""Status"");
+            ");
+        }
+        // Also run CREATE TABLE IF NOT EXISTS to ensure it's there
+        context.Database.ExecuteSqlRaw(@"
+            CREATE TABLE IF NOT EXISTS ""RunSessions"" (
+                ""Id"" SERIAL PRIMARY KEY,
+                ""UserId"" INTEGER NOT NULL,
+                ""Name"" VARCHAR(100) NULL,
+                ""Date"" TIMESTAMP WITH TIME ZONE NOT NULL,
+                ""Distance"" DOUBLE PRECISION NULL,
+                ""Duration"" INTEGER NULL,
+                ""AveragePace"" DOUBLE PRECISION NULL,
+                ""Calories"" INTEGER NULL,
+                ""Status"" VARCHAR(20) NOT NULL DEFAULT 'draft',
+                ""StartedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                ""CompletedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                ""PausedAt"" TIMESTAMP WITH TIME ZONE NULL,
+                ""RouteJson"" TEXT NULL,
+                CONSTRAINT ""FK_RunSessions_Users_UserId"" FOREIGN KEY (""UserId"")
+                    REFERENCES ""Users"" (""Id"") ON DELETE CASCADE
+            );
+
+            CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Date"" ON ""RunSessions"" (""UserId"", ""Date"");
+            CREATE INDEX IF NOT EXISTS ""IX_RunSessions_UserId_Status"" ON ""RunSessions"" (""UserId"", ""Status"");
+        ");
+        Console.WriteLine("  ✓ RunSessions table ready");
+
         // Fix cascade delete constraints (in case migrations didn't apply them)
         Console.WriteLine("\n🔧 Verifying and fixing cascade delete constraints...");
         try
