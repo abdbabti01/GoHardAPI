@@ -51,6 +51,9 @@ else
 // Register AuthService
 builder.Services.AddScoped<AuthService>();
 
+// Register NutritionCalculatorService
+builder.Services.AddScoped<NutritionCalculatorService>();
+
 // Register FileUploadService
 builder.Services.AddScoped<FileUploadService>();
 

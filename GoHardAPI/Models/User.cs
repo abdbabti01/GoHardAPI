@@ -55,6 +55,10 @@ namespace GoHardAPI.Models
         [MaxLength(100)]
         public string? PrimaryGoal { get; set; } // WeightLoss, MuscleGain, Strength, Endurance, GeneralFitness
 
+        // Activity Level (for TDEE calculation)
+        [MaxLength(30)]
+        public string? ActivityLevel { get; set; } // Sedentary, LightlyActive, ModeratelyActive, VeryActive, ExtremelyActive
+
         // Preferences
         [MaxLength(20)]
         public string UnitPreference { get; set; } = "Metric"; // Metric or Imperial

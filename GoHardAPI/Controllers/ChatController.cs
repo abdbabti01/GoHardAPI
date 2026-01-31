@@ -303,6 +303,9 @@ namespace GoHardAPI.Controllers
         {
             var userId = GetCurrentUserId();
 
+            // Get user metrics for personalized recommendations
+            var user = await _context.Users.FindAsync(userId);
+
             // Create conversation
             var conversation = new ChatConversation
             {
@@ -315,14 +318,37 @@ namespace GoHardAPI.Controllers
             _context.ChatConversations.Add(conversation);
             await _context.SaveChangesAsync();
 
+            // Build user profile section if metrics are available
+            var userProfileSection = "";
+            if (user != null && (user.Weight.HasValue || user.Height.HasValue || user.DateOfBirth.HasValue))
+            {
+                var age = CalculateAge(user.DateOfBirth);
+                var weightLbs = user.Weight.HasValue ? (user.Weight.Value * 2.205).ToString("F0") : "Not set";
+                var weightKg = user.Weight.HasValue ? user.Weight.Value.ToString("F1") : "Not set";
+                var heightIn = user.Height.HasValue ? (user.Height.Value / 2.54).ToString("F0") : "Not set";
+                var heightCm = user.Height.HasValue ? user.Height.Value.ToString("F0") : "Not set";
+
+                userProfileSection = $@"
+
+**User Profile:**
+- Weight: {weightKg}kg ({weightLbs}lbs)
+- Height: {heightCm}cm ({heightIn} inches)
+- Age: {age} years
+- Gender: {user.Gender ?? "Not specified"}
+- Body Fat: {(user.BodyFatPercentage.HasValue ? $"{user.BodyFatPercentage.Value}%" : "Not set")}
+- Target Weight: {(user.TargetWeight.HasValue ? $"{user.TargetWeight.Value}kg" : "Not set")}
+";
+            }
+
             // Build structured prompt from form data
             var prompt = $@"I need a personalized workout plan with the following details:
-
-Goal: {request.Goal}
-Experience Level: {request.ExperienceLevel}
-Days Per Week: {request.DaysPerWeek}
-Equipment Available: {request.Equipment}
-{(!string.IsNullOrEmpty(request.Limitations) ? $"Limitations/Injuries: {request.Limitations}" : "")}
+{userProfileSection}
+**Training Preferences:**
+- Goal: {request.Goal}
+- Experience Level: {request.ExperienceLevel}
+- Days Per Week: {request.DaysPerWeek}
+- Equipment Available: {request.Equipment}
+{(!string.IsNullOrEmpty(request.Limitations) ? $"- Limitations/Injuries: {request.Limitations}" : "")}
 
 Please create a detailed workout plan that includes:
 1. Weekly workout schedule
@@ -415,6 +441,12 @@ Please create a detailed workout plan that includes:
         {
             var userId = GetCurrentUserId();
 
+            // Get user metrics and nutrition goals for personalized recommendations
+            var user = await _context.Users.FindAsync(userId);
+            var nutritionGoal = await _context.NutritionGoals
+                .Where(ng => ng.UserId == userId && ng.IsActive)
+                .FirstOrDefaultAsync();
+
             // Create conversation
             var conversation = new ChatConversation
             {
@@ -427,14 +459,53 @@ Please create a detailed workout plan that includes:
             _context.ChatConversations.Add(conversation);
             await _context.SaveChangesAsync();
 
+            // Build user profile section if metrics are available
+            var userProfileSection = "";
+            if (user != null && (user.Weight.HasValue || user.Height.HasValue || user.DateOfBirth.HasValue))
+            {
+                var age = CalculateAge(user.DateOfBirth);
+                var weightLbs = user.Weight.HasValue ? (user.Weight.Value * 2.205).ToString("F0") : "Not set";
+                var weightKg = user.Weight.HasValue ? user.Weight.Value.ToString("F1") : "Not set";
+                var heightCm = user.Height.HasValue ? user.Height.Value.ToString("F0") : "Not set";
+
+                userProfileSection = $@"
+
+**User Profile:**
+- Weight: {weightKg}kg ({weightLbs}lbs)
+- Height: {heightCm}cm
+- Age: {age} years
+- Gender: {user.Gender ?? "Not specified"}
+- Activity Level: {user.ActivityLevel ?? "Moderately Active"}
+";
+            }
+
+            // Build nutrition targets section from active goal or request
+            var nutritionTargetsSection = "";
+            var targetCalories = request.TargetCalories ?? nutritionGoal?.DailyCalories;
+            var targetProtein = nutritionGoal?.DailyProtein;
+            var targetCarbs = nutritionGoal?.DailyCarbohydrates;
+            var targetFat = nutritionGoal?.DailyFat;
+
+            if (targetCalories.HasValue || targetProtein.HasValue)
+            {
+                nutritionTargetsSection = $@"
+
+**Daily Nutrition Targets:**
+{(targetCalories.HasValue ? $"- Target Calories: {targetCalories:F0} kcal/day" : "")}
+{(targetProtein.HasValue ? $"- Target Protein: {targetProtein:F0}g" : "")}
+{(targetCarbs.HasValue ? $"- Target Carbohydrates: {targetCarbs:F0}g" : "")}
+{(targetFat.HasValue ? $"- Target Fat: {targetFat:F0}g" : "")}
+";
+            }
+
             // Build structured prompt from form data
             var prompt = $@"I need a personalized meal plan with the following details:
-
-Dietary Goal: {request.DietaryGoal}
-{(request.TargetCalories.HasValue ? $"Target Calories: {request.TargetCalories} per day" : "")}
-{(!string.IsNullOrEmpty(request.Macros) ? $"Macro Split: {request.Macros}" : "")}
-{(!string.IsNullOrEmpty(request.Restrictions) ? $"Dietary Restrictions: {request.Restrictions}" : "")}
-{(!string.IsNullOrEmpty(request.Preferences) ? $"Preferences: {request.Preferences}" : "")}
+{userProfileSection}
+**Dietary Goal:** {request.DietaryGoal}
+{nutritionTargetsSection}
+{(!string.IsNullOrEmpty(request.Macros) ? $"**Macro Split:** {request.Macros}" : "")}
+{(!string.IsNullOrEmpty(request.Restrictions) ? $"**Dietary Restrictions:** {request.Restrictions}" : "")}
+{(!string.IsNullOrEmpty(request.Preferences) ? $"**Preferences:** {request.Preferences}" : "")}
 
 Please create a detailed meal plan that includes:
 1. Daily meal schedule (breakfast, lunch, dinner, snacks)
@@ -1409,6 +1480,20 @@ IMPORTANT RULES:
             }
 
             return workoutName;
+        }
+
+        // Helper method to calculate age from date of birth
+        private int CalculateAge(DateTime? dateOfBirth)
+        {
+            if (!dateOfBirth.HasValue) return 30; // Default age if not provided
+
+            var today = DateTime.UtcNow;
+            var age = today.Year - dateOfBirth.Value.Year;
+
+            if (dateOfBirth.Value.Date > today.AddYears(-age))
+                age--;
+
+            return age;
         }
 
         // POST: api/chat/conversations/{id}/apply-meal-plan
