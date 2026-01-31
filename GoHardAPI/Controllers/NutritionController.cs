@@ -39,6 +39,43 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
+        /// Get user metrics from latest BodyMetric first, fallback to User profile
+        /// </summary>
+        private async Task<(decimal weight, decimal height, bool fromBodyMetrics)> GetUserMetricsAsync(int userId, Models.User user)
+        {
+            // Try to get latest body metric first
+            var latestMetric = await _context.BodyMetrics
+                .Where(bm => bm.UserId == userId)
+                .OrderByDescending(bm => bm.RecordedAt)
+                .FirstOrDefaultAsync();
+
+            decimal? weight = null;
+            decimal? height = null;
+            bool fromBodyMetrics = false;
+
+            // Prefer body metric values
+            if (latestMetric != null)
+            {
+                if (latestMetric.Weight.HasValue && latestMetric.Weight > 0)
+                {
+                    weight = latestMetric.Weight.Value;
+                    fromBodyMetrics = true;
+                }
+                if (latestMetric.Height.HasValue && latestMetric.Height > 0)
+                {
+                    height = latestMetric.Height.Value;
+                    fromBodyMetrics = true;
+                }
+            }
+
+            // Fallback to user profile for missing values
+            weight ??= user.Weight.HasValue ? (decimal)user.Weight.Value : 0;
+            height ??= user.Height.HasValue ? (decimal)user.Height.Value : 0;
+
+            return (weight.Value, height.Value, fromBodyMetrics);
+        }
+
+        /// <summary>
         /// Calculate personalized nutrition targets based on user metrics and goal
         /// </summary>
         [HttpPost("calculate")]
@@ -54,19 +91,20 @@ namespace GoHardAPI.Controllers
                     return NotFound(new { message = "User not found" });
                 }
 
+                // Get metrics from BodyMetrics first, fallback to profile
+                var (weightKg, heightCm, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
+
                 // Validate required metrics
-                if (!user.Weight.HasValue || user.Weight <= 0)
+                if (weightKg <= 0)
                 {
-                    return BadRequest(new { message = "Please set your weight in your profile first" });
+                    return BadRequest(new { message = "Please set your weight in body metrics or profile first" });
                 }
 
-                if (!user.Height.HasValue || user.Height <= 0)
+                if (heightCm <= 0)
                 {
-                    return BadRequest(new { message = "Please set your height in your profile first" });
+                    return BadRequest(new { message = "Please set your height in body metrics or profile first" });
                 }
 
-                var weightKg = (decimal)user.Weight.Value;
-                var heightCm = (decimal)user.Height.Value;
                 var age = NutritionCalculatorService.CalculateAge(user.DateOfBirth);
                 var gender = user.Gender ?? "Male";
                 var activityLevel = user.ActivityLevel ?? "ModeratelyActive";
@@ -139,19 +177,20 @@ namespace GoHardAPI.Controllers
                     return NotFound(new { message = "User not found" });
                 }
 
+                // Get metrics from BodyMetrics first, fallback to profile
+                var (weightKg, heightCm, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
+
                 // Validate required metrics
-                if (!user.Weight.HasValue || user.Weight <= 0)
+                if (weightKg <= 0)
                 {
-                    return BadRequest(new { message = "Please set your weight in your profile first" });
+                    return BadRequest(new { message = "Please set your weight in body metrics or profile first" });
                 }
 
-                if (!user.Height.HasValue || user.Height <= 0)
+                if (heightCm <= 0)
                 {
-                    return BadRequest(new { message = "Please set your height in your profile first" });
+                    return BadRequest(new { message = "Please set your height in body metrics or profile first" });
                 }
 
-                var weightKg = (decimal)user.Weight.Value;
-                var heightCm = (decimal)user.Height.Value;
                 var age = NutritionCalculatorService.CalculateAge(user.DateOfBirth);
                 var gender = user.Gender ?? "Male";
                 var activityLevel = user.ActivityLevel ?? "ModeratelyActive";

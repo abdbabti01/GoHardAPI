@@ -178,6 +178,11 @@ namespace GoHardAPI.Controllers
             if (user == null)
                 return NotFound("User not found");
 
+            // Track if weight or height changed for BodyMetric creation
+            bool weightChanged = request.Weight.HasValue && request.Weight != user.Weight;
+            bool heightChanged = request.Height.HasValue && request.Height != user.Height;
+            bool bodyFatChanged = request.BodyFatPercentage.HasValue && request.BodyFatPercentage != user.BodyFatPercentage;
+
             // Update fields (only update if provided)
             if (request.Name != null) user.Name = request.Name;
             if (request.Bio != null) user.Bio = request.Bio;
@@ -196,6 +201,22 @@ namespace GoHardAPI.Controllers
 
             // Recalculate BMI
             user.BMI = CalculateBMI(user.Height, user.Weight);
+
+            // Create BodyMetric entry if weight, height, or body fat changed
+            if (weightChanged || heightChanged || bodyFatChanged)
+            {
+                var bodyMetric = new BodyMetric
+                {
+                    UserId = userId,
+                    RecordedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.UtcNow,
+                    Weight = request.Weight.HasValue ? (decimal)request.Weight.Value : null,
+                    Height = request.Height.HasValue ? (decimal)request.Height.Value : null,
+                    BodyFatPercentage = request.BodyFatPercentage.HasValue ? (decimal)request.BodyFatPercentage.Value : null,
+                    Notes = "Updated from profile"
+                };
+                _context.BodyMetrics.Add(bodyMetric);
+            }
 
             await _context.SaveChangesAsync();
 

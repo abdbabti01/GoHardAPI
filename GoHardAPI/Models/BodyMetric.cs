@@ -19,9 +19,14 @@ namespace GoHardAPI.Models
         public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>
-        /// Body weight in kg or lbs
+        /// Body weight in kg
         /// </summary>
         public decimal? Weight { get; set; }
+
+        /// <summary>
+        /// Height in cm
+        /// </summary>
+        public decimal? Height { get; set; }
 
         /// <summary>
         /// Body fat percentage
