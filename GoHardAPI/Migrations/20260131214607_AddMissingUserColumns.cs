@@ -13,14 +13,14 @@ namespace GoHardAPI.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "ActivityLevel",
                 table: "Users",
-                type: "nvarchar(30)",
+                type: "character varying(30)",
                 maxLength: 30,
                 nullable: true);
 
             migrationBuilder.AddColumn<decimal>(
                 name: "Height",
                 table: "BodyMetrics",
-                type: "decimal(18,2)",
+                type: "numeric(18,2)",
                 nullable: true);
         }
 
