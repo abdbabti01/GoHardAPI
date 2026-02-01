@@ -1514,7 +1514,7 @@ IMPORTANT RULES:
                     return NotFound(new { message = "Conversation not found" });
                 }
 
-                if (conversation.Type != "meal_plan")
+                if (conversation.Type != "meal_plan" && conversation.Type != "combined_plan")
                 {
                     return BadRequest(new { message = "This is not a meal plan conversation" });
                 }
@@ -1575,7 +1575,8 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
 CRITICAL RULES:
 - mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
 - All numeric values must be numbers (not strings)
-- Include all meals from the plan
+- **IMPORTANT: Maximum 3 foods per meal** - if there are more, pick the 3 most essential items
+- Keep meals simple: 1-2 main items per meal is ideal
 - Calories are the TOTAL calories for one serving of that food item (NOT per 100g)
 - The sum of all food calories should approximately match the daily target of {targetCalories:F0} kcal
 - Typical food portions: oatmeal bowl ~300-400 kcal, chicken breast ~250-350 kcal, salad ~150-300 kcal
@@ -1780,6 +1781,8 @@ CRITICAL RULES:
                 decimal totalCarbsAdded = 0;
                 decimal totalFatAdded = 0;
 
+                const int MaxFoodsPerMeal = 3;
+
                 foreach (var mealData in mealPlanData.Meals)
                 {
                     var mealEntry = mealLog!.MealEntries.FirstOrDefault(me =>
@@ -1787,7 +1790,19 @@ CRITICAL RULES:
 
                     if (mealEntry == null) continue;
 
-                    foreach (var foodData in mealData.Foods ?? new List<ChatMealPlanFoodData>())
+                    // Limit to max 3 foods per meal - take the ones with highest calories (most substantial)
+                    var limitedFoods = (mealData.Foods ?? new List<ChatMealPlanFoodData>())
+                        .OrderByDescending(f => f.Calories ?? 0)
+                        .Take(MaxFoodsPerMeal)
+                        .ToList();
+
+                    if ((mealData.Foods?.Count ?? 0) > MaxFoodsPerMeal)
+                    {
+                        _logger.LogInformation("Limiting {mealType} from {original} to {limited} foods",
+                            mealData.MealType, mealData.Foods?.Count, limitedFoods.Count);
+                    }
+
+                    foreach (var foodData in limitedFoods)
                     {
                         var foodItem = new Models.FoodItem
                         {
