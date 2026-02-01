@@ -29,6 +29,13 @@ namespace GoHardAPI.Models
         public decimal? Height { get; set; }
 
         /// <summary>
+        /// Activity level for TDEE calculation
+        /// Values: Sedentary, LightlyActive, ModeratelyActive, VeryActive, ExtremelyActive
+        /// </summary>
+        [MaxLength(30)]
+        public string? ActivityLevel { get; set; }
+
+        /// <summary>
         /// Body fat percentage
         /// </summary>
         public decimal? BodyFatPercentage { get; set; }

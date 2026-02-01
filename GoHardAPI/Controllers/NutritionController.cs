@@ -41,7 +41,7 @@ namespace GoHardAPI.Controllers
         /// <summary>
         /// Get user metrics from latest BodyMetric first, fallback to User profile
         /// </summary>
-        private async Task<(decimal weight, decimal height, bool fromBodyMetrics)> GetUserMetricsAsync(int userId, Models.User user)
+        private async Task<(decimal weight, decimal height, string activityLevel, bool fromBodyMetrics)> GetUserMetricsAsync(int userId, Models.User user)
         {
             // Try to get latest body metric first
             var latestMetric = await _context.BodyMetrics
@@ -51,6 +51,7 @@ namespace GoHardAPI.Controllers
 
             decimal? weight = null;
             decimal? height = null;
+            string? activityLevel = null;
             bool fromBodyMetrics = false;
 
             // Prefer body metric values
@@ -66,13 +67,19 @@ namespace GoHardAPI.Controllers
                     height = latestMetric.Height.Value;
                     fromBodyMetrics = true;
                 }
+                if (!string.IsNullOrEmpty(latestMetric.ActivityLevel))
+                {
+                    activityLevel = latestMetric.ActivityLevel;
+                    fromBodyMetrics = true;
+                }
             }
 
             // Fallback to user profile for missing values
             weight ??= user.Weight.HasValue ? (decimal)user.Weight.Value : 0;
             height ??= user.Height.HasValue ? (decimal)user.Height.Value : 0;
+            activityLevel ??= user.ActivityLevel ?? "ModeratelyActive";
 
-            return (weight.Value, height.Value, fromBodyMetrics);
+            return (weight.Value, height.Value, activityLevel, fromBodyMetrics);
         }
 
         /// <summary>
@@ -92,7 +99,7 @@ namespace GoHardAPI.Controllers
                 }
 
                 // Get metrics from BodyMetrics first, fallback to profile
-                var (weightKg, heightCm, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
+                var (weightKg, heightCm, activityLevel, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
 
                 // Validate required metrics
                 if (weightKg <= 0)
@@ -107,7 +114,6 @@ namespace GoHardAPI.Controllers
 
                 var age = NutritionCalculatorService.CalculateAge(user.DateOfBirth);
                 var gender = user.Gender ?? "Male";
-                var activityLevel = user.ActivityLevel ?? "ModeratelyActive";
 
                 // Calculate target weight change per week based on request
                 decimal? targetWeightChangePerWeek = null;
@@ -178,7 +184,7 @@ namespace GoHardAPI.Controllers
                 }
 
                 // Get metrics from BodyMetrics first, fallback to profile
-                var (weightKg, heightCm, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
+                var (weightKg, heightCm, activityLevel, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
 
                 // Validate required metrics
                 if (weightKg <= 0)
@@ -193,7 +199,6 @@ namespace GoHardAPI.Controllers
 
                 var age = NutritionCalculatorService.CalculateAge(user.DateOfBirth);
                 var gender = user.Gender ?? "Male";
-                var activityLevel = user.ActivityLevel ?? "ModeratelyActive";
 
                 // Calculate target weight change per week based on request
                 decimal? targetWeightChangePerWeek = null;
