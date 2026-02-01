@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using GoHardAPI.Converters;
 
 namespace GoHardAPI.Models
 {
@@ -43,14 +45,16 @@ namespace GoHardAPI.Models
         public string? TimeFrame { get; set; }
 
         /// <summary>
-        /// Goal start date
+        /// Goal start date. Serialized as date-only "yyyy-MM-dd" to prevent timezone shifts.
         /// </summary>
         [Required]
+        [JsonConverter(typeof(DateOnlyJsonConverter))]
         public DateTime StartDate { get; set; } = DateTime.UtcNow;
 
         /// <summary>
-        /// Target completion date (optional)
+        /// Target completion date (optional). Serialized as date-only "yyyy-MM-dd".
         /// </summary>
+        [JsonConverter(typeof(NullableDateOnlyJsonConverter))]
         public DateTime? TargetDate { get; set; }
 
         /// <summary>

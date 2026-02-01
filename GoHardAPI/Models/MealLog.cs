@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using GoHardAPI.Converters;
 
 namespace GoHardAPI.Models
 {
@@ -13,9 +15,10 @@ namespace GoHardAPI.Models
         public int UserId { get; set; }
 
         /// <summary>
-        /// The date this meal log represents (stored as UTC midnight)
+        /// The date this meal log represents. Serialized as date-only "yyyy-MM-dd".
         /// </summary>
         [Required]
+        [JsonConverter(typeof(DateOnlyJsonConverter))]
         public DateTime Date { get; set; }
 
         [MaxLength(1000)]

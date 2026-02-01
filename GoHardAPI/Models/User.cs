@@ -1,4 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using GoHardAPI.Converters;
 
 namespace GoHardAPI.Models
 {
@@ -40,6 +42,10 @@ namespace GoHardAPI.Models
         public string? ProfilePhotoUrl { get; set; }
 
         // Personal Details
+        /// <summary>
+        /// User's date of birth. Serialized as date-only "yyyy-MM-dd".
+        /// </summary>
+        [JsonConverter(typeof(NullableDateOnlyJsonConverter))]
         public DateTime? DateOfBirth { get; set; }
         [MaxLength(20)]
         public string? Gender { get; set; } // Male, Female, Other, PreferNotToSay

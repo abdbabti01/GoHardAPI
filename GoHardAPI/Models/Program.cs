@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using GoHardAPI.Converters;
 
 namespace GoHardAPI.Models
 {
@@ -49,14 +51,16 @@ namespace GoHardAPI.Models
         public int CurrentDay { get; set; } = 1;
 
         /// <summary>
-        /// When the program started
+        /// When the program started. Serialized as date-only "yyyy-MM-dd" to prevent timezone shifts.
         /// </summary>
         [Required]
+        [JsonConverter(typeof(DateOnlyJsonConverter))]
         public DateTime StartDate { get; set; } = DateTime.UtcNow;
 
         /// <summary>
-        /// Expected end date (calculated: StartDate + TotalWeeks * 7 days)
+        /// Expected end date (calculated: StartDate + TotalWeeks * 7 days). Serialized as date-only.
         /// </summary>
+        [JsonConverter(typeof(NullableDateOnlyJsonConverter))]
         public DateTime? EndDate { get; set; }
 
         /// <summary>
@@ -239,7 +243,9 @@ namespace GoHardAPI.Models
         /// <summary>
         /// The actual calendar date this workout is scheduled for.
         /// Calculated once when program is created/updated, stored to avoid timezone issues.
+        /// Serialized as date-only "yyyy-MM-dd" to prevent timezone shifts.
         /// </summary>
+        [JsonConverter(typeof(NullableDateOnlyJsonConverter))]
         public DateTime? ScheduledDate { get; set; }
 
         // Navigation properties

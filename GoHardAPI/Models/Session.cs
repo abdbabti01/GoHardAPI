@@ -1,4 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using GoHardAPI.Converters;
 
 namespace GoHardAPI.Models
 {
@@ -78,7 +80,11 @@ namespace GoHardAPI.Models
         [Required]
         public int UserId { get; set; }
 
+        /// <summary>
+        /// Date of the workout session. Serialized as date-only "yyyy-MM-dd" to prevent timezone shifts.
+        /// </summary>
         [Required]
+        [JsonConverter(typeof(DateOnlyJsonConverter))]
         public DateTime Date { get; set; } = DateTime.UtcNow;
 
         /// <summary>

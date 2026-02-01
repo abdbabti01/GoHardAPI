@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using GoHardAPI.Converters;
 
 namespace GoHardAPI.Models
 {
@@ -13,9 +15,10 @@ namespace GoHardAPI.Models
         public int UserId { get; set; }
 
         /// <summary>
-        /// When this measurement was recorded
+        /// When this measurement was recorded. Serialized as date-only "yyyy-MM-dd".
         /// </summary>
         [Required]
+        [JsonConverter(typeof(DateOnlyJsonConverter))]
         public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
 
         /// <summary>
