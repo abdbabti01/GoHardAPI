@@ -1648,14 +1648,29 @@ IMPORTANT RULES:
             return string.Join(", ", foods) + "...";
         }
 
-        private async Task<ChatMealPlanWeekExtraction?> ExtractWeekMealPlan(string mealPlanContent, decimal targetCalories)
+        private async Task<ChatMealPlanWeekExtraction?> ExtractWeekMealPlan(string mealPlanContent, decimal targetCalories, int attempt = 1)
         {
+            // Calculate calorie distribution per meal
+            var breakfastCal = Math.Round(targetCalories * 0.25m); // 25%
+            var lunchCal = Math.Round(targetCalories * 0.30m);     // 30%
+            var dinnerCal = Math.Round(targetCalories * 0.30m);    // 30%
+            var snackCal = Math.Round(targetCalories * 0.15m);     // 15%
+
             var extractionPrompt = $@"Create a structured 7-day meal plan in JSON format based on the content provided.
 
-If the content already has specific daily meals (Day 1, Day 2, etc.), extract them.
-If the content only has food suggestions/categories (proteins, carbs, vegetables, etc.), CREATE a complete 7-day meal plan using those suggested foods.
+CALORIE TARGET: {targetCalories:F0} kcal per day
 
-Target: approximately {targetCalories:F0} calories per day.
+REQUIRED CALORIE DISTRIBUTION PER MEAL:
+- Breakfast: ~{breakfastCal:F0} kcal (2-3 foods)
+- Lunch: ~{lunchCal:F0} kcal (2-4 foods)
+- Dinner: ~{dinnerCal:F0} kcal (2-4 foods)
+- Snacks: ~{snackCal:F0} kcal (1-2 foods)
+
+EXAMPLE - A {breakfastCal:F0} kcal breakfast:
+- 3 eggs scrambled (210 kcal, 18g protein, 1g carbs, 15g fat)
+- 2 slices whole wheat toast (160 kcal, 6g protein, 28g carbs, 2g fat)
+- 1 tbsp butter (100 kcal, 0g protein, 0g carbs, 11g fat)
+Total: ~470 kcal
 
 Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
 {{
@@ -1666,33 +1681,31 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
         {{
           ""mealType"": ""Breakfast"",
           ""foods"": [
-            {{ ""name"": ""Oatmeal with Berries"", ""servingSize"": 1, ""servingUnit"": ""bowl"", ""calories"": 350, ""protein"": 12, ""carbohydrates"": 55, ""fat"": 8 }}
+            {{ ""name"": ""Scrambled Eggs"", ""servingSize"": 3, ""servingUnit"": ""eggs"", ""calories"": 210, ""protein"": 18, ""carbohydrates"": 1, ""fat"": 15 }},
+            {{ ""name"": ""Whole Wheat Toast"", ""servingSize"": 2, ""servingUnit"": ""slices"", ""calories"": 160, ""protein"": 6, ""carbohydrates"": 28, ""fat"": 2 }}
           ]
         }},
         {{ ""mealType"": ""Lunch"", ""foods"": [...] }},
         {{ ""mealType"": ""Dinner"", ""foods"": [...] }},
         {{ ""mealType"": ""Snack"", ""foods"": [...] }}
       ],
-      ""totalCalories"": {targetCalories:F0},
-      ""totalProtein"": 150,
-      ""totalCarbs"": 200,
-      ""totalFat"": 65
-    }},
-    {{ ""day"": 2, ""meals"": [...], ""totalCalories"": {targetCalories:F0}, ... }},
-    ... (all 7 days)
+      ""totalCalories"": 0,
+      ""totalProtein"": 0,
+      ""totalCarbs"": 0,
+      ""totalFat"": 0
+    }}
   ]
 }}
 
 CRITICAL RULES:
-- ALWAYS generate exactly 7 days (day 1 through day 7)
-- Each day must have: Breakfast, Lunch, Dinner, and Snack
-- Maximum 2-3 foods per meal for simplicity
-- Use the foods mentioned in the content (proteins, carbs, veggies, etc.)
-- Create VARIETY across the 7 days - don't repeat the same meals
-- mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
-- All numeric values must be numbers (not strings)
-- Each day's totalCalories MUST be approximately {targetCalories:F0} kcal
-- Calculate realistic calories/macros for each food item";
+1. Generate exactly 7 days (day 1 through day 7)
+2. Each food item MUST have realistic calories (100-600 kcal per food item)
+3. The SUM of all food calories in a day MUST equal approximately {targetCalories:F0} kcal
+4. Use the foods mentioned in the content (proteins, carbs, veggies, etc.)
+5. mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
+6. All numeric values must be numbers (not strings)
+7. Set totalCalories/totalProtein/totalCarbs/totalFat to 0 - they will be calculated by the system
+8. VERIFY: Add up all food calories mentally before returning - must be ~{targetCalories:F0} per day";
 
             var messages = new List<ChatMessage>
             {
@@ -1712,12 +1725,106 @@ CRITICAL RULES:
                 }
 
                 var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                return System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(jsonContent, options);
+                var weekData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(jsonContent, options);
+
+                if (weekData == null) return null;
+
+                // ALWAYS recalculate totals from actual food items (never trust AI totals)
+                ValidateAndRecalculateTotals(weekData);
+
+                // Check if we're too far off target (less than 70% of target)
+                var avgCalories = weekData.Days.Average(d => d.TotalCalories);
+                var percentOfTarget = avgCalories / targetCalories * 100;
+
+                _logger.LogInformation("Meal plan extraction attempt {Attempt}: Average {AvgCal:F0} kcal ({Percent:F0}% of target {Target:F0})",
+                    attempt, avgCalories, percentOfTarget, targetCalories);
+
+                // If too far off and this is first attempt, try once more with feedback
+                if (percentOfTarget < 70 && attempt == 1)
+                {
+                    _logger.LogWarning("Meal plan only has {Percent:F0}% of target calories, regenerating...", percentOfTarget);
+
+                    var feedbackPrompt = $@"The previous meal plan only had {avgCalories:F0} kcal per day, but the target is {targetCalories:F0} kcal.
+
+You need to add MORE FOOD or LARGER PORTIONS. Each day needs approximately:
+- Breakfast: {breakfastCal:F0} kcal
+- Lunch: {lunchCal:F0} kcal
+- Dinner: {dinnerCal:F0} kcal
+- Snacks: {snackCal:F0} kcal
+
+Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
+
+{extractionPrompt}";
+
+                    messages = new List<ChatMessage>
+                    {
+                        new ChatMessage { Role = "assistant", Content = mealPlanContent }
+                    };
+
+                    response = await _aiService.SendMessageAsync(feedbackPrompt, messages, "meal_plan");
+                    jsonContent = response.Content.Trim();
+
+                    if (jsonContent.StartsWith("```"))
+                    {
+                        var lines = jsonContent.Split('\n');
+                        jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+                    }
+
+                    var retryData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(jsonContent, options);
+                    if (retryData != null)
+                    {
+                        ValidateAndRecalculateTotals(retryData);
+                        var retryAvg = retryData.Days.Average(d => d.TotalCalories);
+                        _logger.LogInformation("Retry meal plan: Average {AvgCal:F0} kcal ({Percent:F0}% of target)",
+                            retryAvg, retryAvg / targetCalories * 100);
+
+                        // Use retry if it's better
+                        if (retryAvg > avgCalories)
+                        {
+                            return retryData;
+                        }
+                    }
+                }
+
+                return weekData;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to extract week meal plan");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Recalculate all totals from actual food items. Never trust AI-provided totals.
+        /// </summary>
+        private void ValidateAndRecalculateTotals(ChatMealPlanWeekExtraction weekData)
+        {
+            foreach (var day in weekData.Days)
+            {
+                decimal totalCalories = 0;
+                decimal totalProtein = 0;
+                decimal totalCarbs = 0;
+                decimal totalFat = 0;
+
+                foreach (var meal in day.Meals)
+                {
+                    if (meal.Foods == null) continue;
+
+                    foreach (var food in meal.Foods)
+                    {
+                        totalCalories += food.Calories ?? 0;
+                        totalProtein += food.Protein ?? 0;
+                        totalCarbs += food.Carbohydrates ?? 0;
+                        totalFat += food.Fat ?? 0;
+                    }
+                }
+
+                // Override AI totals with calculated values
+                day.TotalCalories = totalCalories;
+                day.TotalProtein = totalProtein;
+                day.TotalCarbs = totalCarbs;
+                day.TotalFat = totalFat;
             }
         }
 
