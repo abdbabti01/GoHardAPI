@@ -1496,9 +1496,167 @@ IMPORTANT RULES:
             return age;
         }
 
+        // GET: api/chat/conversations/{id}/preview-meal-plan
+        // Returns all 7 days of the meal plan for user to select which day to apply
+        [HttpGet("conversations/{id}/preview-meal-plan")]
+        public async Task<ActionResult<MealPlanPreviewResponse>> PreviewMealPlan(int id)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+
+                var conversation = await _context.ChatConversations
+                    .Include(c => c.Messages)
+                    .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+
+                if (conversation == null)
+                {
+                    return NotFound(new { message = "Conversation not found" });
+                }
+
+                if (conversation.Type != "meal_plan" && conversation.Type != "combined_plan")
+                {
+                    return BadRequest(new { message = "This is not a meal plan conversation" });
+                }
+
+                // Get user's nutrition goal for target calories
+                var nutritionGoal = await _context.NutritionGoals
+                    .Where(ng => ng.UserId == userId && ng.IsActive)
+                    .FirstOrDefaultAsync();
+                var targetCalories = nutritionGoal?.DailyCalories ?? 2000m;
+
+                // Get the AI's meal plan message
+                var mealPlanMessage = conversation.Messages
+                    .Where(m => m.Role == "assistant")
+                    .OrderBy(m => m.CreatedAt)
+                    .FirstOrDefault();
+
+                if (mealPlanMessage == null)
+                {
+                    return BadRequest(new { message = "No meal plan found in conversation" });
+                }
+
+                // Extract 7-day meal plan
+                var weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+
+                if (weekData == null || weekData.Days.Count == 0)
+                {
+                    return BadRequest(new { message = "Could not extract meal plan days" });
+                }
+
+                // Build preview response
+                var preview = new MealPlanPreviewResponse
+                {
+                    Success = true,
+                    TargetCalories = targetCalories,
+                    Days = weekData.Days.Select(d => new MealPlanDayPreview
+                    {
+                        Day = d.Day,
+                        Summary = BuildDaySummary(d.Meals),
+                        TotalCalories = d.TotalCalories,
+                        TotalProtein = d.TotalProtein,
+                        TotalCarbs = d.TotalCarbs,
+                        TotalFat = d.TotalFat,
+                        IsWithinTarget = Math.Abs(d.TotalCalories - targetCalories) <= targetCalories * 0.15m,
+                        Meals = d.Meals.Select(m => new MealPreview
+                        {
+                            MealType = m.MealType,
+                            Foods = m.Foods?.Select(f => f.Name ?? "Unknown").ToList() ?? new List<string>(),
+                            Calories = m.Foods?.Sum(f => f.Calories ?? 0) ?? 0
+                        }).ToList()
+                    }).ToList()
+                };
+
+                return Ok(preview);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error previewing meal plan");
+                return StatusCode(500, new { message = "Failed to preview meal plan" });
+            }
+        }
+
+        private string BuildDaySummary(List<ChatMealPlanMealData> meals)
+        {
+            var foods = meals
+                .SelectMany(m => m.Foods ?? new List<ChatMealPlanFoodData>())
+                .Take(3)
+                .Select(f => f.Name)
+                .Where(n => !string.IsNullOrEmpty(n));
+            return string.Join(", ", foods) + "...";
+        }
+
+        private async Task<ChatMealPlanWeekExtraction?> ExtractWeekMealPlan(string mealPlanContent, decimal targetCalories)
+        {
+            var extractionPrompt = $@"Extract ALL 7 DAYS from the meal plan into structured JSON format.
+Each day should have approximately {targetCalories:F0} calories.
+
+Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
+{{
+  ""days"": [
+    {{
+      ""day"": 1,
+      ""meals"": [
+        {{
+          ""mealType"": ""Breakfast"",
+          ""foods"": [
+            {{ ""name"": ""Oatmeal with Berries"", ""servingSize"": 1, ""servingUnit"": ""bowl"", ""calories"": 350, ""protein"": 12, ""carbohydrates"": 55, ""fat"": 8 }}
+          ]
+        }},
+        {{ ""mealType"": ""Lunch"", ""foods"": [...] }},
+        {{ ""mealType"": ""Dinner"", ""foods"": [...] }},
+        {{ ""mealType"": ""Snack"", ""foods"": [...] }}
+      ],
+      ""totalCalories"": 2150,
+      ""totalProtein"": 180,
+      ""totalCarbs"": 200,
+      ""totalFat"": 70
+    }},
+    {{ ""day"": 2, ""meals"": [...], ""totalCalories"": 2148, ... }},
+    ... (all 7 days)
+  ]
+}}
+
+CRITICAL RULES:
+- Extract ALL 7 DAYS from the meal plan (day 1 through day 7)
+- Each day must have: Breakfast, Lunch, Dinner, and Snack(s)
+- Maximum 3 foods per meal - pick the most essential items
+- mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
+- All numeric values must be numbers (not strings)
+- Each day's totalCalories should be approximately {targetCalories:F0} kcal
+- Include totalCalories, totalProtein, totalCarbs, totalFat for each day";
+
+            var messages = new List<ChatMessage>
+            {
+                new ChatMessage { Role = "assistant", Content = mealPlanContent }
+            };
+
+            try
+            {
+                var response = await _aiService.SendMessageAsync(extractionPrompt, messages, "meal_plan");
+                var jsonContent = response.Content.Trim();
+
+                // Remove markdown code blocks if present
+                if (jsonContent.StartsWith("```"))
+                {
+                    var lines = jsonContent.Split('\n');
+                    jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+                }
+
+                var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                return System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(jsonContent, options);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to extract week meal plan");
+                return null;
+            }
+        }
+
         // POST: api/chat/conversations/{id}/apply-meal-plan
+        // Now accepts optional 'day' query parameter (1-7)
         [HttpPost("conversations/{id}/apply-meal-plan")]
-        public async Task<ActionResult<ApplyMealPlanResponse>> ApplyMealPlanToToday(int id)
+        public async Task<ActionResult<ApplyMealPlanResponse>> ApplyMealPlanToToday(int id, [FromQuery] int day = 1)
         {
             try
             {
@@ -1530,112 +1688,50 @@ IMPORTANT RULES:
                     return BadRequest(new { message = "No meal plan found in conversation" });
                 }
 
+                // Validate day parameter
+                if (day < 1 || day > 7)
+                {
+                    return BadRequest(new { message = "Day must be between 1 and 7" });
+                }
+
                 // Get user's nutrition goal for context
                 var nutritionGoal = await _context.NutritionGoals
                     .Where(ng => ng.UserId == userId && ng.IsActive)
                     .FirstOrDefaultAsync();
                 var targetCalories = nutritionGoal?.DailyCalories ?? 2000m;
 
-                // Ask AI to extract structured meal data
-                var extractionPrompt = $@"Extract the meals from the previous meal plan into structured JSON format.
-The meal plan was designed for approximately {targetCalories:F0} calories per day.
+                // Extract the full 7-day meal plan
+                var weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
 
-Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
-{{
-  ""meals"": [
-    {{
-      ""mealType"": ""Breakfast"",
-      ""foods"": [
-        {{
-          ""name"": ""Oatmeal with Berries"",
-          ""servingSize"": 1,
-          ""servingUnit"": ""bowl"",
-          ""calories"": 350,
-          ""protein"": 12,
-          ""carbohydrates"": 55,
-          ""fat"": 8
-        }}
-      ]
-    }},
-    {{
-      ""mealType"": ""Lunch"",
-      ""foods"": [...]
-    }},
-    {{
-      ""mealType"": ""Dinner"",
-      ""foods"": [...]
-    }},
-    {{
-      ""mealType"": ""Snack"",
-      ""foods"": [...]
-    }}
-  ]
-}}
-
-CRITICAL RULES:
-- mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
-- All numeric values must be numbers (not strings)
-- **IMPORTANT: Maximum 3 foods per meal** - if there are more, pick the 3 most essential items
-- Keep meals simple: 1-2 main items per meal is ideal
-- Calories are the TOTAL calories for one serving of that food item (NOT per 100g)
-- The sum of all food calories should approximately match the daily target of {targetCalories:F0} kcal
-- Typical food portions: oatmeal bowl ~300-400 kcal, chicken breast ~250-350 kcal, salad ~150-300 kcal
-- If a single food item seems to have more than 800 calories, verify it's correct for a normal portion";
-
-                var messages = new List<ChatMessage>
+                if (weekData == null || weekData.Days.Count == 0)
                 {
-                    new ChatMessage
-                    {
-                        Role = "assistant",
-                        Content = mealPlanMessage.Content
-                    }
+                    return BadRequest(new { message = "Failed to extract meal plan structure" });
+                }
+
+                // Get the selected day
+                var selectedDay = weekData.Days.FirstOrDefault(d => d.Day == day);
+                if (selectedDay == null)
+                {
+                    // Fallback to first day if requested day not found
+                    selectedDay = weekData.Days.First();
+                    _logger.LogWarning("Day {day} not found in meal plan, using day {actualDay}", day, selectedDay.Day);
+                }
+
+                _logger.LogInformation("Applying day {day} of meal plan: {calories} kcal", selectedDay.Day, selectedDay.TotalCalories);
+
+                // Convert to the format expected by the rest of the method
+                var mealPlanData = new ChatMealPlanExtraction
+                {
+                    Meals = selectedDay.Meals
                 };
 
-                var extractionResponse = await _aiService.SendMessageAsync(
-                    extractionPrompt,
-                    messages,
-                    "meal_plan"
-                );
-
-                // Parse the JSON response
-                var jsonContent = extractionResponse.Content.Trim();
-
-                // Remove markdown code blocks if present
-                if (jsonContent.StartsWith("```"))
-                {
-                    var lines = jsonContent.Split('\n');
-                    jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
-                }
-
-                _logger.LogInformation("Extracted meal plan JSON: {json}", jsonContent);
-
-                ChatMealPlanExtraction? mealPlanData;
-                try
-                {
-                    var options = new System.Text.Json.JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    };
-                    mealPlanData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanExtraction>(jsonContent, options);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to parse meal plan JSON: {json}", jsonContent);
-                    return BadRequest(new { message = "Failed to parse meal plan structure" });
-                }
-
-                if (mealPlanData?.Meals == null || mealPlanData.Meals.Count == 0)
-                {
-                    return BadRequest(new { message = "No meals found in the meal plan" });
-                }
-
                 // Validate extracted values - check if total calories are reasonable
-                var extractedTotalCalories = mealPlanData.Meals
-                    .SelectMany(m => m.Foods ?? new List<ChatMealPlanFoodData>())
-                    .Sum(f => f.Calories ?? 0);
+                var extractedTotalCalories = selectedDay.TotalCalories > 0
+                    ? selectedDay.TotalCalories
+                    : mealPlanData.Meals.SelectMany(m => m.Foods ?? new List<ChatMealPlanFoodData>()).Sum(f => f.Calories ?? 0);
 
-                _logger.LogInformation("Extracted meal plan totals: {extractedCalories} kcal (target: {targetCalories} kcal)",
-                    extractedTotalCalories, targetCalories);
+                _logger.LogInformation("Selected day {day} totals: {extractedCalories} kcal (target: {targetCalories} kcal)",
+                    day, extractedTotalCalories, targetCalories);
 
                 // If extracted calories are more than 3x the target, something went wrong
                 // (likely AI confused per-100g with per-serving values)
@@ -2039,6 +2135,23 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
     }
 
     // DTOs for meal plan extraction from chat
+    // 7-day meal plan extraction structure
+    public class ChatMealPlanWeekExtraction
+    {
+        public List<ChatMealPlanDayData> Days { get; set; } = new();
+    }
+
+    public class ChatMealPlanDayData
+    {
+        public int Day { get; set; }
+        public List<ChatMealPlanMealData> Meals { get; set; } = new();
+        public decimal TotalCalories { get; set; }
+        public decimal TotalProtein { get; set; }
+        public decimal TotalCarbs { get; set; }
+        public decimal TotalFat { get; set; }
+    }
+
+    // Legacy single-day structure (kept for compatibility)
     public class ChatMealPlanExtraction
     {
         public List<ChatMealPlanMealData> Meals { get; set; } = new();
@@ -2059,6 +2172,34 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
         public decimal? Protein { get; set; }
         public decimal? Carbohydrates { get; set; }
         public decimal? Fat { get; set; }
+    }
+
+    // Response for previewing 7-day meal plan
+    public class MealPlanPreviewResponse
+    {
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+        public decimal TargetCalories { get; set; }
+        public List<MealPlanDayPreview> Days { get; set; } = new();
+    }
+
+    public class MealPlanDayPreview
+    {
+        public int Day { get; set; }
+        public string Summary { get; set; } = "";
+        public decimal TotalCalories { get; set; }
+        public decimal TotalProtein { get; set; }
+        public decimal TotalCarbs { get; set; }
+        public decimal TotalFat { get; set; }
+        public bool IsWithinTarget { get; set; }
+        public List<MealPreview> Meals { get; set; } = new();
+    }
+
+    public class MealPreview
+    {
+        public string MealType { get; set; } = "";
+        public List<string> Foods { get; set; } = new();
+        public decimal Calories { get; set; }
     }
 
     public class ApplyMealPlanResponse
