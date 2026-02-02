@@ -452,12 +452,6 @@ Please create a detailed workout plan that includes:
             var targetCarbs = nutritionGoal?.DailyCarbohydrates;
             var targetFat = nutritionGoal?.DailyFat;
 
-            // Calculate calorie distribution per meal
-            var breakfastCal = Math.Round(targetCalories * 0.25m);
-            var lunchCal = Math.Round(targetCalories * 0.30m);
-            var dinnerCal = Math.Round(targetCalories * 0.30m);
-            var snackCal = Math.Round(targetCalories * 0.15m);
-
             // Create conversation
             var conversation = new ChatConversation
             {
@@ -470,61 +464,9 @@ Please create a detailed workout plan that includes:
             _context.ChatConversations.Add(conversation);
             await _context.SaveChangesAsync();
 
-            // Build user context for display
-            var userContext = "";
-            if (user != null && user.Weight.HasValue)
-            {
-                userContext = $"User: {user.Weight:F0}kg, {user.Gender ?? "unspecified"}, {user.ActivityLevel ?? "moderate activity"}";
-            }
-
-            // SINGLE AI CALL - Generate structured JSON directly
-            var prompt = $@"Generate a 7-day meal plan as JSON.
-
-TARGET: {targetCalories:F0} kcal/day
-{(targetProtein.HasValue ? $"Protein target: {targetProtein:F0}g" : "")}
-Goal: {request.DietaryGoal}
-{(!string.IsNullOrEmpty(request.Restrictions) ? $"Restrictions: {request.Restrictions}" : "")}
-{(!string.IsNullOrEmpty(request.Preferences) ? $"Preferences: {request.Preferences}" : "")}
-
-CALORIE DISTRIBUTION:
-- Breakfast: ~{breakfastCal:F0} kcal
-- Lunch: ~{lunchCal:F0} kcal
-- Dinner: ~{dinnerCal:F0} kcal
-- Snack: ~{snackCal:F0} kcal
-
-Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
-{{
-  ""days"": [
-    {{
-      ""day"": 1,
-      ""meals"": [
-        {{
-          ""mealType"": ""Breakfast"",
-          ""foods"": [
-            {{ ""name"": ""Oatmeal with Banana"", ""servingSize"": 1, ""servingUnit"": ""bowl"", ""calories"": 350, ""protein"": 12, ""carbohydrates"": 60, ""fat"": 8 }},
-            {{ ""name"": ""Greek Yogurt"", ""servingSize"": 150, ""servingUnit"": ""g"", ""calories"": 150, ""protein"": 15, ""carbohydrates"": 8, ""fat"": 5 }}
-          ]
-        }},
-        {{ ""mealType"": ""Lunch"", ""foods"": [...] }},
-        {{ ""mealType"": ""Dinner"", ""foods"": [...] }},
-        {{ ""mealType"": ""Snack"", ""foods"": [...] }}
-      ]
-    }},
-    {{ ""day"": 2, ... }},
-    ... (all 7 days)
-  ]
-}}
-
-RULES:
-1. Each day MUST have Breakfast, Lunch, Dinner, Snack
-2. Each food item MUST have realistic calories (50-800 per item)
-3. Day total MUST be approximately {targetCalories:F0} kcal
-4. Use variety - different meals each day
-5. mealType must be exactly: Breakfast, Lunch, Dinner, or Snack";
-
             try
             {
-                // Save user message (simplified for display)
+                // Save user message
                 var displayPrompt = $"Generate a {request.DietaryGoal} meal plan for {targetCalories:F0} kcal/day" +
                     (!string.IsNullOrEmpty(request.Restrictions) ? $" with restrictions: {request.Restrictions}" : "") +
                     (!string.IsNullOrEmpty(request.Preferences) ? $", preferences: {request.Preferences}" : "");
@@ -538,54 +480,38 @@ RULES:
                 };
                 _context.ChatMessages.Add(userMessage);
 
-                // Single AI call - get structured JSON directly
-                var aiResponse = await _aiService.SendMessageAsync(
-                    prompt,
-                    new List<ChatMessage>(),
-                    "meal_plan"
+                // FOOD DATABASE APPROACH - AI selects from real foods, backend calculates
+                var weekData = await GenerateMealPlanFromDatabase(
+                    targetCalories,
+                    targetProtein,
+                    targetCarbs,
+                    targetFat,
+                    request.DietaryGoal,
+                    request.Restrictions,
+                    request.Preferences
                 );
 
-                // Parse JSON response
-                var jsonContent = aiResponse.Content.Trim();
+                string summaryContent;
+                int inputTokens = 0, outputTokens = 0;
+                string model = "database";
 
-                // Remove markdown code blocks if present
-                if (jsonContent.StartsWith("```"))
-                {
-                    var lines = jsonContent.Split('\n');
-                    jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
-                }
-
-                ChatMealPlanWeekExtraction? weekData = null;
-                try
-                {
-                    var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    weekData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(jsonContent, jsonOptions);
-                }
-                catch (System.Text.Json.JsonException ex)
-                {
-                    _logger.LogWarning(ex, "Failed to parse AI response as JSON, response: {Response}", jsonContent.Substring(0, Math.Min(500, jsonContent.Length)));
-                }
-
-                // Validate and recalculate totals from actual food items
                 if (weekData != null && weekData.Days.Count > 0)
                 {
-                    ValidateAndRecalculateTotals(weekData);
-
                     var avgCalories = weekData.Days.Average(d => d.TotalCalories);
-                    _logger.LogInformation("Generated meal plan: {DayCount} days, average {AvgCal:F0} kcal/day (target: {Target:F0})",
+                    _logger.LogInformation("Generated meal plan from database: {DayCount} days, average {AvgCal:F0} kcal/day (target: {Target:F0})",
                         weekData.Days.Count, avgCalories, targetCalories);
 
                     // Store validated JSON
                     var storeOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
                     conversation.MealPlanDataJson = System.Text.Json.JsonSerializer.Serialize(weekData, storeOptions);
+
+                    summaryContent = BuildMealPlanSummary(weekData, targetCalories, request.DietaryGoal);
                 }
                 else
                 {
-                    _logger.LogWarning("Failed to generate valid meal plan JSON for conversation {ConversationId}", conversation.Id);
+                    _logger.LogWarning("Failed to generate meal plan from database for conversation {ConversationId}", conversation.Id);
+                    summaryContent = $"I couldn't generate a meal plan. Please try again.";
                 }
-
-                // Create readable summary for chat display
-                var summaryContent = BuildMealPlanSummary(weekData, targetCalories, request.DietaryGoal);
 
                 var aiMessage = new ChatMessage
                 {
@@ -593,9 +519,9 @@ RULES:
                     Role = "assistant",
                     Content = summaryContent,
                     CreatedAt = DateTime.UtcNow,
-                    InputTokens = aiResponse.InputTokens,
-                    OutputTokens = aiResponse.OutputTokens,
-                    Model = aiResponse.Model
+                    InputTokens = inputTokens,
+                    OutputTokens = outputTokens,
+                    Model = model
                 };
                 _context.ChatMessages.Add(aiMessage);
 
@@ -1670,6 +1596,201 @@ IMPORTANT RULES:
                 _logger.LogError(ex, "Error previewing meal plan");
                 return StatusCode(500, new { message = "Failed to preview meal plan" });
             }
+        }
+
+        /// <summary>
+        /// Generate meal plan using foods from database - 100% reliable nutrition data
+        /// AI only selects foods, backend calculates all nutrition values
+        /// </summary>
+        private async Task<ChatMealPlanWeekExtraction?> GenerateMealPlanFromDatabase(
+            decimal targetCalories,
+            decimal? targetProtein,
+            decimal? targetCarbs,
+            decimal? targetFat,
+            string dietaryGoal,
+            string? restrictions,
+            string? preferences)
+        {
+            // Get all available foods from database
+            var allFoods = await _context.FoodTemplates
+                .Where(f => !f.IsCustom) // Only system foods for now
+                .ToListAsync();
+
+            if (!allFoods.Any())
+            {
+                _logger.LogWarning("No food templates found in database");
+                return null;
+            }
+
+            // Group foods by category for AI selection
+            var foodsByCategory = allFoods
+                .GroupBy(f => f.Category ?? "Other")
+                .ToDictionary(g => g.Key, g => g.Select(f => new { f.Id, f.Name, f.Calories, f.Protein, f.Carbohydrates, f.Fat, f.ServingSize, f.ServingUnit }).ToList());
+
+            // Build food list for AI
+            var foodListText = string.Join("\n", allFoods.Select(f =>
+                $"- {f.Name} ({f.Category}): {f.Calories:F0} kcal, P:{f.Protein:F0}g, C:{f.Carbohydrates:F0}g, F:{f.Fat:F0}g per {f.ServingSize}{f.ServingUnit}"));
+
+            // Calculate calorie distribution
+            var breakfastCal = Math.Round(targetCalories * 0.25m);
+            var lunchCal = Math.Round(targetCalories * 0.30m);
+            var dinnerCal = Math.Round(targetCalories * 0.30m);
+            var snackCal = Math.Round(targetCalories * 0.15m);
+
+            var prompt = $@"Create a 7-day meal plan using ONLY foods from this list.
+Return JSON with food names and serving multipliers.
+
+TARGET: {targetCalories:F0} kcal/day
+Goal: {dietaryGoal}
+{(!string.IsNullOrEmpty(restrictions) ? $"Restrictions: {restrictions}" : "")}
+{(!string.IsNullOrEmpty(preferences) ? $"Preferences: {preferences}" : "")}
+
+AVAILABLE FOODS:
+{foodListText}
+
+Return ONLY this JSON structure (no markdown):
+{{
+  ""days"": [
+    {{
+      ""day"": 1,
+      ""meals"": [
+        {{
+          ""mealType"": ""Breakfast"",
+          ""foods"": [
+            {{ ""name"": ""Oatmeal"", ""servings"": 1.5 }},
+            {{ ""name"": ""Banana"", ""servings"": 1 }}
+          ]
+        }},
+        {{ ""mealType"": ""Lunch"", ""foods"": [...] }},
+        {{ ""mealType"": ""Dinner"", ""foods"": [...] }},
+        {{ ""mealType"": ""Snack"", ""foods"": [...] }}
+      ]
+    }}
+  ]
+}}
+
+RULES:
+1. Use ONLY foods from the list above (exact names)
+2. Adjust servings to reach ~{breakfastCal:F0} kcal breakfast, ~{lunchCal:F0} kcal lunch, ~{dinnerCal:F0} kcal dinner, ~{snackCal:F0} kcal snack
+3. Total each day should be approximately {targetCalories:F0} kcal
+4. Each day: Breakfast, Lunch, Dinner, Snack
+5. Create variety across 7 days";
+
+            try
+            {
+                var aiResponse = await _aiService.SendMessageAsync(prompt, new List<ChatMessage>(), "meal_plan");
+                var jsonContent = aiResponse.Content.Trim();
+
+                // Remove markdown if present
+                if (jsonContent.StartsWith("```"))
+                {
+                    var lines = jsonContent.Split('\n');
+                    jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+                }
+
+                // Parse AI selection
+                var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var aiSelection = System.Text.Json.JsonSerializer.Deserialize<AIMealPlanSelection>(jsonContent, options);
+
+                if (aiSelection?.Days == null || !aiSelection.Days.Any())
+                {
+                    _logger.LogWarning("AI returned invalid meal plan selection");
+                    return null;
+                }
+
+                // Build final meal plan with REAL nutrition data from database
+                var weekData = new ChatMealPlanWeekExtraction { Days = new List<ChatMealPlanDayData>() };
+                var foodLookup = allFoods.ToDictionary(f => f.Name.ToLower(), f => f);
+
+                foreach (var aiDay in aiSelection.Days)
+                {
+                    var dayData = new ChatMealPlanDayData
+                    {
+                        Day = aiDay.Day,
+                        Meals = new List<ChatMealPlanMealData>()
+                    };
+
+                    decimal dayCalories = 0, dayProtein = 0, dayCarbs = 0, dayFat = 0;
+
+                    foreach (var aiMeal in aiDay.Meals ?? new List<AIMealSelection>())
+                    {
+                        var mealData = new ChatMealPlanMealData
+                        {
+                            MealType = aiMeal.MealType ?? "Other",
+                            Foods = new List<ChatMealPlanFoodData>()
+                        };
+
+                        foreach (var aiFood in aiMeal.Foods ?? new List<AIFoodSelection>())
+                        {
+                            // Look up REAL nutrition from database
+                            if (foodLookup.TryGetValue(aiFood.Name?.ToLower() ?? "", out var dbFood))
+                            {
+                                var servings = aiFood.Servings > 0 ? aiFood.Servings : 1;
+                                var foodData = new ChatMealPlanFoodData
+                                {
+                                    Name = dbFood.Name,
+                                    ServingSize = dbFood.ServingSize * servings,
+                                    ServingUnit = dbFood.ServingUnit,
+                                    Calories = dbFood.Calories * servings,
+                                    Protein = dbFood.Protein * servings,
+                                    Carbohydrates = dbFood.Carbohydrates * servings,
+                                    Fat = dbFood.Fat * servings
+                                };
+
+                                mealData.Foods.Add(foodData);
+                                dayCalories += foodData.Calories ?? 0;
+                                dayProtein += foodData.Protein ?? 0;
+                                dayCarbs += foodData.Carbohydrates ?? 0;
+                                dayFat += foodData.Fat ?? 0;
+                            }
+                            else
+                            {
+                                _logger.LogDebug("Food not found in database: {FoodName}", aiFood.Name);
+                            }
+                        }
+
+                        dayData.Meals.Add(mealData);
+                    }
+
+                    dayData.TotalCalories = dayCalories;
+                    dayData.TotalProtein = dayProtein;
+                    dayData.TotalCarbs = dayCarbs;
+                    dayData.TotalFat = dayFat;
+                    weekData.Days.Add(dayData);
+                }
+
+                _logger.LogInformation("Generated meal plan from database: {DayCount} days with real nutrition data", weekData.Days.Count);
+                return weekData;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to generate meal plan from database");
+                return null;
+            }
+        }
+
+        // AI response models for food database approach
+        private class AIMealPlanSelection
+        {
+            public List<AIDaySelection>? Days { get; set; }
+        }
+
+        private class AIDaySelection
+        {
+            public int Day { get; set; }
+            public List<AIMealSelection>? Meals { get; set; }
+        }
+
+        private class AIMealSelection
+        {
+            public string? MealType { get; set; }
+            public List<AIFoodSelection>? Foods { get; set; }
+        }
+
+        private class AIFoodSelection
+        {
+            public string? Name { get; set; }
+            public decimal Servings { get; set; } = 1;
         }
 
         /// <summary>
