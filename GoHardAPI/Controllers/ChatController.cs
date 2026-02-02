@@ -766,7 +766,7 @@ Please provide:
                     return NotFound(new { message = "Conversation not found" });
                 }
 
-                if (conversation.Type != "workout_plan")
+                if (conversation.Type != "workout_plan" && conversation.Type != "combined_plan")
                 {
                     return BadRequest(new { message = "This is not a workout plan conversation" });
                 }
@@ -825,7 +825,7 @@ Please provide:
                     return NotFound(new { message = "Conversation not found" });
                 }
 
-                if (conversation.Type != "workout_plan")
+                if (conversation.Type != "workout_plan" && conversation.Type != "combined_plan")
                 {
                     return BadRequest(new { message = "This is not a workout plan conversation" });
                 }
@@ -964,7 +964,7 @@ Please provide:
                     return NotFound(new { message = "Conversation not found" });
                 }
 
-                if (conversation.Type != "workout_plan")
+                if (conversation.Type != "workout_plan" && conversation.Type != "combined_plan")
                 {
                     return BadRequest(new { message = "This is not a workout plan conversation" });
                 }
@@ -1173,7 +1173,7 @@ Please provide:
                 .Include(c => c.Messages)
                 .FirstOrDefaultAsync(c => c.Id == conversationId && c.UserId == userId);
 
-            if (conversation == null || conversation.Type != "workout_plan")
+            if (conversation == null || conversation.Type != "workout_plan" && conversation.Type != "combined_plan")
             {
                 _logger.LogWarning("Conversation not found or not a workout plan. Id: {id}, UserId: {userId}", conversationId, userId);
                 return null;
@@ -1684,10 +1684,11 @@ CRITICAL RULES:
                 _logger.LogInformation("Meal plan totals - Calories: {cal}, Protein: {prot}g, Carbs: {carb}g, Fat: {fat}g",
                     totalCalories, totalProtein, totalCarbs, totalFat);
 
-                // 1. UPDATE NUTRITION GOALS (replace, not add)
+                // 1. ONLY CREATE NUTRITION GOALS IF NONE EXIST
+                // Don't overwrite existing goals - they were carefully calculated during goal creation
                 if (nutritionGoal == null)
                 {
-                    // Create new nutrition goal
+                    // Create new nutrition goal only if user has none
                     nutritionGoal = new Models.NutritionGoal
                     {
                         UserId = userId,
@@ -1702,20 +1703,14 @@ CRITICAL RULES:
                     };
                     _context.NutritionGoals.Add(nutritionGoal);
                     _logger.LogInformation("Created new nutrition goal from meal plan for user {userId}", userId);
+                    await _context.SaveChangesAsync();
                 }
                 else
                 {
-                    // Update existing nutrition goal - use direct assignment to REPLACE values
-                    nutritionGoal.DailyCalories = totalCalories;
-                    nutritionGoal.DailyProtein = totalProtein;
-                    nutritionGoal.DailyCarbohydrates = totalCarbs;
-                    nutritionGoal.DailyFat = totalFat;
-                    nutritionGoal.UpdatedAt = DateTime.UtcNow;
-                    _context.NutritionGoals.Update(nutritionGoal); // Explicitly mark as updated
-                    _logger.LogInformation("Updated nutrition goal from meal plan for user {userId}", userId);
+                    // Keep existing nutrition goal - it has the correct calculated values
+                    _logger.LogInformation("Keeping existing nutrition goal for user {userId} (Calories: {cal})",
+                        userId, nutritionGoal.DailyCalories);
                 }
-
-                await _context.SaveChangesAsync();
 
                 // 2. GET OR CREATE TODAY'S MEAL LOG
                 var today = DateTime.UtcNow.Date;
