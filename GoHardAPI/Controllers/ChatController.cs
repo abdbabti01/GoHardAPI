@@ -1752,6 +1752,37 @@ RULES:
                         dayData.Meals.Add(mealData);
                     }
 
+                    // AUTO-SCALE to hit target calories exactly
+                    if (dayCalories > 0 && dayCalories < targetCalories * 0.95m)
+                    {
+                        var scaleFactor = targetCalories / dayCalories;
+
+                        // Cap scaling at 2.5x to avoid unrealistic portions
+                        if (scaleFactor > 2.5m) scaleFactor = 2.5m;
+
+                        _logger.LogInformation("Day {Day}: Scaling from {Original:F0} to {Target:F0} kcal (factor: {Factor:F2})",
+                            aiDay.Day, dayCalories, dayCalories * scaleFactor, scaleFactor);
+
+                        // Scale all foods in this day
+                        foreach (var meal in dayData.Meals)
+                        {
+                            foreach (var food in meal.Foods ?? new List<ChatMealPlanFoodData>())
+                            {
+                                food.ServingSize = (food.ServingSize ?? 1) * scaleFactor;
+                                food.Calories = (food.Calories ?? 0) * scaleFactor;
+                                food.Protein = (food.Protein ?? 0) * scaleFactor;
+                                food.Carbohydrates = (food.Carbohydrates ?? 0) * scaleFactor;
+                                food.Fat = (food.Fat ?? 0) * scaleFactor;
+                            }
+                        }
+
+                        // Recalculate day totals
+                        dayCalories *= scaleFactor;
+                        dayProtein *= scaleFactor;
+                        dayCarbs *= scaleFactor;
+                        dayFat *= scaleFactor;
+                    }
+
                     dayData.TotalCalories = dayCalories;
                     dayData.TotalProtein = dayProtein;
                     dayData.TotalCarbs = dayCarbs;
@@ -1759,7 +1790,8 @@ RULES:
                     weekData.Days.Add(dayData);
                 }
 
-                _logger.LogInformation("Generated meal plan from database: {DayCount} days with real nutrition data", weekData.Days.Count);
+                _logger.LogInformation("Generated meal plan from database: {DayCount} days, target: {Target:F0} kcal",
+                    weekData.Days.Count, targetCalories);
                 return weekData;
             }
             catch (Exception ex)
