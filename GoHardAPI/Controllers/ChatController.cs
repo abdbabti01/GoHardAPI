@@ -549,6 +549,24 @@ Please create a detailed meal plan that includes:
 
                 _context.ChatMessages.Add(aiMessage);
                 conversation.LastMessageAt = DateTime.UtcNow;
+
+                // Parse and store the meal plan JSON immediately for consistency
+                // This prevents re-parsing which could yield different results
+                var effectiveTargetCalories = targetCalories ?? 2000m;
+                var weekData = await ExtractWeekMealPlan(aiResponse.Content, effectiveTargetCalories);
+                if (weekData != null && weekData.Days.Count > 0)
+                {
+                    var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+                    conversation.MealPlanDataJson = System.Text.Json.JsonSerializer.Serialize(weekData, jsonOptions);
+                    _logger.LogInformation("Stored parsed meal plan JSON for conversation {conversationId} with {dayCount} days",
+                        conversation.Id, weekData.Days.Count);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to parse meal plan for conversation {conversationId}, will need to parse on demand",
+                        conversation.Id);
+                }
+
                 await _context.SaveChangesAsync();
 
                 // Return conversation with messages
@@ -1525,19 +1543,49 @@ IMPORTANT RULES:
                     .FirstOrDefaultAsync();
                 var targetCalories = nutritionGoal?.DailyCalories ?? 2000m;
 
-                // Get the AI's meal plan message
-                var mealPlanMessage = conversation.Messages
-                    .Where(m => m.Role == "assistant")
-                    .OrderBy(m => m.CreatedAt)
-                    .FirstOrDefault();
+                // Try to use pre-parsed meal plan JSON (stored at generation time)
+                ChatMealPlanWeekExtraction? weekData = null;
 
-                if (mealPlanMessage == null)
+                if (!string.IsNullOrEmpty(conversation.MealPlanDataJson))
                 {
-                    return BadRequest(new { message = "No meal plan found in conversation" });
+                    // Use stored JSON for consistency - this is the preferred path
+                    try
+                    {
+                        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        weekData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(conversation.MealPlanDataJson, jsonOptions);
+                        _logger.LogInformation("Using stored meal plan JSON for conversation {conversationId}", id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to deserialize stored meal plan JSON, falling back to extraction");
+                    }
                 }
 
-                // Extract 7-day meal plan
-                var weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+                // Fallback: Extract from message content (for legacy conversations without stored JSON)
+                if (weekData == null || weekData.Days.Count == 0)
+                {
+                    var mealPlanMessage = conversation.Messages
+                        .Where(m => m.Role == "assistant")
+                        .OrderBy(m => m.CreatedAt)
+                        .FirstOrDefault();
+
+                    if (mealPlanMessage == null)
+                    {
+                        return BadRequest(new { message = "No meal plan found in conversation" });
+                    }
+
+                    _logger.LogInformation("Extracting meal plan from message for legacy conversation {conversationId}", id);
+                    weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+
+                    // Store the extracted data for future consistency
+                    if (weekData != null && weekData.Days.Count > 0)
+                    {
+                        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+                        conversation.MealPlanDataJson = System.Text.Json.JsonSerializer.Serialize(weekData, jsonOptions);
+                        await _context.SaveChangesAsync();
+                        _logger.LogInformation("Stored extracted meal plan JSON for legacy conversation {conversationId}", id);
+                    }
+                }
 
                 if (weekData == null || weekData.Days.Count == 0)
                 {
@@ -1683,17 +1731,6 @@ CRITICAL RULES:
                     return BadRequest(new { message = "This is not a meal plan conversation" });
                 }
 
-                // Get the AI's meal plan message
-                var mealPlanMessage = conversation.Messages
-                    .Where(m => m.Role == "assistant")
-                    .OrderBy(m => m.CreatedAt)
-                    .FirstOrDefault();
-
-                if (mealPlanMessage == null)
-                {
-                    return BadRequest(new { message = "No meal plan found in conversation" });
-                }
-
                 // Validate day parameter
                 if (day < 1 || day > 7)
                 {
@@ -1706,8 +1743,40 @@ CRITICAL RULES:
                     .FirstOrDefaultAsync();
                 var targetCalories = nutritionGoal?.DailyCalories ?? 2000m;
 
-                // Extract the full 7-day meal plan
-                var weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+                // Try to use pre-parsed meal plan JSON (stored at generation time)
+                ChatMealPlanWeekExtraction? weekData = null;
+
+                if (!string.IsNullOrEmpty(conversation.MealPlanDataJson))
+                {
+                    // Use stored JSON for consistency - this is the preferred path
+                    try
+                    {
+                        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        weekData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(conversation.MealPlanDataJson, jsonOptions);
+                        _logger.LogInformation("Using stored meal plan JSON for apply operation on conversation {conversationId}", id);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to deserialize stored meal plan JSON, falling back to extraction");
+                    }
+                }
+
+                // Fallback: Extract from message content (for legacy conversations)
+                if (weekData == null || weekData.Days.Count == 0)
+                {
+                    var mealPlanMessage = conversation.Messages
+                        .Where(m => m.Role == "assistant")
+                        .OrderBy(m => m.CreatedAt)
+                        .FirstOrDefault();
+
+                    if (mealPlanMessage == null)
+                    {
+                        return BadRequest(new { message = "No meal plan found in conversation" });
+                    }
+
+                    _logger.LogInformation("Extracting meal plan from message for legacy conversation {conversationId}", id);
+                    weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+                }
 
                 if (weekData == null || weekData.Days.Count == 0)
                 {
@@ -1878,8 +1947,6 @@ CRITICAL RULES:
                 decimal totalCarbsAdded = 0;
                 decimal totalFatAdded = 0;
 
-                const int MaxFoodsPerMeal = 3;
-
                 foreach (var mealData in mealPlanData.Meals)
                 {
                     var mealEntry = mealLog!.MealEntries.FirstOrDefault(me =>
@@ -1887,19 +1954,10 @@ CRITICAL RULES:
 
                     if (mealEntry == null) continue;
 
-                    // Limit to max 3 foods per meal - take the ones with highest calories (most substantial)
-                    var limitedFoods = (mealData.Foods ?? new List<ChatMealPlanFoodData>())
-                        .OrderByDescending(f => f.Calories ?? 0)
-                        .Take(MaxFoodsPerMeal)
-                        .ToList();
+                    // Add all foods from the meal plan (no limit to ensure consistency with preview)
+                    var foods = mealData.Foods ?? new List<ChatMealPlanFoodData>();
 
-                    if ((mealData.Foods?.Count ?? 0) > MaxFoodsPerMeal)
-                    {
-                        _logger.LogInformation("Limiting {mealType} from {original} to {limited} foods",
-                            mealData.MealType, mealData.Foods?.Count, limitedFoods.Count);
-                    }
-
-                    foreach (var foodData in limitedFoods)
+                    foreach (var foodData in foods)
                     {
                         var foodItem = new Models.FoodItem
                         {
@@ -1986,6 +2044,232 @@ CRITICAL RULES:
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error applying meal plan to today");
+                return StatusCode(500, new { message = "Failed to apply meal plan. Please try again." });
+            }
+        }
+
+        // POST: api/chat/conversations/{id}/apply-meal-plan-week
+        // Applies multiple days of the meal plan starting from a specified date
+        [HttpPost("conversations/{id}/apply-meal-plan-week")]
+        public async Task<ActionResult<ApplyMealPlanWeekResponse>> ApplyMealPlanWeek(int id, [FromBody] ApplyMealPlanWeekRequest request)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+
+                var conversation = await _context.ChatConversations
+                    .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
+
+                if (conversation == null)
+                {
+                    return NotFound(new { message = "Conversation not found" });
+                }
+
+                if (conversation.Type != "meal_plan" && conversation.Type != "combined_plan")
+                {
+                    return BadRequest(new { message = "This is not a meal plan conversation" });
+                }
+
+                // Get user's nutrition goal for context
+                var nutritionGoal = await _context.NutritionGoals
+                    .Where(ng => ng.UserId == userId && ng.IsActive)
+                    .FirstOrDefaultAsync();
+                var targetCalories = nutritionGoal?.DailyCalories ?? 2000m;
+
+                // Get the stored meal plan data
+                ChatMealPlanWeekExtraction? weekData = null;
+
+                if (!string.IsNullOrEmpty(conversation.MealPlanDataJson))
+                {
+                    try
+                    {
+                        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                        weekData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(conversation.MealPlanDataJson, jsonOptions);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to deserialize meal plan JSON");
+                    }
+                }
+
+                if (weekData == null || weekData.Days.Count == 0)
+                {
+                    return BadRequest(new { message = "No meal plan data found. Please regenerate the meal plan." });
+                }
+
+                // Determine which days to apply
+                var daysToApply = request.ApplyAllDays
+                    ? weekData.Days.OrderBy(d => d.Day).ToList()
+                    : weekData.Days.Where(d => request.Days?.Contains(d.Day) ?? false).OrderBy(d => d.Day).ToList();
+
+                if (!daysToApply.Any())
+                {
+                    return BadRequest(new { message = "No days selected to apply" });
+                }
+
+                var startDate = request.StartDate?.Date ?? DateTime.UtcNow.Date;
+                var results = new List<DayApplyResult>();
+                var totalFoodsAdded = 0;
+                decimal grandTotalCalories = 0;
+                decimal grandTotalProtein = 0;
+                decimal grandTotalCarbs = 0;
+                decimal grandTotalFat = 0;
+
+                foreach (var dayData in daysToApply)
+                {
+                    var targetDate = startDate.AddDays(daysToApply.IndexOf(dayData));
+
+                    // Get or create meal log for this date
+                    var mealLog = await _context.MealLogs
+                        .Include(ml => ml.MealEntries)
+                        .ThenInclude(me => me.FoodItems)
+                        .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == targetDate);
+
+                    if (mealLog == null)
+                    {
+                        mealLog = new Models.MealLog
+                        {
+                            UserId = userId,
+                            Date = targetDate,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.MealLogs.Add(mealLog);
+                        await _context.SaveChangesAsync();
+                    }
+
+                    // Ensure meal entries exist
+                    var mealTypes = new[] { "Breakfast", "Lunch", "Dinner", "Snack" };
+                    foreach (var mealType in mealTypes)
+                    {
+                        if (!mealLog.MealEntries.Any(me => me.MealType == mealType))
+                        {
+                            var mealEntry = new Models.MealEntry
+                            {
+                                MealLogId = mealLog.Id,
+                                MealType = mealType,
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            _context.MealEntries.Add(mealEntry);
+                            mealLog.MealEntries.Add(mealEntry);
+                        }
+                    }
+                    await _context.SaveChangesAsync();
+
+                    // Clear existing food items if overwrite is enabled
+                    if (request.OverwriteExisting)
+                    {
+                        foreach (var entry in mealLog.MealEntries)
+                        {
+                            if (entry.FoodItems.Any())
+                            {
+                                _context.FoodItems.RemoveRange(entry.FoodItems);
+                            }
+                        }
+                        await _context.SaveChangesAsync();
+
+                        // Reload meal entries
+                        mealLog = await _context.MealLogs
+                            .Include(ml => ml.MealEntries)
+                            .FirstOrDefaultAsync(ml => ml.Id == mealLog.Id);
+                    }
+
+                    // Add food items
+                    decimal dayCalories = 0;
+                    decimal dayProtein = 0;
+                    decimal dayCarbs = 0;
+                    decimal dayFat = 0;
+                    int dayFoodsAdded = 0;
+
+                    foreach (var mealData in dayData.Meals)
+                    {
+                        var mealEntry = mealLog!.MealEntries.FirstOrDefault(me =>
+                            me.MealType.Equals(mealData.MealType, StringComparison.OrdinalIgnoreCase));
+
+                        if (mealEntry == null) continue;
+
+                        foreach (var foodData in mealData.Foods ?? new List<ChatMealPlanFoodData>())
+                        {
+                            var foodItem = new Models.FoodItem
+                            {
+                                MealEntryId = mealEntry.Id,
+                                Name = foodData.Name ?? "Unknown",
+                                Quantity = 1,
+                                ServingSize = foodData.ServingSize ?? 1,
+                                ServingUnit = foodData.ServingUnit ?? "serving",
+                                Calories = foodData.Calories ?? 0,
+                                Protein = foodData.Protein ?? 0,
+                                Carbohydrates = foodData.Carbohydrates ?? 0,
+                                Fat = foodData.Fat ?? 0,
+                                CreatedAt = DateTime.UtcNow
+                            };
+
+                            _context.FoodItems.Add(foodItem);
+                            dayCalories += foodItem.Calories;
+                            dayProtein += foodItem.Protein;
+                            dayCarbs += foodItem.Carbohydrates;
+                            dayFat += foodItem.Fat;
+                            dayFoodsAdded++;
+                        }
+                    }
+
+                    // Update meal entry totals
+                    var updatedMealLog = await _context.MealLogs
+                        .Include(ml => ml.MealEntries)
+                        .ThenInclude(me => me.FoodItems)
+                        .FirstOrDefaultAsync(ml => ml.Id == mealLog!.Id);
+
+                    if (updatedMealLog != null)
+                    {
+                        foreach (var entry in updatedMealLog.MealEntries)
+                        {
+                            entry.TotalCalories = entry.FoodItems.Sum(f => f.Calories);
+                            entry.TotalProtein = entry.FoodItems.Sum(f => f.Protein);
+                            entry.TotalCarbohydrates = entry.FoodItems.Sum(f => f.Carbohydrates);
+                            entry.TotalFat = entry.FoodItems.Sum(f => f.Fat);
+                            entry.IsConsumed = false;
+                        }
+                        updatedMealLog.UpdatedAt = DateTime.UtcNow;
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    results.Add(new DayApplyResult
+                    {
+                        Day = dayData.Day,
+                        Date = targetDate,
+                        FoodsAdded = dayFoodsAdded,
+                        Calories = dayCalories,
+                        Protein = dayProtein,
+                        Carbs = dayCarbs,
+                        Fat = dayFat
+                    });
+
+                    totalFoodsAdded += dayFoodsAdded;
+                    grandTotalCalories += dayCalories;
+                    grandTotalProtein += dayProtein;
+                    grandTotalCarbs += dayCarbs;
+                    grandTotalFat += dayFat;
+                }
+
+                _logger.LogInformation("Applied {dayCount} days of meal plan for user {userId}, {foodCount} total foods",
+                    daysToApply.Count, totalFoodsAdded, userId);
+
+                return Ok(new ApplyMealPlanWeekResponse
+                {
+                    Success = true,
+                    Message = $"Applied {daysToApply.Count} days of meals ({totalFoodsAdded} foods total)",
+                    DaysApplied = daysToApply.Count,
+                    TotalFoodsAdded = totalFoodsAdded,
+                    TotalCalories = grandTotalCalories,
+                    TotalProtein = grandTotalProtein,
+                    TotalCarbs = grandTotalCarbs,
+                    TotalFat = grandTotalFat,
+                    DayResults = results
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error applying meal plan week");
                 return StatusCode(500, new { message = "Failed to apply meal plan. Please try again." });
             }
         }
@@ -2218,5 +2502,55 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
         public decimal TotalCarbsAdded { get; set; }
         public decimal TotalFatAdded { get; set; }
         public object? Foods { get; set; }
+    }
+
+    // Request for applying multiple days of meal plan
+    public class ApplyMealPlanWeekRequest
+    {
+        /// <summary>
+        /// If true, applies all 7 days. If false, uses the Days list.
+        /// </summary>
+        public bool ApplyAllDays { get; set; } = false;
+
+        /// <summary>
+        /// Specific days to apply (1-7). Ignored if ApplyAllDays is true.
+        /// </summary>
+        public List<int>? Days { get; set; }
+
+        /// <summary>
+        /// The date to start applying from. Defaults to today.
+        /// </summary>
+        public DateTime? StartDate { get; set; }
+
+        /// <summary>
+        /// If true, replaces existing meal entries. If false, adds to existing.
+        /// </summary>
+        public bool OverwriteExisting { get; set; } = true;
+    }
+
+    // Response for applying multiple days
+    public class ApplyMealPlanWeekResponse
+    {
+        public bool Success { get; set; }
+        public string Message { get; set; } = "";
+        public int DaysApplied { get; set; }
+        public int TotalFoodsAdded { get; set; }
+        public decimal TotalCalories { get; set; }
+        public decimal TotalProtein { get; set; }
+        public decimal TotalCarbs { get; set; }
+        public decimal TotalFat { get; set; }
+        public List<DayApplyResult> DayResults { get; set; } = new();
+    }
+
+    // Result for each day applied
+    public class DayApplyResult
+    {
+        public int Day { get; set; }
+        public DateTime Date { get; set; }
+        public int FoodsAdded { get; set; }
+        public decimal Calories { get; set; }
+        public decimal Protein { get; set; }
+        public decimal Carbs { get; set; }
+        public decimal Fat { get; set; }
     }
 }

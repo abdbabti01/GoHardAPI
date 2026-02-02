@@ -25,6 +25,17 @@ namespace GoHardAPI.Models
 
         public bool IsArchived { get; set; } = false;
 
+        /// <summary>
+        /// Stores parsed meal plan JSON at generation time for consistency.
+        /// Prevents re-parsing which could yield different results.
+        /// </summary>
+        public string? MealPlanDataJson { get; set; }
+
+        /// <summary>
+        /// Stores parsed workout plan JSON at generation time for consistency.
+        /// </summary>
+        public string? WorkoutPlanDataJson { get; set; }
+
         // Navigation properties
         public User? User { get; set; }
         public ICollection<ChatMessage> Messages { get; set; } = new List<ChatMessage>();

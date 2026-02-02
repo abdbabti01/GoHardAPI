@@ -102,6 +102,9 @@ namespace GoHardAPI.Migrations
                     b.Property<DateTime?>("LastMessageAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("MealPlanDataJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -114,6 +117,9 @@ namespace GoHardAPI.Migrations
 
                     b.Property<int>("UserId")
                         .HasColumnType("int");
+
+                    b.Property<string>("WorkoutPlanDataJson")
+                        .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
