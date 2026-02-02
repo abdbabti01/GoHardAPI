@@ -2230,11 +2230,11 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                 _logger.LogInformation("Meal plan totals - Calories: {cal}, Protein: {prot}g, Carbs: {carb}g, Fat: {fat}g",
                     totalCalories, totalProtein, totalCarbs, totalFat);
 
-                // 1. ONLY CREATE NUTRITION GOALS IF NONE EXIST
-                // Don't overwrite existing goals - they were carefully calculated during goal creation
+                // 1. UPDATE OR CREATE NUTRITION GOALS TO MATCH MEAL PLAN DAY
+                // When user applies a meal plan day, update their goal to match
                 if (nutritionGoal == null)
                 {
-                    // Create new nutrition goal only if user has none
+                    // Create new nutrition goal from meal plan
                     nutritionGoal = new Models.NutritionGoal
                     {
                         UserId = userId,
@@ -2248,15 +2248,21 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                         CreatedAt = DateTime.UtcNow
                     };
                     _context.NutritionGoals.Add(nutritionGoal);
-                    _logger.LogInformation("Created new nutrition goal from meal plan for user {userId}", userId);
-                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Created new nutrition goal from meal plan for user {userId}: {cal} kcal", userId, totalCalories);
                 }
                 else
                 {
-                    // Keep existing nutrition goal - it has the correct calculated values
-                    _logger.LogInformation("Keeping existing nutrition goal for user {userId} (Calories: {cal})",
-                        userId, nutritionGoal.DailyCalories);
+                    // UPDATE existing nutrition goal to match the meal plan day
+                    nutritionGoal.DailyCalories = totalCalories;
+                    nutritionGoal.DailyProtein = totalProtein;
+                    nutritionGoal.DailyCarbohydrates = totalCarbs;
+                    nutritionGoal.DailyFat = totalFat;
+                    nutritionGoal.Name = "Meal Plan Goals";
+                    nutritionGoal.UpdatedAt = DateTime.UtcNow;
+                    _logger.LogInformation("Updated nutrition goal for user {userId}: {cal} kcal, {prot}g protein, {carb}g carbs, {fat}g fat",
+                        userId, totalCalories, totalProtein, totalCarbs, totalFat);
                 }
+                await _context.SaveChangesAsync();
 
                 // 2. GET OR CREATE TODAY'S MEAL LOG
                 var today = DateTime.UtcNow.Date;
@@ -2407,13 +2413,18 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                 return Ok(new ApplyMealPlanResponse
                 {
                     Success = true,
-                    Message = $"Nutrition goals updated and {addedFoods.Count} foods added to today's log",
+                    Message = $"Nutrition goal updated to {totalCalories:F0} kcal and {addedFoods.Count} foods added to today's log",
                     FoodsAdded = addedFoods.Count,
                     TotalCaloriesAdded = totalCaloriesAdded,
                     TotalProteinAdded = totalProteinAdded,
                     TotalCarbsAdded = totalCarbsAdded,
                     TotalFatAdded = totalFatAdded,
-                    Foods = addedFoods
+                    Foods = addedFoods,
+                    GoalUpdated = true,
+                    NewDailyCalorieGoal = totalCalories,
+                    NewDailyProteinGoal = totalProtein,
+                    NewDailyCarbsGoal = totalCarbs,
+                    NewDailyFatGoal = totalFat
                 });
             }
             catch (Exception ex)
@@ -2877,6 +2888,26 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
         public decimal TotalCarbsAdded { get; set; }
         public decimal TotalFatAdded { get; set; }
         public object? Foods { get; set; }
+        /// <summary>
+        /// Indicates that the nutrition goal was updated to match this day's plan
+        /// </summary>
+        public bool GoalUpdated { get; set; }
+        /// <summary>
+        /// The new daily calorie goal (after update)
+        /// </summary>
+        public decimal? NewDailyCalorieGoal { get; set; }
+        /// <summary>
+        /// The new daily protein goal (after update)
+        /// </summary>
+        public decimal? NewDailyProteinGoal { get; set; }
+        /// <summary>
+        /// The new daily carbs goal (after update)
+        /// </summary>
+        public decimal? NewDailyCarbsGoal { get; set; }
+        /// <summary>
+        /// The new daily fat goal (after update)
+        /// </summary>
+        public decimal? NewDailyFatGoal { get; set; }
     }
 
     // Request for applying multiple days of meal plan
