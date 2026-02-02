@@ -441,11 +441,22 @@ Please create a detailed workout plan that includes:
         {
             var userId = GetCurrentUserId();
 
-            // Get user metrics and nutrition goals for personalized recommendations
+            // Get user metrics and nutrition goals
             var user = await _context.Users.FindAsync(userId);
             var nutritionGoal = await _context.NutritionGoals
                 .Where(ng => ng.UserId == userId && ng.IsActive)
                 .FirstOrDefaultAsync();
+
+            var targetCalories = request.TargetCalories ?? nutritionGoal?.DailyCalories ?? 2000m;
+            var targetProtein = nutritionGoal?.DailyProtein;
+            var targetCarbs = nutritionGoal?.DailyCarbohydrates;
+            var targetFat = nutritionGoal?.DailyFat;
+
+            // Calculate calorie distribution per meal
+            var breakfastCal = Math.Round(targetCalories * 0.25m);
+            var lunchCal = Math.Round(targetCalories * 0.30m);
+            var dinnerCal = Math.Round(targetCalories * 0.30m);
+            var snackCal = Math.Round(targetCalories * 0.15m);
 
             // Create conversation
             var conversation = new ChatConversation
@@ -459,114 +470,136 @@ Please create a detailed workout plan that includes:
             _context.ChatConversations.Add(conversation);
             await _context.SaveChangesAsync();
 
-            // Build user profile section if metrics are available
-            var userProfileSection = "";
-            if (user != null && (user.Weight.HasValue || user.Height.HasValue || user.DateOfBirth.HasValue))
+            // Build user context for display
+            var userContext = "";
+            if (user != null && user.Weight.HasValue)
             {
-                var age = CalculateAge(user.DateOfBirth);
-                var weightLbs = user.Weight.HasValue ? (user.Weight.Value * 2.205).ToString("F0") : "Not set";
-                var weightKg = user.Weight.HasValue ? user.Weight.Value.ToString("F1") : "Not set";
-                var heightCm = user.Height.HasValue ? user.Height.Value.ToString("F0") : "Not set";
-
-                userProfileSection = $@"
-
-**User Profile:**
-- Weight: {weightKg}kg ({weightLbs}lbs)
-- Height: {heightCm}cm
-- Age: {age} years
-- Gender: {user.Gender ?? "Not specified"}
-- Activity Level: {user.ActivityLevel ?? "Moderately Active"}
-";
+                userContext = $"User: {user.Weight:F0}kg, {user.Gender ?? "unspecified"}, {user.ActivityLevel ?? "moderate activity"}";
             }
 
-            // Build nutrition targets section from active goal or request
-            var nutritionTargetsSection = "";
-            var targetCalories = request.TargetCalories ?? nutritionGoal?.DailyCalories;
-            var targetProtein = nutritionGoal?.DailyProtein;
-            var targetCarbs = nutritionGoal?.DailyCarbohydrates;
-            var targetFat = nutritionGoal?.DailyFat;
+            // SINGLE AI CALL - Generate structured JSON directly
+            var prompt = $@"Generate a 7-day meal plan as JSON.
 
-            if (targetCalories.HasValue || targetProtein.HasValue)
-            {
-                nutritionTargetsSection = $@"
+TARGET: {targetCalories:F0} kcal/day
+{(targetProtein.HasValue ? $"Protein target: {targetProtein:F0}g" : "")}
+Goal: {request.DietaryGoal}
+{(!string.IsNullOrEmpty(request.Restrictions) ? $"Restrictions: {request.Restrictions}" : "")}
+{(!string.IsNullOrEmpty(request.Preferences) ? $"Preferences: {request.Preferences}" : "")}
 
-**Daily Nutrition Targets:**
-{(targetCalories.HasValue ? $"- Target Calories: {targetCalories:F0} kcal/day" : "")}
-{(targetProtein.HasValue ? $"- Target Protein: {targetProtein:F0}g" : "")}
-{(targetCarbs.HasValue ? $"- Target Carbohydrates: {targetCarbs:F0}g" : "")}
-{(targetFat.HasValue ? $"- Target Fat: {targetFat:F0}g" : "")}
-";
-            }
+CALORIE DISTRIBUTION:
+- Breakfast: ~{breakfastCal:F0} kcal
+- Lunch: ~{lunchCal:F0} kcal
+- Dinner: ~{dinnerCal:F0} kcal
+- Snack: ~{snackCal:F0} kcal
 
-            // Build structured prompt from form data
-            var prompt = $@"I need a personalized meal plan with the following details:
-{userProfileSection}
-**Dietary Goal:** {request.DietaryGoal}
-{nutritionTargetsSection}
-{(!string.IsNullOrEmpty(request.Macros) ? $"**Macro Split:** {request.Macros}" : "")}
-{(!string.IsNullOrEmpty(request.Restrictions) ? $"**Dietary Restrictions:** {request.Restrictions}" : "")}
-{(!string.IsNullOrEmpty(request.Preferences) ? $"**Preferences:** {request.Preferences}" : "")}
+Return ONLY valid JSON (no markdown, no explanation) with this exact structure:
+{{
+  ""days"": [
+    {{
+      ""day"": 1,
+      ""meals"": [
+        {{
+          ""mealType"": ""Breakfast"",
+          ""foods"": [
+            {{ ""name"": ""Oatmeal with Banana"", ""servingSize"": 1, ""servingUnit"": ""bowl"", ""calories"": 350, ""protein"": 12, ""carbohydrates"": 60, ""fat"": 8 }},
+            {{ ""name"": ""Greek Yogurt"", ""servingSize"": 150, ""servingUnit"": ""g"", ""calories"": 150, ""protein"": 15, ""carbohydrates"": 8, ""fat"": 5 }}
+          ]
+        }},
+        {{ ""mealType"": ""Lunch"", ""foods"": [...] }},
+        {{ ""mealType"": ""Dinner"", ""foods"": [...] }},
+        {{ ""mealType"": ""Snack"", ""foods"": [...] }}
+      ]
+    }},
+    {{ ""day"": 2, ... }},
+    ... (all 7 days)
+  ]
+}}
 
-Please create a detailed meal plan that includes:
-1. Daily meal schedule (breakfast, lunch, dinner, snacks)
-2. Specific meal ideas with approximate calories
-3. Macro breakdown for each meal
-4. Shopping list
-5. Meal prep tips
-6. Flexibility/substitution suggestions";
+RULES:
+1. Each day MUST have Breakfast, Lunch, Dinner, Snack
+2. Each food item MUST have realistic calories (50-800 per item)
+3. Day total MUST be approximately {targetCalories:F0} kcal
+4. Use variety - different meals each day
+5. mealType must be exactly: Breakfast, Lunch, Dinner, or Snack";
 
             try
             {
-                // Save user message
+                // Save user message (simplified for display)
+                var displayPrompt = $"Generate a {request.DietaryGoal} meal plan for {targetCalories:F0} kcal/day" +
+                    (!string.IsNullOrEmpty(request.Restrictions) ? $" with restrictions: {request.Restrictions}" : "") +
+                    (!string.IsNullOrEmpty(request.Preferences) ? $", preferences: {request.Preferences}" : "");
+
                 var userMessage = new ChatMessage
                 {
                     ConversationId = conversation.Id,
                     Role = "user",
-                    Content = prompt,
+                    Content = displayPrompt,
                     CreatedAt = DateTime.UtcNow
                 };
-
                 _context.ChatMessages.Add(userMessage);
 
-                // Get AI response
+                // Single AI call - get structured JSON directly
                 var aiResponse = await _aiService.SendMessageAsync(
                     prompt,
                     new List<ChatMessage>(),
                     "meal_plan"
                 );
 
-                // Save AI message
+                // Parse JSON response
+                var jsonContent = aiResponse.Content.Trim();
+
+                // Remove markdown code blocks if present
+                if (jsonContent.StartsWith("```"))
+                {
+                    var lines = jsonContent.Split('\n');
+                    jsonContent = string.Join('\n', lines.Skip(1).Take(lines.Length - 2));
+                }
+
+                ChatMealPlanWeekExtraction? weekData = null;
+                try
+                {
+                    var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    weekData = System.Text.Json.JsonSerializer.Deserialize<ChatMealPlanWeekExtraction>(jsonContent, jsonOptions);
+                }
+                catch (System.Text.Json.JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse AI response as JSON, response: {Response}", jsonContent.Substring(0, Math.Min(500, jsonContent.Length)));
+                }
+
+                // Validate and recalculate totals from actual food items
+                if (weekData != null && weekData.Days.Count > 0)
+                {
+                    ValidateAndRecalculateTotals(weekData);
+
+                    var avgCalories = weekData.Days.Average(d => d.TotalCalories);
+                    _logger.LogInformation("Generated meal plan: {DayCount} days, average {AvgCal:F0} kcal/day (target: {Target:F0})",
+                        weekData.Days.Count, avgCalories, targetCalories);
+
+                    // Store validated JSON
+                    var storeOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+                    conversation.MealPlanDataJson = System.Text.Json.JsonSerializer.Serialize(weekData, storeOptions);
+                }
+                else
+                {
+                    _logger.LogWarning("Failed to generate valid meal plan JSON for conversation {ConversationId}", conversation.Id);
+                }
+
+                // Create readable summary for chat display
+                var summaryContent = BuildMealPlanSummary(weekData, targetCalories, request.DietaryGoal);
+
                 var aiMessage = new ChatMessage
                 {
                     ConversationId = conversation.Id,
                     Role = "assistant",
-                    Content = aiResponse.Content,
+                    Content = summaryContent,
                     CreatedAt = DateTime.UtcNow,
                     InputTokens = aiResponse.InputTokens,
                     OutputTokens = aiResponse.OutputTokens,
                     Model = aiResponse.Model
                 };
-
                 _context.ChatMessages.Add(aiMessage);
+
                 conversation.LastMessageAt = DateTime.UtcNow;
-
-                // Parse and store the meal plan JSON immediately for consistency
-                // This prevents re-parsing which could yield different results
-                var effectiveTargetCalories = targetCalories ?? 2000m;
-                var weekData = await ExtractWeekMealPlan(aiResponse.Content, effectiveTargetCalories);
-                if (weekData != null && weekData.Days.Count > 0)
-                {
-                    var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
-                    conversation.MealPlanDataJson = System.Text.Json.JsonSerializer.Serialize(weekData, jsonOptions);
-                    _logger.LogInformation("Stored parsed meal plan JSON for conversation {conversationId} with {dayCount} days",
-                        conversation.Id, weekData.Days.Count);
-                }
-                else
-                {
-                    _logger.LogWarning("Failed to parse meal plan for conversation {conversationId}, will need to parse on demand",
-                        conversation.Id);
-                }
-
                 await _context.SaveChangesAsync();
 
                 // Return conversation with messages
@@ -1637,6 +1670,58 @@ IMPORTANT RULES:
                 _logger.LogError(ex, "Error previewing meal plan");
                 return StatusCode(500, new { message = "Failed to preview meal plan" });
             }
+        }
+
+        /// <summary>
+        /// Build a readable meal plan summary for chat display
+        /// </summary>
+        private string BuildMealPlanSummary(ChatMealPlanWeekExtraction? weekData, decimal targetCalories, string dietaryGoal)
+        {
+            if (weekData == null || weekData.Days.Count == 0)
+            {
+                return $"I've created a {dietaryGoal} meal plan targeting {targetCalories:F0} kcal/day. However, I couldn't generate the structured data. Please try again.";
+            }
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"# 🍽️ Your {dietaryGoal} Meal Plan");
+            sb.AppendLine();
+            sb.AppendLine($"**Target:** {targetCalories:F0} kcal/day");
+            sb.AppendLine();
+
+            foreach (var day in weekData.Days.OrderBy(d => d.Day))
+            {
+                sb.AppendLine($"## Day {day.Day} ({day.TotalCalories:F0} kcal)");
+
+                foreach (var meal in day.Meals)
+                {
+                    var mealCalories = meal.Foods?.Sum(f => f.Calories ?? 0) ?? 0;
+                    sb.AppendLine($"**{meal.MealType}** (~{mealCalories:F0} kcal)");
+
+                    if (meal.Foods != null)
+                    {
+                        foreach (var food in meal.Foods)
+                        {
+                            sb.AppendLine($"- {food.Name} ({food.Calories:F0} kcal)");
+                        }
+                    }
+                    sb.AppendLine();
+                }
+
+                // Macros summary
+                sb.AppendLine($"*Macros: P {day.TotalProtein:F0}g | C {day.TotalCarbs:F0}g | F {day.TotalFat:F0}g*");
+                sb.AppendLine();
+                sb.AppendLine("---");
+                sb.AppendLine();
+            }
+
+            sb.AppendLine("### Tips");
+            sb.AppendLine("- Prep proteins in bulk on weekends");
+            sb.AppendLine("- Keep healthy snacks ready");
+            sb.AppendLine("- Stay hydrated throughout the day");
+            sb.AppendLine();
+            sb.AppendLine("*Click **Apply Meal Plan** to add these meals to your nutrition tracker.*");
+
+            return sb.ToString();
         }
 
         private string BuildDaySummary(List<ChatMealPlanMealData> meals)
