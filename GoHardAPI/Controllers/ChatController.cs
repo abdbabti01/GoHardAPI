@@ -1578,7 +1578,8 @@ IMPORTANT RULES:
 
                     try
                     {
-                        weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+                        // Don't retry for legacy preview - just get what we can quickly
+                        weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories, allowRetry: false);
 
                         // Store the extracted data for future consistency
                         if (weekData != null && weekData.Days.Count > 0)
@@ -1648,7 +1649,7 @@ IMPORTANT RULES:
             return string.Join(", ", foods) + "...";
         }
 
-        private async Task<ChatMealPlanWeekExtraction?> ExtractWeekMealPlan(string mealPlanContent, decimal targetCalories, int attempt = 1)
+        private async Task<ChatMealPlanWeekExtraction?> ExtractWeekMealPlan(string mealPlanContent, decimal targetCalories, bool allowRetry = true, int attempt = 1)
         {
             // Calculate calorie distribution per meal
             var breakfastCal = Math.Round(targetCalories * 0.25m); // 25%
@@ -1739,8 +1740,8 @@ CRITICAL RULES:
                 _logger.LogInformation("Meal plan extraction attempt {Attempt}: Average {AvgCal:F0} kcal ({Percent:F0}% of target {Target:F0})",
                     attempt, avgCalories, percentOfTarget, targetCalories);
 
-                // If too far off and this is first attempt, try once more with feedback
-                if (percentOfTarget < 70 && attempt == 1)
+                // If too far off and this is first attempt and retry is allowed, try once more with feedback
+                if (allowRetry && percentOfTarget < 70 && attempt == 1)
                 {
                     _logger.LogWarning("Meal plan only has {Percent:F0}% of target calories, regenerating...", percentOfTarget);
 
@@ -1899,7 +1900,8 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
 
                     try
                     {
-                        weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+                        // Don't retry for legacy extraction - just get what we can quickly
+                        weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories, allowRetry: false);
                     }
                     catch (HttpRequestException ex) when (ex.Message.Contains("429"))
                     {
