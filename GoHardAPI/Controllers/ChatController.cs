@@ -1575,15 +1575,29 @@ IMPORTANT RULES:
                     }
 
                     _logger.LogInformation("Extracting meal plan from message for legacy conversation {conversationId}", id);
-                    weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
 
-                    // Store the extracted data for future consistency
-                    if (weekData != null && weekData.Days.Count > 0)
+                    try
                     {
-                        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
-                        conversation.MealPlanDataJson = System.Text.Json.JsonSerializer.Serialize(weekData, jsonOptions);
-                        await _context.SaveChangesAsync();
-                        _logger.LogInformation("Stored extracted meal plan JSON for legacy conversation {conversationId}", id);
+                        weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+
+                        // Store the extracted data for future consistency
+                        if (weekData != null && weekData.Days.Count > 0)
+                        {
+                            var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase };
+                            conversation.MealPlanDataJson = System.Text.Json.JsonSerializer.Serialize(weekData, jsonOptions);
+                            await _context.SaveChangesAsync();
+                            _logger.LogInformation("Stored extracted meal plan JSON for legacy conversation {conversationId}", id);
+                        }
+                    }
+                    catch (HttpRequestException ex) when (ex.Message.Contains("429"))
+                    {
+                        _logger.LogWarning(ex, "AI rate limit hit while extracting legacy meal plan for conversation {conversationId}", id);
+                        return StatusCode(429, new { message = "AI service rate limit reached. Please try again later or create a new meal plan." });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to extract meal plan for legacy conversation {conversationId}", id);
+                        return StatusCode(503, new { message = "Failed to process legacy meal plan. Please create a new meal plan for better reliability." });
                     }
                 }
 
@@ -1775,7 +1789,21 @@ CRITICAL RULES:
                     }
 
                     _logger.LogInformation("Extracting meal plan from message for legacy conversation {conversationId}", id);
-                    weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+
+                    try
+                    {
+                        weekData = await ExtractWeekMealPlan(mealPlanMessage.Content, targetCalories);
+                    }
+                    catch (HttpRequestException ex) when (ex.Message.Contains("429"))
+                    {
+                        _logger.LogWarning(ex, "AI rate limit hit while extracting legacy meal plan for conversation {conversationId}", id);
+                        return StatusCode(429, new { message = "AI service rate limit reached. Please try again later or create a new meal plan." });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to extract meal plan for legacy conversation {conversationId}", id);
+                        return StatusCode(503, new { message = "Failed to process legacy meal plan. Please create a new meal plan for better reliability." });
+                    }
                 }
 
                 if (weekData == null || weekData.Days.Count == 0)
