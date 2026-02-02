@@ -1588,8 +1588,12 @@ IMPORTANT RULES:
 
         private async Task<ChatMealPlanWeekExtraction?> ExtractWeekMealPlan(string mealPlanContent, decimal targetCalories)
         {
-            var extractionPrompt = $@"Extract ALL 7 DAYS from the meal plan into structured JSON format.
-Each day should have approximately {targetCalories:F0} calories.
+            var extractionPrompt = $@"Create a structured 7-day meal plan in JSON format based on the content provided.
+
+If the content already has specific daily meals (Day 1, Day 2, etc.), extract them.
+If the content only has food suggestions/categories (proteins, carbs, vegetables, etc.), CREATE a complete 7-day meal plan using those suggested foods.
+
+Target: approximately {targetCalories:F0} calories per day.
 
 Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
 {{
@@ -1607,24 +1611,26 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
         {{ ""mealType"": ""Dinner"", ""foods"": [...] }},
         {{ ""mealType"": ""Snack"", ""foods"": [...] }}
       ],
-      ""totalCalories"": 2150,
-      ""totalProtein"": 180,
+      ""totalCalories"": {targetCalories:F0},
+      ""totalProtein"": 150,
       ""totalCarbs"": 200,
-      ""totalFat"": 70
+      ""totalFat"": 65
     }},
-    {{ ""day"": 2, ""meals"": [...], ""totalCalories"": 2148, ... }},
+    {{ ""day"": 2, ""meals"": [...], ""totalCalories"": {targetCalories:F0}, ... }},
     ... (all 7 days)
   ]
 }}
 
 CRITICAL RULES:
-- Extract ALL 7 DAYS from the meal plan (day 1 through day 7)
-- Each day must have: Breakfast, Lunch, Dinner, and Snack(s)
-- Maximum 3 foods per meal - pick the most essential items
+- ALWAYS generate exactly 7 days (day 1 through day 7)
+- Each day must have: Breakfast, Lunch, Dinner, and Snack
+- Maximum 2-3 foods per meal for simplicity
+- Use the foods mentioned in the content (proteins, carbs, veggies, etc.)
+- Create VARIETY across the 7 days - don't repeat the same meals
 - mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
 - All numeric values must be numbers (not strings)
-- Each day's totalCalories should be approximately {targetCalories:F0} kcal
-- Include totalCalories, totalProtein, totalCarbs, totalFat for each day";
+- Each day's totalCalories MUST be approximately {targetCalories:F0} kcal
+- Calculate realistic calories/macros for each food item";
 
             var messages = new List<ChatMessage>
             {
