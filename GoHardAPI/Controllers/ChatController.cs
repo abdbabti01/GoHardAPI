@@ -1699,7 +1699,7 @@ RULES:
                 }
 
                 // Build final meal plan with REAL nutrition data from database
-                var weekData = new ChatMealPlanWeekExtraction { Days = new List<ChatMealPlanDayData>() };
+                var weekData = new ChatMealPlanWeekExtraction { TargetCalories = targetCalories, Days = new List<ChatMealPlanDayData>() };
                 var foodLookup = allFoods.ToDictionary(f => f.Name.ToLower(), f => f);
 
                 foreach (var aiDay in aiSelection.Days)
@@ -1757,11 +1757,8 @@ RULES:
                     {
                         var scaleFactor = targetCalories / dayCalories;
 
-                        // Cap scaling at 2.5x to avoid unrealistic portions
-                        if (scaleFactor > 2.5m) scaleFactor = 2.5m;
-
                         _logger.LogInformation("Day {Day}: Scaling from {Original:F0} to {Target:F0} kcal (factor: {Factor:F2})",
-                            aiDay.Day, dayCalories, dayCalories * scaleFactor, scaleFactor);
+                            aiDay.Day, dayCalories, targetCalories, scaleFactor);
 
                         // Scale all foods in this day
                         foreach (var meal in dayData.Meals)
@@ -2814,6 +2811,7 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
     // 7-day meal plan extraction structure
     public class ChatMealPlanWeekExtraction
     {
+        public decimal TargetCalories { get; set; }
         public List<ChatMealPlanDayData> Days { get; set; } = new();
     }
 
