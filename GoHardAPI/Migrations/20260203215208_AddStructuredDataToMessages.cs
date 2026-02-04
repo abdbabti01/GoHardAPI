@@ -13,7 +13,6 @@ namespace GoHardAPI.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "ContentType",
                 table: "ChatMessages",
-                type: "nvarchar(50)",
                 maxLength: 50,
                 nullable: false,
                 defaultValue: "text");
@@ -21,7 +20,6 @@ namespace GoHardAPI.Migrations
             migrationBuilder.AddColumn<string>(
                 name: "StructuredData",
                 table: "ChatMessages",
-                type: "nvarchar(max)",
                 nullable: true);
         }
 

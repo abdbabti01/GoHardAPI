@@ -13,13 +13,11 @@ namespace GoHardAPI.Migrations
             migrationBuilder.AddColumn<int>(
                 name: "SourceConversationId",
                 table: "Programs",
-                type: "int",
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "Status",
                 table: "Programs",
-                type: "nvarchar(20)",
                 maxLength: 20,
                 nullable: false,
                 defaultValue: "active");
