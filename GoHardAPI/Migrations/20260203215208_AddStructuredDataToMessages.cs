@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,29 +10,40 @@ namespace GoHardAPI.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "ContentType",
-                table: "ChatMessages",
-                maxLength: 50,
-                nullable: false,
-                defaultValue: "text");
-
-            migrationBuilder.AddColumn<string>(
-                name: "StructuredData",
-                table: "ChatMessages",
-                nullable: true);
+            // Use raw SQL for cross-database compatibility
+            if (migrationBuilder.ActiveProvider == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            {
+                migrationBuilder.Sql(@"
+                    ALTER TABLE ""ChatMessages"" ADD ""ContentType"" VARCHAR(50) NOT NULL DEFAULT 'text';
+                    ALTER TABLE ""ChatMessages"" ADD ""StructuredData"" TEXT NULL;
+                ");
+            }
+            else
+            {
+                migrationBuilder.Sql(@"
+                    ALTER TABLE [ChatMessages] ADD [ContentType] NVARCHAR(50) NOT NULL DEFAULT 'text';
+                    ALTER TABLE [ChatMessages] ADD [StructuredData] NVARCHAR(MAX) NULL;
+                ");
+            }
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "ContentType",
-                table: "ChatMessages");
-
-            migrationBuilder.DropColumn(
-                name: "StructuredData",
-                table: "ChatMessages");
+            if (migrationBuilder.ActiveProvider == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            {
+                migrationBuilder.Sql(@"
+                    ALTER TABLE ""ChatMessages"" DROP COLUMN ""StructuredData"";
+                    ALTER TABLE ""ChatMessages"" DROP COLUMN ""ContentType"";
+                ");
+            }
+            else
+            {
+                migrationBuilder.Sql(@"
+                    ALTER TABLE [ChatMessages] DROP COLUMN [StructuredData];
+                    ALTER TABLE [ChatMessages] DROP COLUMN [ContentType];
+                ");
+            }
         }
     }
 }
