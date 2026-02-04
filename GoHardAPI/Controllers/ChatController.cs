@@ -97,10 +97,22 @@ namespace GoHardAPI.Controllers
                         CreatedAt = m.CreatedAt,
                         InputTokens = m.InputTokens,
                         OutputTokens = m.OutputTokens,
-                        Model = m.Model
+                        Model = m.Model,
+                        ContentType = m.ContentType,
+                        StructuredData = !string.IsNullOrEmpty(m.StructuredData)
+                            ? System.Text.Json.JsonSerializer.Deserialize<object>(m.StructuredData)
+                            : null
                     })
                     .ToList()
             };
+
+            // Check for draft program linked to this conversation
+            var draftProgram = await _context.Programs
+                .FirstOrDefaultAsync(p => p.SourceConversationId == id && p.Status == "draft");
+            if (draftProgram != null)
+            {
+                response.DraftProgramId = draftProgram.Id;
+            }
 
             return Ok(response);
         }
@@ -340,7 +352,7 @@ namespace GoHardAPI.Controllers
 ";
             }
 
-            // Build structured prompt from form data
+            // Build structured prompt from form data - requests JSON block with summary
             var prompt = $@"I need a personalized workout plan with the following details:
 {userProfileSection}
 **Training Preferences:**
@@ -350,13 +362,41 @@ namespace GoHardAPI.Controllers
 - Equipment Available: {request.Equipment}
 {(!string.IsNullOrEmpty(request.Limitations) ? $"- Limitations/Injuries: {request.Limitations}" : "")}
 
-Please create a detailed workout plan that includes:
-1. Weekly workout schedule
-2. Specific exercises for each day
-3. Sets and reps recommendations
-4. Rest periods
-5. Progression strategy
-6. Any important notes or tips";
+Please create a detailed workout plan. Your response MUST include:
+
+1. A brief 2-3 sentence summary describing the plan
+
+2. A JSON block wrapped in ```json ... ``` with this exact structure:
+```json
+{{
+  ""programName"": ""Your Program Name"",
+  ""splitType"": ""Push/Pull/Legs"",
+  ""totalWeeks"": 12,
+  ""sessions"": [
+    {{
+      ""name"": ""Day 1: Push"",
+      ""type"": ""strength"",
+      ""notes"": ""Focus on chest and triceps"",
+      ""exercises"": [
+        {{
+          ""name"": ""Bench Press"",
+          ""sets"": 4,
+          ""reps"": 8,
+          ""restTime"": 90,
+          ""notes"": ""Warm up first""
+        }}
+      ]
+    }}
+  ]
+}}
+```
+
+3. Any additional tips for progression and success
+
+IMPORTANT:
+- sets, reps, and restTime MUST be integers (use null if variable)
+- Include ALL {request.DaysPerWeek} workout days in the sessions array
+- Each session should have 4-8 exercises";
 
             try
             {
@@ -378,7 +418,10 @@ Please create a detailed workout plan that includes:
                     "workout_plan"
                 );
 
-                // Save AI message
+                // Parse structured data from response
+                var (summaryContent, workoutData) = ParseWorkoutPlanResponse(aiResponse.Content);
+
+                // Save AI message with structured data if parsing succeeded
                 var aiMessage = new ChatMessage
                 {
                     ConversationId = conversation.Id,
@@ -387,12 +430,37 @@ Please create a detailed workout plan that includes:
                     CreatedAt = DateTime.UtcNow,
                     InputTokens = aiResponse.InputTokens,
                     OutputTokens = aiResponse.OutputTokens,
-                    Model = aiResponse.Model
+                    Model = aiResponse.Model,
+                    ContentType = workoutData != null ? "workout_plan" : "text",
+                    StructuredData = workoutData != null
+                        ? System.Text.Json.JsonSerializer.Serialize(workoutData)
+                        : null
                 };
 
                 _context.ChatMessages.Add(aiMessage);
                 conversation.LastMessageAt = DateTime.UtcNow;
                 await _context.SaveChangesAsync();
+
+                // Auto-create draft program if parsing succeeded
+                int? draftProgramId = null;
+                if (workoutData?.Sessions != null && workoutData.Sessions.Count > 0)
+                {
+                    try
+                    {
+                        var draftProgram = await CreateDraftProgramFromWorkoutData(
+                            userId,
+                            conversation.Id,
+                            workoutData,
+                            request.Goal,
+                            request.DaysPerWeek
+                        );
+                        draftProgramId = draftProgram?.Id;
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to create draft program, continuing without it");
+                    }
+                }
 
                 // Return conversation with messages
                 return Ok(new ConversationDetailResponse
@@ -404,6 +472,7 @@ Please create a detailed workout plan that includes:
                     CreatedAt = conversation.CreatedAt,
                     LastMessageAt = conversation.LastMessageAt,
                     IsArchived = conversation.IsArchived,
+                    DraftProgramId = draftProgramId,
                     Messages = new List<MessageResponse>
                     {
                         new MessageResponse
@@ -423,7 +492,9 @@ Please create a detailed workout plan that includes:
                             CreatedAt = aiMessage.CreatedAt,
                             InputTokens = aiMessage.InputTokens,
                             OutputTokens = aiMessage.OutputTokens,
-                            Model = aiMessage.Model
+                            Model = aiMessage.Model,
+                            ContentType = aiMessage.ContentType,
+                            StructuredData = workoutData
                         }
                     }
                 });
@@ -1243,6 +1314,137 @@ IMPORTANT RULES:
                 _logger.LogError(ex, "Failed to deserialize workout plan JSON: {json}", jsonContent);
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Parse workout plan response to extract summary and structured JSON data
+        /// </summary>
+        private (string summary, WorkoutPlanData? data) ParseWorkoutPlanResponse(string content)
+        {
+            WorkoutPlanData? workoutData = null;
+            var summary = content;
+
+            try
+            {
+                // Try to extract JSON block from response
+                var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+                    content,
+                    @"```json\s*([\s\S]*?)\s*```",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                );
+
+                if (jsonMatch.Success)
+                {
+                    var jsonContent = jsonMatch.Groups[1].Value.Trim();
+                    _logger.LogInformation("Found JSON block in response, length: {length}", jsonContent.Length);
+
+                    var options = new System.Text.Json.JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    };
+
+                    workoutData = System.Text.Json.JsonSerializer.Deserialize<WorkoutPlanData>(jsonContent, options);
+                    _logger.LogInformation("Parsed workout data with {count} sessions", workoutData?.Sessions?.Count ?? 0);
+
+                    // Remove JSON block from summary for cleaner display
+                    summary = System.Text.RegularExpressions.Regex.Replace(
+                        content,
+                        @"```json\s*[\s\S]*?\s*```",
+                        "",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                    ).Trim();
+                }
+                else
+                {
+                    _logger.LogWarning("No JSON block found in workout plan response");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to parse workout plan JSON from response");
+            }
+
+            return (summary, workoutData);
+        }
+
+        /// <summary>
+        /// Create a draft program from parsed workout data
+        /// </summary>
+        private async Task<Models.Program?> CreateDraftProgramFromWorkoutData(
+            int userId,
+            int conversationId,
+            WorkoutPlanData workoutData,
+            string goal,
+            int daysPerWeek)
+        {
+            if (workoutData?.Sessions == null || workoutData.Sessions.Count == 0)
+            {
+                return null;
+            }
+
+            var programName = workoutData.ProgramName ?? $"Workout Plan - {goal}";
+            var totalWeeks = workoutData.TotalWeeks ?? 12;
+
+            // Create draft program
+            var program = new Models.Program
+            {
+                UserId = userId,
+                Title = programName,
+                Description = $"AI-generated {daysPerWeek}-day workout plan for {goal}",
+                TotalWeeks = totalWeeks,
+                CurrentWeek = 1,
+                CurrentDay = 1,
+                StartDate = DateTime.UtcNow.Date,
+                EndDate = DateTime.UtcNow.Date.AddDays(totalWeeks * 7),
+                IsActive = false,
+                Status = "draft",
+                SourceConversationId = conversationId,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Programs.Add(program);
+            await _context.SaveChangesAsync();
+
+            // Create program workouts from sessions
+            var dayIndex = 0;
+            foreach (var session in workoutData.Sessions)
+            {
+                dayIndex++;
+                var workout = new ProgramWorkout
+                {
+                    ProgramId = program.Id,
+                    WeekNumber = 1,
+                    DayNumber = dayIndex,
+                    DayName = GetDayName(dayIndex),
+                    WorkoutName = session.Name ?? $"Day {dayIndex}",
+                    WorkoutType = session.Type ?? "strength",
+                    Description = session.Notes,
+                    OrderIndex = dayIndex,
+                    ExercisesJson = session.Exercises != null
+                        ? System.Text.Json.JsonSerializer.Serialize(
+                            session.Exercises.Select(e => new
+                            {
+                                name = e.Name,
+                                sets = e.Sets,
+                                reps = e.Reps,
+                                weight = e.Weight,
+                                rest = e.RestTime,
+                                notes = e.Notes
+                            }).ToList())
+                        : "[]"
+                };
+
+                _context.ProgramWorkouts.Add(workout);
+            }
+
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Created draft program {programId} with {workoutCount} workouts from conversation {conversationId}",
+                program.Id, workoutData.Sessions.Count, conversationId
+            );
+
+            return program;
         }
 
         // Helper method to find best matching exercise template using fuzzy matching
@@ -2786,6 +2988,9 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
     // Helper classes for JSON parsing
     public class WorkoutPlanData
     {
+        public string? ProgramName { get; set; }
+        public string? SplitType { get; set; }
+        public int? TotalWeeks { get; set; }
         public List<SessionData>? Sessions { get; set; }
     }
 

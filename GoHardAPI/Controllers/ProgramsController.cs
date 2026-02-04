@@ -30,14 +30,31 @@ namespace GoHardAPI.Controllers
         /// <summary>
         /// Get all programs for the current user
         /// </summary>
+        /// <param name="isActive">Filter by active status</param>
+        /// <param name="status">Filter by status (draft, active, completed, archived). Default excludes drafts.</param>
+        /// <param name="includeDrafts">Include draft programs in results (default: false)</param>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Models.Program>>> GetPrograms([FromQuery] bool? isActive = null)
+        public async Task<ActionResult<IEnumerable<Models.Program>>> GetPrograms(
+            [FromQuery] bool? isActive = null,
+            [FromQuery] string? status = null,
+            [FromQuery] bool includeDrafts = false)
         {
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
             var query = _context.Programs
                 .Where(p => p.UserId == userId);
+
+            // Filter by specific status if provided
+            if (!string.IsNullOrEmpty(status))
+            {
+                query = query.Where(p => p.Status == status);
+            }
+            else if (!includeDrafts)
+            {
+                // By default, exclude draft programs unless explicitly requested
+                query = query.Where(p => p.Status != "draft");
+            }
 
             if (isActive.HasValue)
             {
@@ -305,10 +322,86 @@ namespace GoHardAPI.Controllers
             program.IsCompleted = true;
             program.CompletedAt = DateTime.UtcNow;
             program.IsActive = false;
+            program.Status = "completed";
 
             await _context.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        /// <summary>
+        /// Activate a draft program (created from AI chat)
+        /// </summary>
+        [HttpPost("{id}/activate")]
+        public async Task<IActionResult> ActivateDraftProgram(int id, [FromBody] ActivateProgramRequest? request)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var program = await _context.Programs
+                .Include(p => p.Workouts)
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+
+            if (program == null)
+            {
+                return NotFound();
+            }
+
+            if (program.Status != "draft")
+            {
+                return BadRequest(new { message = "Only draft programs can be activated" });
+            }
+
+            // Update program status
+            program.Status = "active";
+            program.IsActive = true;
+
+            // Update start date if provided
+            if (request?.StartDate != null)
+            {
+                var startDate = request.StartDate.Value.Date;
+                // Programs always start on Monday
+                var daysUntilMonday = ((int)DayOfWeek.Monday - (int)startDate.DayOfWeek + 7) % 7;
+                program.StartDate = startDate.AddDays(daysUntilMonday);
+                program.EndDate = program.StartDate.AddDays(program.TotalWeeks * 7);
+
+                // Recalculate scheduled dates for workouts
+                if (program.Workouts != null)
+                {
+                    foreach (var workout in program.Workouts)
+                    {
+                        workout.ScheduledDate = program.StartDate
+                            .AddDays((workout.WeekNumber - 1) * 7 + (workout.DayNumber - 1))
+                            .Date;
+                    }
+                }
+            }
+
+            // Update title/description if provided
+            if (!string.IsNullOrEmpty(request?.Title))
+            {
+                program.Title = request.Title;
+            }
+            if (!string.IsNullOrEmpty(request?.Description))
+            {
+                program.Description = request.Description;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Program activated successfully",
+                program = new
+                {
+                    program.Id,
+                    program.Title,
+                    program.Status,
+                    program.StartDate,
+                    program.EndDate,
+                    workoutCount = program.Workouts?.Count ?? 0
+                }
+            });
         }
 
         /// <summary>
@@ -624,5 +717,26 @@ namespace GoHardAPI.Controllers
         {
             return _context.Programs.Any(e => e.Id == id);
         }
+    }
+
+    /// <summary>
+    /// Request model for activating a draft program
+    /// </summary>
+    public class ActivateProgramRequest
+    {
+        /// <summary>
+        /// Optional start date for the program (will be adjusted to Monday)
+        /// </summary>
+        public DateTime? StartDate { get; set; }
+
+        /// <summary>
+        /// Optional title override
+        /// </summary>
+        public string? Title { get; set; }
+
+        /// <summary>
+        /// Optional description override
+        /// </summary>
+        public string? Description { get; set; }
     }
 }

@@ -4,6 +4,7 @@ using GoHardAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GoHardAPI.Migrations
 {
     [DbContext(typeof(TrainingContext))]
-    partial class TrainingContextModelSnapshot : ModelSnapshot
+    [Migration("20260203215208_AddStructuredDataToMessages")]
+    partial class AddStructuredDataToMessages
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1097,16 +1100,8 @@ namespace GoHardAPI.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
-                    b.Property<int?>("SourceConversationId")
-                        .HasColumnType("int");
-
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -1122,8 +1117,6 @@ namespace GoHardAPI.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("GoalId");
-
-                    b.HasIndex("SourceConversationId");
 
                     b.HasIndex("UserId", "IsActive", "IsCompleted");
 
@@ -1927,10 +1920,6 @@ namespace GoHardAPI.Migrations
                         .HasForeignKey("GoalId")
                         .OnDelete(DeleteBehavior.Cascade);
 
-                    b.HasOne("GoHardAPI.Models.ChatConversation", "SourceConversation")
-                        .WithMany()
-                        .HasForeignKey("SourceConversationId");
-
                     b.HasOne("GoHardAPI.Models.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -1938,8 +1927,6 @@ namespace GoHardAPI.Migrations
                         .IsRequired();
 
                     b.Navigation("Goal");
-
-                    b.Navigation("SourceConversation");
 
                     b.Navigation("User");
                 });

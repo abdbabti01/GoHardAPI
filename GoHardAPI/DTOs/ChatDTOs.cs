@@ -87,6 +87,11 @@ namespace GoHardAPI.DTOs
         public DateTime? LastMessageAt { get; set; }
         public bool IsArchived { get; set; }
         public List<MessageResponse> Messages { get; set; } = new();
+
+        /// <summary>
+        /// If a draft program was auto-created (for workout_plan conversations), its ID
+        /// </summary>
+        public int? DraftProgramId { get; set; }
     }
 
     public class MessageResponse
@@ -99,5 +104,15 @@ namespace GoHardAPI.DTOs
         public int? InputTokens { get; set; }
         public int? OutputTokens { get; set; }
         public string? Model { get; set; }
+
+        /// <summary>
+        /// Type of structured content: 'text', 'workout_plan', 'meal_plan', 'progress_analysis'
+        /// </summary>
+        public string ContentType { get; set; } = "text";
+
+        /// <summary>
+        /// Parsed structured data for rich preview cards (deserialized from JSON)
+        /// </summary>
+        public object? StructuredData { get; set; }
     }
 }

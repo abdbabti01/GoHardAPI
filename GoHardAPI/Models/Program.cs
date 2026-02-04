@@ -74,6 +74,19 @@ namespace GoHardAPI.Models
         public bool IsCompleted { get; set; }
 
         /// <summary>
+        /// Program status: draft, active, completed, archived
+        /// Draft programs are created from AI chat and need user confirmation
+        /// </summary>
+        [MaxLength(20)]
+        public string Status { get; set; } = "active";
+
+        /// <summary>
+        /// Optional link to the chat conversation that generated this program
+        /// Used for draft programs created from AI workout plans
+        /// </summary>
+        public int? SourceConversationId { get; set; }
+
+        /// <summary>
         /// When the program was completed
         /// </summary>
         public DateTime? CompletedAt { get; set; }
@@ -94,6 +107,7 @@ namespace GoHardAPI.Models
         // Navigation properties
         public User? User { get; set; }
         public Goal? Goal { get; set; }
+        public ChatConversation? SourceConversation { get; set; }
         public ICollection<ProgramWorkout> Workouts { get; set; } = new List<ProgramWorkout>();
 
         // Calculated properties
