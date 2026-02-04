@@ -584,6 +584,37 @@ IMPORTANT:
                     summaryContent = $"I couldn't generate a meal plan. Please try again.";
                 }
 
+                // Serialize structured data for preview card
+                var structuredDataJson = weekData != null
+                    ? System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        targetCalories = targetCalories,
+                        days = weekData.Days.Select(d => new
+                        {
+                            day = d.Day,
+                            totalCalories = d.TotalCalories,
+                            totalProtein = d.TotalProtein,
+                            totalCarbs = d.TotalCarbs,
+                            totalFat = d.TotalFat,
+                            meals = d.Meals.Select(m => new
+                            {
+                                mealType = m.MealType,
+                                totalCalories = m.Foods?.Sum(f => f.Calories ?? 0) ?? 0,
+                                foods = m.Foods?.Select(f => new
+                                {
+                                    name = f.Name,
+                                    calories = f.Calories,
+                                    protein = f.Protein,
+                                    carbohydrates = f.Carbohydrates,
+                                    fat = f.Fat,
+                                    servingSize = f.ServingSize,
+                                    servingUnit = f.ServingUnit
+                                })
+                            })
+                        })
+                    })
+                    : null;
+
                 var aiMessage = new ChatMessage
                 {
                     ConversationId = conversation.Id,
@@ -592,7 +623,9 @@ IMPORTANT:
                     CreatedAt = DateTime.UtcNow,
                     InputTokens = inputTokens,
                     OutputTokens = outputTokens,
-                    Model = model
+                    Model = model,
+                    ContentType = weekData != null ? "meal_plan" : "text",
+                    StructuredData = structuredDataJson
                 };
                 _context.ChatMessages.Add(aiMessage);
 
@@ -628,7 +661,9 @@ IMPORTANT:
                             CreatedAt = aiMessage.CreatedAt,
                             InputTokens = aiMessage.InputTokens,
                             OutputTokens = aiMessage.OutputTokens,
-                            Model = aiMessage.Model
+                            Model = aiMessage.Model,
+                            ContentType = aiMessage.ContentType,
+                            StructuredData = weekData != null ? System.Text.Json.JsonSerializer.Deserialize<object>(structuredDataJson!) : null
                         }
                     }
                 });
@@ -1954,13 +1989,15 @@ RULES:
                         dayData.Meals.Add(mealData);
                     }
 
-                    // AUTO-SCALE to hit target calories exactly
-                    if (dayCalories > 0 && dayCalories < targetCalories * 0.95m)
+                    // AUTO-SCALE to hit target calories (both up and down)
+                    // Scale if more than 5% off target (either direction)
+                    var percentOff = Math.Abs(dayCalories - targetCalories) / targetCalories;
+                    if (dayCalories > 0 && percentOff > 0.05m)
                     {
                         var scaleFactor = targetCalories / dayCalories;
 
-                        _logger.LogInformation("Day {Day}: Scaling from {Original:F0} to {Target:F0} kcal (factor: {Factor:F2})",
-                            aiDay.Day, dayCalories, targetCalories, scaleFactor);
+                        _logger.LogInformation("Day {Day}: Scaling from {Original:F0} to {Target:F0} kcal (factor: {Factor:F2}, was {Percent:P0} off)",
+                            aiDay.Day, dayCalories, targetCalories, scaleFactor, percentOff);
 
                         // Scale all foods in this day
                         foreach (var meal in dayData.Meals)
