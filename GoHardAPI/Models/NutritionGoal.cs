@@ -42,6 +42,27 @@ namespace GoHardAPI.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
 
+        /// <summary>
+        /// Explanation of how the nutrition targets were calculated
+        /// </summary>
+        [MaxLength(1000)]
+        public string? Explanation { get; set; }
+
+        /// <summary>
+        /// BMR (Basal Metabolic Rate) used in calculation
+        /// </summary>
+        public decimal? Bmr { get; set; }
+
+        /// <summary>
+        /// TDEE (Total Daily Energy Expenditure) used in calculation
+        /// </summary>
+        public decimal? Tdee { get; set; }
+
+        /// <summary>
+        /// Daily calorie adjustment (deficit negative, surplus positive)
+        /// </summary>
+        public decimal? CalorieAdjustment { get; set; }
+
         // Navigation properties
         public User? User { get; set; }
 

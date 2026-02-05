@@ -1,11 +1,42 @@
 namespace GoHardAPI.Services
 {
     /// <summary>
+    /// Nutrition goal types for calculation purposes
+    /// </summary>
+    public enum NutritionGoalType
+    {
+        Maintenance,
+        WeightLoss,
+        MuscleGain
+    }
+
+    /// <summary>
     /// Service for calculating personalized nutrition targets based on user metrics and goals.
     /// Uses the Mifflin-St Jeor equation for BMR and standard activity multipliers for TDEE.
     /// </summary>
     public class NutritionCalculatorService
     {
+        /// <summary>
+        /// Parse a string goal type to the enum, handling various input formats
+        /// </summary>
+        public static NutritionGoalType ParseGoalType(string? goalType)
+        {
+            if (string.IsNullOrWhiteSpace(goalType))
+                return NutritionGoalType.Maintenance;
+
+            var normalized = goalType.ToLowerInvariant().Trim();
+
+            // Weight loss variants
+            if (normalized.Contains("loss") || normalized.Contains("cut") || normalized == "weightloss")
+                return NutritionGoalType.WeightLoss;
+
+            // Muscle gain variants
+            if (normalized.Contains("gain") || normalized.Contains("muscle") || normalized.Contains("bulk"))
+                return NutritionGoalType.MuscleGain;
+
+            // Default to maintenance
+            return NutritionGoalType.Maintenance;
+        }
         /// <summary>
         /// Activity level multipliers for TDEE calculation
         /// </summary>
@@ -50,97 +81,76 @@ namespace GoHardAPI.Services
         /// <summary>
         /// Calculate target calories based on TDEE and goal type
         /// </summary>
-        public decimal CalculateTargetCalories(decimal tdee, string goalType, decimal? targetWeightChangePerWeek = null)
+        public decimal CalculateTargetCalories(decimal tdee, decimal bmr, NutritionGoalType goalType, decimal? targetWeightChangePerWeek = null)
         {
-            var goal = goalType?.ToLower() ?? "maintenance";
+            return goalType switch
+            {
+                NutritionGoalType.WeightLoss => CalculateWeightLossCalories(tdee, bmr, targetWeightChangePerWeek),
+                NutritionGoalType.MuscleGain => CalculateMuscleGainCalories(tdee, targetWeightChangePerWeek),
+                _ => tdee // Maintenance
+            };
+        }
 
-            if (goal.Contains("loss") || goal.Contains("weightloss") || goal.Contains("cut"))
-            {
-                // Weight loss: create calorie deficit
-                // 3500 calories = 1 lb of fat
-                // Default to 1 lb/week (500 cal deficit) if not specified
-                var weeklyLoss = targetWeightChangePerWeek ?? 1m; // lbs per week
-                var dailyDeficit = Math.Min((weeklyLoss * 3500m) / 7m, 1000m); // Cap at 1000 cal/day for safety
-                return Math.Max(tdee - dailyDeficit, 1200m); // Minimum 1200 calories for health
-            }
-            else if (goal.Contains("gain") || goal.Contains("muscle") || goal.Contains("bulk"))
-            {
-                // Muscle gain: create calorie surplus
-                // 250-500 cal surplus for lean gains
-                var surplus = targetWeightChangePerWeek.HasValue
-                    ? Math.Min((targetWeightChangePerWeek.Value * 3500m) / 7m, 500m)
-                    : 300m;
-                return tdee + surplus;
-            }
-            else
-            {
-                // Maintenance
-                return tdee;
-            }
+        private static decimal CalculateWeightLossCalories(decimal tdee, decimal bmr, decimal? targetWeightChangePerWeek)
+        {
+            // Weight loss: create calorie deficit
+            // 3500 calories = 1 lb of fat
+            // Default to 1 lb/week (500 cal deficit) if not specified
+            var weeklyLoss = targetWeightChangePerWeek ?? 1m; // lbs per week
+            var dailyDeficit = Math.Min((weeklyLoss * 3500m) / 7m, 1000m); // Cap at 1000 cal/day for safety
+
+            // Body-weight-relative minimum: never go below 80% of BMR
+            // This scales appropriately for both small and large individuals
+            // Also enforce absolute minimum of 1200 for safety
+            var minimumCalories = Math.Max(bmr * 0.8m, 1200m);
+
+            return Math.Max(tdee - dailyDeficit, minimumCalories);
+        }
+
+        private static decimal CalculateMuscleGainCalories(decimal tdee, decimal? targetWeightChangePerWeek)
+        {
+            // Muscle gain: create calorie surplus
+            // 250-500 cal surplus for lean gains
+            var surplus = targetWeightChangePerWeek.HasValue
+                ? Math.Min((targetWeightChangePerWeek.Value * 3500m) / 7m, 500m)
+                : 300m;
+            return tdee + surplus;
         }
 
         /// <summary>
         /// Calculate protein target based on body weight and goal
         /// </summary>
-        public decimal CalculateProtein(decimal weightKg, string goalType)
+        public decimal CalculateProtein(decimal weightKg, NutritionGoalType goalType)
         {
             var weightLbs = weightKg * 2.205m;
-            var goal = goalType?.ToLower() ?? "maintenance";
 
-            if (goal.Contains("loss") || goal.Contains("cut"))
+            // Protein multiplier per lb body weight
+            var multiplier = goalType switch
             {
-                // Higher protein during weight loss to preserve muscle
-                // 1.0-1.2g per lb body weight
-                return weightLbs * 1.1m;
-            }
-            else if (goal.Contains("gain") || goal.Contains("muscle") || goal.Contains("bulk"))
-            {
-                // High protein for muscle building
-                // 1.0-1.2g per lb body weight
-                return weightLbs * 1.0m;
-            }
-            else
-            {
-                // Maintenance: moderate protein
-                // 0.8g per lb body weight
-                return weightLbs * 0.8m;
-            }
+                NutritionGoalType.WeightLoss => 1.1m,  // Higher protein to preserve muscle during deficit
+                NutritionGoalType.MuscleGain => 1.0m,  // High protein for muscle building
+                _ => 0.8m                              // Maintenance: moderate protein
+            };
+
+            return weightLbs * multiplier;
         }
 
         /// <summary>
         /// Calculate macro split (carbs and fat) based on remaining calories after protein
         /// </summary>
-        public (decimal carbs, decimal fat) CalculateMacros(decimal totalCalories, decimal protein, string goalType)
+        public (decimal carbs, decimal fat) CalculateMacros(decimal totalCalories, decimal protein, NutritionGoalType goalType)
         {
             // Protein calories (4 cal/g)
             var proteinCalories = protein * 4m;
             var remainingCalories = totalCalories - proteinCalories;
 
-            var goal = goalType?.ToLower() ?? "maintenance";
-
-            decimal carbPercentage, fatPercentage;
-
-            if (goal.Contains("loss") || goal.Contains("cut"))
+            // Macro split percentages based on goal
+            var (carbPercentage, fatPercentage) = goalType switch
             {
-                // Weight loss: moderate carbs, moderate fat
-                // Remaining calories split: ~50% carbs, ~50% fat
-                carbPercentage = 0.5m;
-                fatPercentage = 0.5m;
-            }
-            else if (goal.Contains("gain") || goal.Contains("muscle") || goal.Contains("bulk"))
-            {
-                // Muscle gain: higher carbs for energy
-                // Remaining calories split: ~60% carbs, ~40% fat
-                carbPercentage = 0.6m;
-                fatPercentage = 0.4m;
-            }
-            else
-            {
-                // Maintenance: balanced
-                // Remaining calories split: ~55% carbs, ~45% fat
-                carbPercentage = 0.55m;
-                fatPercentage = 0.45m;
-            }
+                NutritionGoalType.WeightLoss => (0.5m, 0.5m),   // Balanced split during deficit
+                NutritionGoalType.MuscleGain => (0.6m, 0.4m),   // Higher carbs for energy/performance
+                _ => (0.55m, 0.45m)                              // Maintenance: slightly more carbs
+            };
 
             // Carbs: 4 cal/g, Fat: 9 cal/g
             var carbCalories = remainingCalories * carbPercentage;
@@ -164,15 +174,54 @@ namespace GoHardAPI.Services
             string goalType,
             decimal? targetWeightChangePerWeek = null)
         {
+            // Parse string to enum once at entry point
+            var parsedGoalType = ParseGoalType(goalType);
+
             var bmr = CalculateBMR(weightKg, heightCm, age, gender);
             var tdee = CalculateTDEE(bmr, activityLevel);
-            var targetCalories = CalculateTargetCalories(tdee, goalType, targetWeightChangePerWeek);
-            var protein = CalculateProtein(weightKg, goalType);
-            var (carbs, fat) = CalculateMacros(targetCalories, protein, goalType);
+            var targetCalories = CalculateTargetCalories(tdee, bmr, parsedGoalType, targetWeightChangePerWeek);
+            var protein = CalculateProtein(weightKg, parsedGoalType);
+            var (carbs, fat) = CalculateMacros(targetCalories, protein, parsedGoalType);
+
+            // Calculate fiber: 14g per 1000 calories (USDA recommendation)
+            // Minimum 25g for women, 38g for men, but we'll use calorie-based for simplicity
+            var fiber = Math.Max((targetCalories / 1000m) * 14m, 20m); // Minimum 20g
+
+            // Calculate water: 33ml per kg body weight (Institute of Medicine)
+            // This is ~0.5 oz per pound, or roughly 8 cups for a 150lb person
+            var water = weightKg * 33m;
 
             // Calculate calorie adjustment
             var calorieAdjustment = targetCalories - tdee;
             var weeklyWeightChange = (calorieAdjustment * 7m) / 3500m; // lbs per week
+
+            // Generate warnings for aggressive plans
+            string? warning = null;
+            string? recommendation = null;
+
+            var dailyDeficit = Math.Abs(calorieAdjustment);
+            if (calorieAdjustment < 0 && dailyDeficit >= 750)
+            {
+                warning = $"This is an aggressive calorie deficit ({dailyDeficit:F0} cal/day). " +
+                         $"You may experience fatigue, muscle loss, or difficulty sustaining this long-term.";
+                recommendation = "A 500 cal/day deficit (1 lb/week loss) is often more sustainable and preserves muscle mass better.";
+            }
+            else if (calorieAdjustment > 0 && calorieAdjustment >= 500)
+            {
+                warning = $"This is a significant calorie surplus ({calorieAdjustment:F0} cal/day). " +
+                         $"Some fat gain is likely along with muscle.";
+                recommendation = "A 250-300 cal/day surplus is often sufficient for muscle gain with minimal fat accumulation.";
+            }
+
+            // Warn if calories are at minimum floor (body-weight-relative or absolute)
+            var minimumCalories = Math.Max(bmr * 0.8m, 1200m);
+            if (targetCalories <= minimumCalories)
+            {
+                var minType = bmr * 0.8m > 1200m ? "80% of your BMR" : "1200 calories";
+                warning = $"Your calorie target has been set to the minimum safe level ({minimumCalories:F0} cal, {minType}). " +
+                         "Eating below this could slow your metabolism and cause muscle loss.";
+                recommendation = "Consider extending your timeframe to allow for a more moderate deficit, or consult a healthcare provider.";
+            }
 
             return new NutritionCalculation
             {
@@ -182,9 +231,13 @@ namespace GoHardAPI.Services
                 DailyProtein = Math.Round(protein),
                 DailyCarbohydrates = carbs,
                 DailyFat = fat,
+                DailyFiber = Math.Round(fiber),
+                DailyWater = Math.Round(water),
                 CalorieAdjustment = Math.Round(calorieAdjustment),
                 ExpectedWeeklyWeightChange = Math.Round(weeklyWeightChange, 2),
-                Explanation = GenerateExplanation(bmr, tdee, targetCalories, protein, carbs, fat, goalType, activityLevel, calorieAdjustment)
+                Explanation = GenerateExplanation(bmr, tdee, targetCalories, protein, carbs, fat, parsedGoalType, activityLevel, calorieAdjustment),
+                Warning = warning,
+                Recommendation = recommendation
             };
         }
 
@@ -195,7 +248,7 @@ namespace GoHardAPI.Services
             decimal protein,
             decimal carbs,
             decimal fat,
-            string goalType,
+            NutritionGoalType goalType,
             string activityLevel,
             decimal calorieAdjustment)
         {
@@ -209,10 +262,12 @@ namespace GoHardAPI.Services
                 _ => "moderately active"
             };
 
-            var goal = goalType?.ToLower() ?? "maintenance";
-            var goalDesc = goal.Contains("loss") ? "weight loss"
-                : goal.Contains("gain") || goal.Contains("muscle") ? "muscle gain"
-                : "maintenance";
+            var goalDesc = goalType switch
+            {
+                NutritionGoalType.WeightLoss => "weight loss",
+                NutritionGoalType.MuscleGain => "muscle gain",
+                _ => "maintenance"
+            };
 
             var adjustmentDesc = calorieAdjustment < 0
                 ? $"a {Math.Abs(calorieAdjustment):F0} calorie deficit"
@@ -254,8 +309,29 @@ namespace GoHardAPI.Services
         public decimal DailyProtein { get; set; }
         public decimal DailyCarbohydrates { get; set; }
         public decimal DailyFat { get; set; }
+
+        /// <summary>
+        /// Daily fiber target in grams (14g per 1000 calories, USDA recommendation)
+        /// </summary>
+        public decimal DailyFiber { get; set; }
+
+        /// <summary>
+        /// Daily water target in ml (33ml per kg body weight, Institute of Medicine recommendation)
+        /// </summary>
+        public decimal DailyWater { get; set; }
+
         public decimal CalorieAdjustment { get; set; }
         public decimal ExpectedWeeklyWeightChange { get; set; }
         public string Explanation { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Warning message if the calculated values are aggressive
+        /// </summary>
+        public string? Warning { get; set; }
+
+        /// <summary>
+        /// Recommendation for a safer/more sustainable approach
+        /// </summary>
+        public string? Recommendation { get; set; }
     }
 }

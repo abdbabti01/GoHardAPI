@@ -101,15 +101,25 @@ namespace GoHardAPI.Controllers
                 // Get metrics from BodyMetrics first, fallback to profile
                 var (weightKg, heightCm, activityLevel, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
 
-                // Validate required metrics
+                // Validate required metrics with specific error codes
                 if (weightKg <= 0)
                 {
-                    return BadRequest(new { message = "Please set your weight in body metrics or profile first" });
+                    return BadRequest(new {
+                        code = "MISSING_WEIGHT",
+                        message = "Please set your weight in body metrics or profile first",
+                        action = "GO_TO_BODY_METRICS",
+                        missingFields = new[] { "weight" }
+                    });
                 }
 
                 if (heightCm <= 0)
                 {
-                    return BadRequest(new { message = "Please set your height in body metrics or profile first" });
+                    return BadRequest(new {
+                        code = "MISSING_HEIGHT",
+                        message = "Please set your height in body metrics or profile first",
+                        action = "GO_TO_BODY_METRICS",
+                        missingFields = new[] { "height" }
+                    });
                 }
 
                 var age = NutritionCalculatorService.CalculateAge(user.DateOfBirth);
@@ -142,13 +152,15 @@ namespace GoHardAPI.Controllers
                     DailyProtein = calculation.DailyProtein,
                     DailyCarbohydrates = calculation.DailyCarbohydrates,
                     DailyFat = calculation.DailyFat,
-                    DailyFiber = 25, // Standard recommendation
-                    DailyWater = 2000, // Standard recommendation (ml)
+                    DailyFiber = calculation.DailyFiber,
+                    DailyWater = calculation.DailyWater,
                     Bmr = calculation.Bmr,
                     Tdee = calculation.Tdee,
                     CalorieAdjustment = calculation.CalorieAdjustment,
                     ExpectedWeeklyWeightChange = calculation.ExpectedWeeklyWeightChange,
                     Explanation = calculation.Explanation,
+                    Warning = calculation.Warning,
+                    Recommendation = calculation.Recommendation,
                     UserMetrics = new UserMetricsSummary
                     {
                         WeightKg = weightKg,
@@ -186,15 +198,25 @@ namespace GoHardAPI.Controllers
                 // Get metrics from BodyMetrics first, fallback to profile
                 var (weightKg, heightCm, activityLevel, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
 
-                // Validate required metrics
+                // Validate required metrics with specific error codes
                 if (weightKg <= 0)
                 {
-                    return BadRequest(new { message = "Please set your weight in body metrics or profile first" });
+                    return BadRequest(new {
+                        code = "MISSING_WEIGHT",
+                        message = "Please set your weight in body metrics or profile first",
+                        action = "GO_TO_BODY_METRICS",
+                        missingFields = new[] { "weight" }
+                    });
                 }
 
                 if (heightCm <= 0)
                 {
-                    return BadRequest(new { message = "Please set your height in body metrics or profile first" });
+                    return BadRequest(new {
+                        code = "MISSING_HEIGHT",
+                        message = "Please set your height in body metrics or profile first",
+                        action = "GO_TO_BODY_METRICS",
+                        missingFields = new[] { "height" }
+                    });
                 }
 
                 var age = NutritionCalculatorService.CalculateAge(user.DateOfBirth);
@@ -244,10 +266,15 @@ namespace GoHardAPI.Controllers
                     DailyProtein = calculation.DailyProtein,
                     DailyCarbohydrates = calculation.DailyCarbohydrates,
                     DailyFat = calculation.DailyFat,
-                    DailyFiber = 25,
-                    DailyWater = 2000,
+                    DailyFiber = calculation.DailyFiber,
+                    DailyWater = calculation.DailyWater,
                     IsActive = true,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    // Store calculation details for user reference
+                    Explanation = calculation.Explanation,
+                    Bmr = calculation.Bmr,
+                    Tdee = calculation.Tdee,
+                    CalorieAdjustment = calculation.CalorieAdjustment
                 };
 
                 _context.NutritionGoals.Add(nutritionGoal);
@@ -264,13 +291,15 @@ namespace GoHardAPI.Controllers
                     DailyProtein = calculation.DailyProtein,
                     DailyCarbohydrates = calculation.DailyCarbohydrates,
                     DailyFat = calculation.DailyFat,
-                    DailyFiber = 25,
-                    DailyWater = 2000,
+                    DailyFiber = calculation.DailyFiber,
+                    DailyWater = calculation.DailyWater,
                     Bmr = calculation.Bmr,
                     Tdee = calculation.Tdee,
                     CalorieAdjustment = calculation.CalorieAdjustment,
                     ExpectedWeeklyWeightChange = calculation.ExpectedWeeklyWeightChange,
                     Explanation = calculation.Explanation,
+                    Warning = calculation.Warning,
+                    Recommendation = calculation.Recommendation,
                     UserMetrics = new UserMetricsSummary
                     {
                         WeightKg = weightKg,
@@ -342,6 +371,8 @@ namespace GoHardAPI.Controllers
         public decimal CalorieAdjustment { get; set; }
         public decimal ExpectedWeeklyWeightChange { get; set; }
         public string Explanation { get; set; } = string.Empty;
+        public string? Warning { get; set; }
+        public string? Recommendation { get; set; }
         public UserMetricsSummary? UserMetrics { get; set; }
     }
 
