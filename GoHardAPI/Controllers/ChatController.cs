@@ -108,7 +108,7 @@ namespace GoHardAPI.Controllers
 
             // Check for draft program linked to this conversation
             var draftProgram = await _context.Programs
-                .FirstOrDefaultAsync(p => p.SourceConversationId == id && p.Status == "draft");
+                .FirstOrDefaultAsync(p => p.SourceConversationId == id && p.Status == ProgramStatus.Draft.ToApiString());
             if (draftProgram != null)
             {
                 response.DraftProgramId = draftProgram.Id;
@@ -1353,15 +1353,21 @@ IMPORTANT RULES:
 
         /// <summary>
         /// Parse workout plan response to extract summary and structured JSON data
+        /// Attempts multiple parsing strategies for robustness
         /// </summary>
         private (string summary, WorkoutPlanData? data) ParseWorkoutPlanResponse(string content)
         {
             WorkoutPlanData? workoutData = null;
             var summary = content;
 
+            var options = new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
+
             try
             {
-                // Try to extract JSON block from response
+                // Strategy 1: Try to extract JSON from ```json ... ``` block
                 var jsonMatch = System.Text.RegularExpressions.Regex.Match(
                     content,
                     @"```json\s*([\s\S]*?)\s*```",
@@ -1371,12 +1377,7 @@ IMPORTANT RULES:
                 if (jsonMatch.Success)
                 {
                     var jsonContent = jsonMatch.Groups[1].Value.Trim();
-                    _logger.LogInformation("Found JSON block in response, length: {length}", jsonContent.Length);
-
-                    var options = new System.Text.Json.JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    };
+                    _logger.LogInformation("Found ```json block in response, length: {length}", jsonContent.Length);
 
                     workoutData = System.Text.Json.JsonSerializer.Deserialize<WorkoutPlanData>(jsonContent, options);
                     _logger.LogInformation("Parsed workout data with {count} sessions", workoutData?.Sessions?.Count ?? 0);
@@ -1389,9 +1390,85 @@ IMPORTANT RULES:
                         System.Text.RegularExpressions.RegexOptions.IgnoreCase
                     ).Trim();
                 }
-                else
+
+                // Strategy 2: Try generic ``` ... ``` block if no json-specific block found
+                if (workoutData == null)
                 {
-                    _logger.LogWarning("No JSON block found in workout plan response");
+                    var genericMatch = System.Text.RegularExpressions.Regex.Match(
+                        content,
+                        @"```\s*([\s\S]*?)\s*```"
+                    );
+
+                    if (genericMatch.Success)
+                    {
+                        var jsonContent = genericMatch.Groups[1].Value.Trim();
+                        if (jsonContent.StartsWith("{"))
+                        {
+                            _logger.LogInformation("Found generic code block with JSON, length: {length}", jsonContent.Length);
+                            workoutData = System.Text.Json.JsonSerializer.Deserialize<WorkoutPlanData>(jsonContent, options);
+
+                            summary = System.Text.RegularExpressions.Regex.Replace(
+                                content,
+                                @"```\s*[\s\S]*?\s*```",
+                                "",
+                                System.Text.RegularExpressions.RegexOptions.None
+                            ).Trim();
+                        }
+                    }
+                }
+
+                // Strategy 3: Try to find raw JSON object in content (no code blocks)
+                if (workoutData == null)
+                {
+                    var rawJsonMatch = System.Text.RegularExpressions.Regex.Match(
+                        content,
+                        @"\{[\s\S]*""programName""[\s\S]*""sessions""[\s\S]*\}",
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase
+                    );
+
+                    if (rawJsonMatch.Success)
+                    {
+                        var jsonContent = rawJsonMatch.Value.Trim();
+                        _logger.LogInformation("Found raw JSON in response, length: {length}", jsonContent.Length);
+
+                        try
+                        {
+                            workoutData = System.Text.Json.JsonSerializer.Deserialize<WorkoutPlanData>(jsonContent, options);
+                            summary = content.Replace(jsonContent, "").Trim();
+                        }
+                        catch (Exception parseEx)
+                        {
+                            _logger.LogWarning(parseEx, "Failed to parse raw JSON, trying bracket matching");
+                        }
+                    }
+                }
+
+                // Strategy 4: Find JSON by bracket matching (most permissive)
+                if (workoutData == null)
+                {
+                    var startIndex = content.IndexOf('{');
+                    if (startIndex >= 0)
+                    {
+                        var jsonContent = ExtractJsonByBracketMatching(content, startIndex);
+                        if (!string.IsNullOrEmpty(jsonContent))
+                        {
+                            _logger.LogInformation("Extracted JSON by bracket matching, length: {length}", jsonContent.Length);
+                            try
+                            {
+                                workoutData = System.Text.Json.JsonSerializer.Deserialize<WorkoutPlanData>(jsonContent, options);
+                                summary = content.Replace(jsonContent, "").Trim();
+                            }
+                            catch (Exception bracketEx)
+                            {
+                                _logger.LogWarning(bracketEx, "Failed to parse bracket-matched JSON");
+                            }
+                        }
+                    }
+                }
+
+                if (workoutData == null)
+                {
+                    _logger.LogWarning("All JSON parsing strategies failed for workout plan response");
                 }
             }
             catch (Exception ex)
@@ -1404,6 +1481,7 @@ IMPORTANT RULES:
 
         /// <summary>
         /// Create a draft program from parsed workout data
+        /// Uses transaction to ensure atomic creation of program + workouts
         /// </summary>
         private async Task<Models.Program?> CreateDraftProgramFromWorkoutData(
             int userId,
@@ -1420,66 +1498,79 @@ IMPORTANT RULES:
             var programName = workoutData.ProgramName ?? $"Workout Plan - {goal}";
             var totalWeeks = workoutData.TotalWeeks ?? 12;
 
-            // Create draft program
-            var program = new Models.Program
-            {
-                UserId = userId,
-                Title = programName,
-                Description = $"AI-generated {daysPerWeek}-day workout plan for {goal}",
-                TotalWeeks = totalWeeks,
-                CurrentWeek = 1,
-                CurrentDay = 1,
-                StartDate = DateTime.UtcNow.Date,
-                EndDate = DateTime.UtcNow.Date.AddDays(totalWeeks * 7),
-                IsActive = false,
-                Status = "draft",
-                SourceConversationId = conversationId,
-                CreatedAt = DateTime.UtcNow
-            };
+            // Use transaction for atomic creation
+            using var transaction = await _context.Database.BeginTransactionAsync();
 
-            _context.Programs.Add(program);
-            await _context.SaveChangesAsync();
-
-            // Create program workouts from sessions
-            var dayIndex = 0;
-            foreach (var session in workoutData.Sessions)
+            try
             {
-                dayIndex++;
-                var workout = new ProgramWorkout
+                // Create draft program
+                var program = new Models.Program
                 {
-                    ProgramId = program.Id,
-                    WeekNumber = 1,
-                    DayNumber = dayIndex,
-                    DayName = GetDayName(dayIndex),
-                    WorkoutName = session.Name ?? $"Day {dayIndex}",
-                    WorkoutType = session.Type ?? "strength",
-                    Description = session.Notes,
-                    OrderIndex = dayIndex,
-                    ExercisesJson = session.Exercises != null
-                        ? System.Text.Json.JsonSerializer.Serialize(
-                            session.Exercises.Select(e => new
-                            {
-                                name = e.Name,
-                                sets = e.Sets,
-                                reps = e.Reps,
-                                weight = e.Weight,
-                                rest = e.RestTime,
-                                notes = e.Notes
-                            }).ToList())
-                        : "[]"
+                    UserId = userId,
+                    Title = programName,
+                    Description = $"AI-generated {daysPerWeek}-day workout plan for {goal}",
+                    TotalWeeks = totalWeeks,
+                    CurrentWeek = 1,
+                    CurrentDay = 1,
+                    StartDate = DateTime.UtcNow.Date,
+                    EndDate = DateTime.UtcNow.Date.AddDays(totalWeeks * 7),
+                    IsActive = false,
+                    Status = ProgramStatus.Draft.ToApiString(),
+                    SourceConversationId = conversationId,
+                    CreatedAt = DateTime.UtcNow
                 };
 
-                _context.ProgramWorkouts.Add(workout);
+                _context.Programs.Add(program);
+                await _context.SaveChangesAsync();
+
+                // Create program workouts from sessions
+                var dayIndex = 0;
+                foreach (var session in workoutData.Sessions)
+                {
+                    dayIndex++;
+                    var workout = new ProgramWorkout
+                    {
+                        ProgramId = program.Id,
+                        WeekNumber = 1,
+                        DayNumber = dayIndex,
+                        DayName = GetDayName(dayIndex),
+                        WorkoutName = session.Name ?? $"Day {dayIndex}",
+                        WorkoutType = session.Type ?? "strength",
+                        Description = session.Notes,
+                        OrderIndex = dayIndex,
+                        ExercisesJson = session.Exercises != null
+                            ? System.Text.Json.JsonSerializer.Serialize(
+                                session.Exercises.Select(e => new
+                                {
+                                    name = e.Name,
+                                    sets = e.Sets,
+                                    reps = e.Reps,
+                                    weight = e.Weight,
+                                    rest = e.RestTime,
+                                    notes = e.Notes
+                                }).ToList())
+                            : "[]"
+                    };
+
+                    _context.ProgramWorkouts.Add(workout);
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                _logger.LogInformation(
+                    "Created draft program {programId} with {workoutCount} workouts from conversation {conversationId}",
+                    program.Id, workoutData.Sessions.Count, conversationId
+                );
+
+                return program;
             }
-
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation(
-                "Created draft program {programId} with {workoutCount} workouts from conversation {conversationId}",
-                program.Id, workoutData.Sessions.Count, conversationId
-            );
-
-            return program;
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Failed to create draft program, transaction rolled back");
+                throw;
+            }
         }
 
         // Helper method to find best matching exercise template using fuzzy matching
@@ -1710,6 +1801,60 @@ IMPORTANT RULES:
             return age;
         }
 
+        // Helper method to extract JSON by matching brackets
+        private string? ExtractJsonByBracketMatching(string content, int startIndex)
+        {
+            if (startIndex < 0 || startIndex >= content.Length || content[startIndex] != '{')
+            {
+                return null;
+            }
+
+            var depth = 0;
+            var inString = false;
+            var escapeNext = false;
+
+            for (int i = startIndex; i < content.Length; i++)
+            {
+                var c = content[i];
+
+                if (escapeNext)
+                {
+                    escapeNext = false;
+                    continue;
+                }
+
+                if (c == '\\' && inString)
+                {
+                    escapeNext = true;
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (!inString)
+                {
+                    if (c == '{')
+                    {
+                        depth++;
+                    }
+                    else if (c == '}')
+                    {
+                        depth--;
+                        if (depth == 0)
+                        {
+                            return content.Substring(startIndex, i - startIndex + 1);
+                        }
+                    }
+                }
+            }
+
+            return null; // Unbalanced brackets
+        }
+
         // GET: api/chat/conversations/{id}/preview-meal-plan
         // Returns all 7 days of the meal plan for user to select which day to apply
         [HttpGet("conversations/{id}/preview-meal-plan")]
@@ -1874,7 +2019,7 @@ IMPORTANT RULES:
             var dinnerCal = Math.Round(targetCalories * 0.30m);
             var snackCal = Math.Round(targetCalories * 0.15m);
 
-            var prompt = $@"Create a 7-day meal plan using ONLY foods from this list.
+            var prompt = $@"Create a 1-day meal plan using ONLY foods from this list.
 Return JSON with food names and serving multipliers.
 
 TARGET: {targetCalories:F0} kcal/day
@@ -1909,9 +2054,8 @@ Return ONLY this JSON structure (no markdown):
 RULES:
 1. Use ONLY foods from the list above (exact names)
 2. Adjust servings to reach ~{breakfastCal:F0} kcal breakfast, ~{lunchCal:F0} kcal lunch, ~{dinnerCal:F0} kcal dinner, ~{snackCal:F0} kcal snack
-3. Total each day should be approximately {targetCalories:F0} kcal
-4. Each day: Breakfast, Lunch, Dinner, Snack
-5. Create variety across 7 days";
+3. Total should be approximately {targetCalories:F0} kcal
+4. Include: Breakfast, Lunch, Dinner, Snack";
 
             try
             {
@@ -2131,7 +2275,7 @@ RULES:
             var dinnerCal = Math.Round(targetCalories * 0.30m);    // 30%
             var snackCal = Math.Round(targetCalories * 0.15m);     // 15%
 
-            var extractionPrompt = $@"Create a structured 7-day meal plan in JSON format based on the content provided.
+            var extractionPrompt = $@"Create a structured 1-day meal plan in JSON format based on the content provided.
 
 CALORIE TARGET: {targetCalories:F0} kcal per day
 
@@ -2173,14 +2317,14 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
 }}
 
 CRITICAL RULES:
-1. Generate exactly 7 days (day 1 through day 7)
+1. Generate exactly 1 day only
 2. Each food item MUST have realistic calories (100-600 kcal per food item)
-3. The SUM of all food calories in a day MUST equal approximately {targetCalories:F0} kcal
+3. The SUM of all food calories MUST equal approximately {targetCalories:F0} kcal
 4. Use the foods mentioned in the content (proteins, carbs, veggies, etc.)
 5. mealType must be exactly: Breakfast, Lunch, Dinner, or Snack
 6. All numeric values must be numbers (not strings)
 7. Set totalCalories/totalProtein/totalCarbs/totalFat to 0 - they will be calculated by the system
-8. VERIFY: Add up all food calories mentally before returning - must be ~{targetCalories:F0} per day";
+8. VERIFY: Add up all food calories mentally before returning - must be ~{targetCalories:F0}";
 
             var messages = new List<ChatMessage>
             {
