@@ -13,26 +13,26 @@ namespace GoHardAPI.Migrations
             migrationBuilder.AddColumn<decimal>(
                 name: "Bmr",
                 table: "NutritionGoals",
-                type: "decimal(18,2)",
+                type: "numeric",
                 nullable: true);
 
             migrationBuilder.AddColumn<decimal>(
                 name: "CalorieAdjustment",
                 table: "NutritionGoals",
-                type: "decimal(18,2)",
+                type: "numeric",
                 nullable: true);
 
             migrationBuilder.AddColumn<string>(
                 name: "Explanation",
                 table: "NutritionGoals",
-                type: "nvarchar(1000)",
+                type: "character varying(1000)",
                 maxLength: 1000,
                 nullable: true);
 
             migrationBuilder.AddColumn<decimal>(
                 name: "Tdee",
                 table: "NutritionGoals",
-                type: "decimal(18,2)",
+                type: "numeric",
                 nullable: true);
         }
 
