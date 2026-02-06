@@ -48,12 +48,12 @@ namespace GoHardAPI.Controllers
             // Filter by specific status if provided
             if (!string.IsNullOrEmpty(status))
             {
-                query = query.Where(p => p.Status == status);
+                query = query.Where(p => p.Status == status.ToLowerInvariant());
             }
             else if (!includeDrafts)
             {
                 // By default, exclude draft programs unless explicitly requested
-                query = query.Where(p => p.Status != "draft");
+                query = query.Where(p => p.Status != ProgramStatus.Draft.ToApiString());
             }
 
             if (isActive.HasValue)
@@ -322,7 +322,7 @@ namespace GoHardAPI.Controllers
             program.IsCompleted = true;
             program.CompletedAt = DateTime.UtcNow;
             program.IsActive = false;
-            program.Status = "completed";
+            program.Status = ProgramStatus.Completed.ToApiString();
 
             await _context.SaveChangesAsync();
 
@@ -347,13 +347,29 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
-            if (program.Status != "draft")
+            if (program.Status != ProgramStatus.Draft.ToApiString())
             {
                 return BadRequest(new { message = "Only draft programs can be activated" });
             }
 
+            // Validate program has workouts
+            if (program.Workouts == null || program.Workouts.Count == 0)
+            {
+                return BadRequest(new { message = "Cannot activate a program with no workouts" });
+            }
+
+            // Validate at least one workout has exercises
+            var workoutsWithExercises = program.Workouts
+                .Where(w => !string.IsNullOrEmpty(w.ExercisesJson) && w.ExercisesJson != "[]")
+                .ToList();
+
+            if (workoutsWithExercises.Count == 0)
+            {
+                return BadRequest(new { message = "Cannot activate a program with no exercises. Add exercises to at least one workout." });
+            }
+
             // Update program status
-            program.Status = "active";
+            program.Status = ProgramStatus.Active.ToApiString();
             program.IsActive = true;
 
             // Update start date if provided

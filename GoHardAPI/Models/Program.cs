@@ -5,6 +5,45 @@ using GoHardAPI.Converters;
 namespace GoHardAPI.Models
 {
     /// <summary>
+    /// Program lifecycle status
+    /// </summary>
+    public enum ProgramStatus
+    {
+        /// <summary>Draft programs are created from AI chat and need user confirmation</summary>
+        Draft,
+        /// <summary>Active programs are being followed by the user</summary>
+        Active,
+        /// <summary>Completed programs have been finished</summary>
+        Completed,
+        /// <summary>Archived programs are hidden from active view</summary>
+        Archived
+    }
+
+    /// <summary>
+    /// Helper class for ProgramStatus enum
+    /// </summary>
+    public static class ProgramStatusExtensions
+    {
+        public static string ToApiString(this ProgramStatus status) => status switch
+        {
+            ProgramStatus.Draft => "draft",
+            ProgramStatus.Active => "active",
+            ProgramStatus.Completed => "completed",
+            ProgramStatus.Archived => "archived",
+            _ => "active"
+        };
+
+        public static ProgramStatus FromApiString(string? status) => status?.ToLowerInvariant() switch
+        {
+            "draft" => ProgramStatus.Draft,
+            "active" => ProgramStatus.Active,
+            "completed" => ProgramStatus.Completed,
+            "archived" => ProgramStatus.Archived,
+            _ => ProgramStatus.Active
+        };
+    }
+
+    /// <summary>
     /// Represents a structured training program (e.g., 12-week periodization plan)
     /// </summary>
     public class Program
