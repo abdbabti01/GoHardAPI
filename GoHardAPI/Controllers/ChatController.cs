@@ -2790,6 +2790,40 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
 
                 await _context.SaveChangesAsync();
 
+                // 6. UPDATE NUTRITION PROGRESS (planned values)
+                var progressDate = DateTime.UtcNow.Date;
+                var nutritionProgress = await _context.NutritionProgresses
+                    .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == progressDate);
+
+                if (nutritionProgress == null)
+                {
+                    // Get active nutrition goal for reference
+                    var activeGoal = await _context.NutritionGoals
+                        .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+
+                    nutritionProgress = new Models.NutritionProgress
+                    {
+                        UserId = userId,
+                        Date = progressDate,
+                        NutritionGoalId = activeGoal?.Id,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    _context.NutritionProgresses.Add(nutritionProgress);
+                }
+
+                // Add planned values from the applied meal
+                nutritionProgress.PlannedCalories += totalCaloriesAdded;
+                nutritionProgress.PlannedProtein += totalProteinAdded;
+                nutritionProgress.PlannedCarbohydrates += totalCarbsAdded;
+                nutritionProgress.PlannedFat += totalFatAdded;
+                nutritionProgress.UpdatedAt = DateTime.UtcNow;
+
+                await _context.SaveChangesAsync();
+
+                _logger.LogInformation(
+                    "Updated NutritionProgress for user {UserId}: +{Calories} planned calories",
+                    userId, totalCaloriesAdded);
+
                 return Ok(new ApplyMealPlanResponse
                 {
                     Success = true,
@@ -2996,6 +3030,33 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                         }
                         updatedMealLog.UpdatedAt = DateTime.UtcNow;
                     }
+
+                    await _context.SaveChangesAsync();
+
+                    // Update NutritionProgress for this day
+                    var nutritionProgress = await _context.NutritionProgresses
+                        .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate.Date);
+
+                    if (nutritionProgress == null)
+                    {
+                        var activeGoal = await _context.NutritionGoals
+                            .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+
+                        nutritionProgress = new Models.NutritionProgress
+                        {
+                            UserId = userId,
+                            Date = targetDate.Date,
+                            NutritionGoalId = activeGoal?.Id,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.NutritionProgresses.Add(nutritionProgress);
+                    }
+
+                    nutritionProgress.PlannedCalories += dayCalories;
+                    nutritionProgress.PlannedProtein += dayProtein;
+                    nutritionProgress.PlannedCarbohydrates += dayCarbs;
+                    nutritionProgress.PlannedFat += dayFat;
+                    nutritionProgress.UpdatedAt = DateTime.UtcNow;
 
                     await _context.SaveChangesAsync();
 

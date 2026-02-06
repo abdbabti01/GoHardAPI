@@ -31,6 +31,7 @@ namespace GoHardAPI.Data
         public DbSet<MealEntry> MealEntries { get; set; }
         public DbSet<FoodItem> FoodItems { get; set; }
         public DbSet<NutritionGoal> NutritionGoals { get; set; }
+        public DbSet<NutritionProgress> NutritionProgresses { get; set; }
         public DbSet<MealPlan> MealPlans { get; set; }
         public DbSet<MealPlanDay> MealPlanDays { get; set; }
         public DbSet<MealPlanMeal> MealPlanMeals { get; set; }
@@ -351,6 +352,25 @@ namespace GoHardAPI.Data
             // Add index for nutrition goal queries
             modelBuilder.Entity<NutritionGoal>()
                 .HasIndex(ng => new { ng.UserId, ng.IsActive });
+
+            // Configure NutritionProgress-User relationship
+            modelBuilder.Entity<NutritionProgress>()
+                .HasOne(np => np.User)
+                .WithMany()
+                .HasForeignKey(np => np.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure NutritionProgress-NutritionGoal relationship
+            modelBuilder.Entity<NutritionProgress>()
+                .HasOne(np => np.NutritionGoal)
+                .WithMany()
+                .HasForeignKey(np => np.NutritionGoalId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Add unique index for one progress record per user per date
+            modelBuilder.Entity<NutritionProgress>()
+                .HasIndex(np => new { np.UserId, np.Date })
+                .IsUnique();
 
             // Configure MealPlan-User relationship
             modelBuilder.Entity<MealPlan>()

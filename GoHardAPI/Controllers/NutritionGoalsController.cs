@@ -255,6 +255,103 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
+        /// Get today's nutrition progress (planned and consumed values)
+        /// </summary>
+        [HttpGet("progress/today")]
+        public async Task<ActionResult<NutritionProgress>> GetTodayProgress()
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var today = DateTime.UtcNow.Date;
+
+            var progress = await _context.NutritionProgresses
+                .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == today);
+
+            if (progress == null)
+            {
+                // Return empty progress with link to active goal
+                var activeGoal = await _context.NutritionGoals
+                    .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+
+                progress = new NutritionProgress
+                {
+                    UserId = userId,
+                    Date = today,
+                    NutritionGoalId = activeGoal?.Id,
+                    CreatedAt = DateTime.UtcNow
+                };
+            }
+
+            return Ok(progress);
+        }
+
+        /// <summary>
+        /// Get nutrition progress for a specific date
+        /// </summary>
+        [HttpGet("progress/date/{date}")]
+        public async Task<ActionResult<NutritionProgress>> GetProgressByDate(DateTime date)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var targetDate = date.Date;
+
+            var progress = await _context.NutritionProgresses
+                .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate);
+
+            if (progress == null)
+            {
+                // Return empty progress
+                var activeGoal = await _context.NutritionGoals
+                    .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+
+                progress = new NutritionProgress
+                {
+                    UserId = userId,
+                    Date = targetDate,
+                    NutritionGoalId = activeGoal?.Id,
+                    CreatedAt = DateTime.UtcNow
+                };
+            }
+
+            return Ok(progress);
+        }
+
+        /// <summary>
+        /// Get nutrition progress with goal combined (single API call for dashboard)
+        /// </summary>
+        [HttpGet("dashboard")]
+        public async Task<ActionResult<NutritionDashboardResponse>> GetDashboard([FromQuery] DateTime? date = null)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var targetDate = date?.Date ?? DateTime.UtcNow.Date;
+
+            // Get active goal
+            var goal = await _context.NutritionGoals
+                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+
+            // Get progress for date
+            var progress = await _context.NutritionProgresses
+                .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate);
+
+            return Ok(new NutritionDashboardResponse
+            {
+                Date = targetDate,
+                Goal = goal,
+                Progress = progress ?? new NutritionProgress
+                {
+                    UserId = userId,
+                    Date = targetDate,
+                    NutritionGoalId = goal?.Id,
+                    CreatedAt = DateTime.UtcNow
+                }
+            });
+        }
+
+        /// <summary>
         /// Delete a nutrition goal
         /// </summary>
         [HttpDelete("{id}")]
@@ -315,5 +412,12 @@ namespace GoHardAPI.Controllers
         public double Protein { get; set; }
         public double Carbohydrates { get; set; }
         public double Fat { get; set; }
+    }
+
+    public class NutritionDashboardResponse
+    {
+        public DateTime Date { get; set; }
+        public NutritionGoal? Goal { get; set; }
+        public NutritionProgress Progress { get; set; } = null!;
     }
 }

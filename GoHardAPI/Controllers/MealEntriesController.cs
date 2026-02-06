@@ -146,6 +146,7 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
+            var wasConsumed = entry.IsConsumed;
             entry.IsConsumed = request?.IsConsumed ?? true;
             entry.ConsumedAt = entry.IsConsumed ? (request?.ConsumedAt ?? DateTime.UtcNow) : null;
             entry.UpdatedAt = DateTime.UtcNow;
@@ -169,6 +170,47 @@ namespace GoHardAPI.Controllers
                 mealLog.RecalculateTotals(consumedOnly: true);
                 await _context.SaveChangesAsync();
             }
+
+            // Update NutritionProgress consumed values
+            var entryDate = mealLog?.Date.Date ?? DateTime.UtcNow.Date;
+            var nutritionProgress = await _context.NutritionProgresses
+                .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == entryDate);
+
+            if (nutritionProgress == null)
+            {
+                var activeGoal = await _context.NutritionGoals
+                    .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+
+                nutritionProgress = new Models.NutritionProgress
+                {
+                    UserId = userId,
+                    Date = entryDate,
+                    NutritionGoalId = activeGoal?.Id,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.NutritionProgresses.Add(nutritionProgress);
+            }
+
+            // Calculate the delta: add if marking as consumed, subtract if unmarking
+            if (entry.IsConsumed && !wasConsumed)
+            {
+                // Marking as consumed: add to consumed values
+                nutritionProgress.ConsumedCalories += entry.TotalCalories;
+                nutritionProgress.ConsumedProtein += entry.TotalProtein;
+                nutritionProgress.ConsumedCarbohydrates += entry.TotalCarbohydrates;
+                nutritionProgress.ConsumedFat += entry.TotalFat;
+            }
+            else if (!entry.IsConsumed && wasConsumed)
+            {
+                // Unmarking as consumed: subtract from consumed values
+                nutritionProgress.ConsumedCalories = Math.Max(0, nutritionProgress.ConsumedCalories - entry.TotalCalories);
+                nutritionProgress.ConsumedProtein = Math.Max(0, nutritionProgress.ConsumedProtein - entry.TotalProtein);
+                nutritionProgress.ConsumedCarbohydrates = Math.Max(0, nutritionProgress.ConsumedCarbohydrates - entry.TotalCarbohydrates);
+                nutritionProgress.ConsumedFat = Math.Max(0, nutritionProgress.ConsumedFat - entry.TotalFat);
+            }
+
+            nutritionProgress.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
 
             return NoContent();
         }
