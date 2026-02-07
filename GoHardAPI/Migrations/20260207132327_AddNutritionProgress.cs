@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -40,29 +40,29 @@ namespace GoHardAPI.Migrations
                 {
                     table.PrimaryKey("PK_NutritionProgresses", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_NutritionProgresses_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
                         name: "FK_NutritionProgresses_NutritionGoals_NutritionGoalId",
                         column: x => x.NutritionGoalId,
                         principalTable: "NutritionGoals",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_NutritionProgresses_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NutritionProgresses_NutritionGoalId",
+                table: "NutritionProgresses",
+                column: "NutritionGoalId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_NutritionProgresses_UserId_Date",
                 table: "NutritionProgresses",
                 columns: new[] { "UserId", "Date" },
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_NutritionProgresses_NutritionGoalId",
-                table: "NutritionProgresses",
-                column: "NutritionGoalId");
         }
 
         /// <inheritdoc />
