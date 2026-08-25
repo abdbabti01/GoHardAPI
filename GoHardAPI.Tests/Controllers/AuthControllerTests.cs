@@ -54,7 +54,7 @@ namespace GoHardAPI.Tests.Controllers
             var context = GetInMemoryContext();
             var userRepository = GetUserRepository(context);
             var controller = new AuthController(userRepository, _authService);
-            var request = new SignupRequest("John Doe", "john@example.com", "Password123!");
+            var request = new SignupRequest("John Doe", "johndoe", "john@example.com", "Password123!");
 
             // Act
             var result = await controller.Signup(request);
@@ -81,7 +81,7 @@ namespace GoHardAPI.Tests.Controllers
 
             var userRepository = GetUserRepository(context);
             var controller = new AuthController(userRepository, _authService);
-            var request = new SignupRequest("New User", "existing@example.com", "Password123!");
+            var request = new SignupRequest("New User", "newuser", "existing@example.com", "Password123!");
 
             // Act
             var result = await controller.Signup(request);
@@ -97,7 +97,7 @@ namespace GoHardAPI.Tests.Controllers
             var context = GetInMemoryContext();
             var userRepository = GetUserRepository(context);
             var controller = new AuthController(userRepository, _authService);
-            var request = new SignupRequest("Jane Doe", "jane@example.com", "Password123!");
+            var request = new SignupRequest("Jane Doe", "janedoe", "jane@example.com", "Password123!");
 
             // Act
             await controller.Signup(request);

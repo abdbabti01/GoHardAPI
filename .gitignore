@@ -371,3 +371,6 @@ GoHardAPI/appsettings.Development.json
 .env.local
 .env.production
 *.env
+
+# Local Claude Code configuration
+.claude/settings.local.json
