@@ -11,6 +11,7 @@ namespace GoHardAPI.Controllers
     [ApiVersion("1.0")]
     [Route("api/v{version:apiVersion}/[controller]")]
     [ApiController]
+    [Authorize]
     public class UsersController : ControllerBase
     {
         private readonly TrainingContext _context;
@@ -20,17 +21,16 @@ namespace GoHardAPI.Controllers
             _context = context;
         }
 
-        private int GetCurrentUserId()
+        private bool TryGetCurrentUserId(out int userId)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            return int.Parse(userIdClaim!);
+            return int.TryParse(userIdClaim, out userId);
         }
 
         /// <summary>
         /// Search users by username (partial match)
         /// </summary>
         [HttpGet("search")]
-        [Authorize]
         public async Task<ActionResult<IEnumerable<UserSearchResultDto>>> SearchUsers([FromQuery] string username)
         {
             if (string.IsNullOrWhiteSpace(username) || username.Length < 2)
@@ -38,7 +38,11 @@ namespace GoHardAPI.Controllers
                 return BadRequest(new { message = "Search query must be at least 2 characters" });
             }
 
-            var userId = GetCurrentUserId();
+            if (!TryGetCurrentUserId(out var userId))
+            {
+                return Unauthorized();
+            }
+
             var searchTerm = username.ToLower();
 
             var users = await _context.Users
@@ -60,10 +64,12 @@ namespace GoHardAPI.Controllers
         /// Get public profile of a user (limited info for non-friends)
         /// </summary>
         [HttpGet("{id}/public-profile")]
-        [Authorize]
         public async Task<ActionResult<PublicProfileDto>> GetPublicProfile(int id)
         {
-            var userId = GetCurrentUserId();
+            if (!TryGetCurrentUserId(out var userId))
+            {
+                return Unauthorized();
+            }
 
             var user = await _context.Users.FindAsync(id);
             if (user == null || !user.IsActive)
@@ -107,83 +113,10 @@ namespace GoHardAPI.Controllers
             return Ok(profile);
         }
 
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<User>>> GetUsers()
-        {
-            return await _context.Users.ToListAsync();
-        }
-
-        [HttpGet("{id}")]
-        public async Task<ActionResult<User>> GetUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
-
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            return user;
-        }
-
-        [HttpPost]
-        public async Task<ActionResult<User>> CreateUser(User user)
-        {
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            return CreatedAtAction(nameof(GetUser), new { id = user.Id }, user);
-        }
-
-        [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateUser(int id, User user)
-        {
-            if (id != user.Id)
-            {
-                return BadRequest();
-            }
-
-            _context.Entry(user).State = EntityState.Modified;
-
-            try
-            {
-                await _context.SaveChangesAsync();
-            }
-            catch (DbUpdateConcurrencyException)
-            {
-                if (!_context.Users.Any(e => e.Id == id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
-            }
-
-            return NoContent();
-        }
-
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeleteUser(int id)
-        {
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                return NotFound();
-            }
-
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
-
-            return NoContent();
-        }
-
         /// <summary>
         /// Register FCM token for push notifications
         /// </summary>
         [HttpPost("fcm-token")]
-        [Authorize]
         public async Task<IActionResult> RegisterFcmToken([FromBody] FcmTokenDto dto)
         {
             if (string.IsNullOrWhiteSpace(dto.Token))
@@ -191,7 +124,11 @@ namespace GoHardAPI.Controllers
                 return BadRequest(new { message = "Token is required" });
             }
 
-            var userId = GetCurrentUserId();
+            if (!TryGetCurrentUserId(out var userId))
+            {
+                return Unauthorized();
+            }
+
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
             {
@@ -208,10 +145,13 @@ namespace GoHardAPI.Controllers
         /// Unregister FCM token (call on logout)
         /// </summary>
         [HttpDelete("fcm-token")]
-        [Authorize]
         public async Task<IActionResult> UnregisterFcmToken([FromBody] FcmTokenDto dto)
         {
-            var userId = GetCurrentUserId();
+            if (!TryGetCurrentUserId(out var userId))
+            {
+                return Unauthorized();
+            }
+
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
             {
