@@ -1,5 +1,6 @@
 using GoHardAPI.Controllers;
 using GoHardAPI.Data;
+using GoHardAPI.DTOs;
 using GoHardAPI.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -193,8 +194,10 @@ namespace GoHardAPI.Tests.Controllers
             Assert.Equal(1, session.UserId); // Should be current user, not 999
         }
 
+        // ===== UpdateSession (PUT) - SessionUpdateRequestDto / SessionResponseDto contract =====
+
         [Fact]
-        public async Task UpdateSession_ReturnsNoContent_WhenSuccessful()
+        public async Task UpdateSession_ReturnsOkWithIncrementedVersion_WhenExplicitVersionMatches()
         {
             // Arrange
             var context = GetInMemoryContext();
@@ -204,58 +207,29 @@ namespace GoHardAPI.Tests.Controllers
             await context.SaveChangesAsync();
 
             var controller = CreateControllerWithUser(context, 1);
-            var updatedSession = new Session
+            var request = new SessionUpdateRequestDto
             {
-                Id = session.Id,
-                UserId = 1,
                 Name = "Updated",
                 Date = DateTime.UtcNow,
                 Version = 1
             };
 
             // Act
-            var result = await controller.UpdateSession(session.Id, updatedSession);
+            var result = await controller.UpdateSession(session.Id, request);
 
-            // Assert
-            Assert.IsType<NoContentResult>(result);
+            // Assert: 200 OK with the incremented (N+1) authoritative version
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var dto = Assert.IsType<SessionResponseDto>(okResult.Value);
+            Assert.Equal(2, dto.Version);
+            Assert.Equal("Updated", dto.Name);
+
             var dbSession = await context.Sessions.FindAsync(session.Id);
             Assert.Equal("Updated", dbSession!.Name);
+            Assert.Equal(2, dbSession.Version);
         }
 
         [Fact]
-        public async Task UpdateSession_ReturnsBadRequest_WhenIdMismatch()
-        {
-            // Arrange
-            var context = GetInMemoryContext();
-            await CreateTestUser(context);
-            var controller = CreateControllerWithUser(context, 1);
-            var session = new Session { Id = 1, UserId = 1, Name = "Test", Date = DateTime.UtcNow };
-
-            // Act
-            var result = await controller.UpdateSession(999, session);
-
-            // Assert
-            Assert.IsType<BadRequestResult>(result);
-        }
-
-        [Fact]
-        public async Task UpdateSession_ReturnsNotFound_WhenSessionDoesNotExist()
-        {
-            // Arrange
-            var context = GetInMemoryContext();
-            await CreateTestUser(context);
-            var controller = CreateControllerWithUser(context, 1);
-            var session = new Session { Id = 999, UserId = 1, Name = "Test", Date = DateTime.UtcNow };
-
-            // Act
-            var result = await controller.UpdateSession(999, session);
-
-            // Assert
-            Assert.IsType<NotFoundResult>(result);
-        }
-
-        [Fact]
-        public async Task UpdateSession_ReturnsConflict_WhenVersionMismatch()
+        public async Task UpdateSession_ReturnsConflict_WhenExplicitVersionIsStale()
         {
             // Arrange
             var context = GetInMemoryContext();
@@ -265,20 +239,319 @@ namespace GoHardAPI.Tests.Controllers
             await context.SaveChangesAsync();
 
             var controller = CreateControllerWithUser(context, 1);
-            var updatedSession = new Session
+            var request = new SessionUpdateRequestDto
             {
-                Id = session.Id,
-                UserId = 1,
                 Name = "Updated",
                 Date = DateTime.UtcNow,
                 Version = 1 // Outdated version
             };
 
             // Act
-            var result = await controller.UpdateSession(session.Id, updatedSession);
+            var result = await controller.UpdateSession(session.Id, request);
 
             // Assert
             Assert.IsType<ConflictObjectResult>(result);
+
+            var dbSession = await context.Sessions.FindAsync(session.Id);
+            Assert.Equal("Original", dbSession!.Name); // stale write must not apply
+            Assert.Equal(2, dbSession.Version); // version must not change on conflict
+        }
+
+        [Fact]
+        public async Task UpdateSession_ConflictServerDataIsSessionResponseDto_WithCurrentVersion()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var session = new Session { UserId = 1, Name = "Original", Date = DateTime.UtcNow, Version = 2 };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Updated",
+                Date = DateTime.UtcNow,
+                Version = 1
+            };
+
+            // Act
+            var result = await controller.UpdateSession(session.Id, request);
+
+            // Assert: conflict body carries a typed SessionResponseDto, not the EF entity
+            var conflictResult = Assert.IsType<ConflictObjectResult>(result);
+            var body = conflictResult.Value!;
+            var bodyType = body.GetType();
+
+            var messageProp = bodyType.GetProperty("message");
+            var currentVersionProp = bodyType.GetProperty("currentVersion");
+            var serverDataProp = bodyType.GetProperty("serverData");
+
+            Assert.NotNull(messageProp);
+            Assert.NotNull(currentVersionProp);
+            Assert.NotNull(serverDataProp);
+
+            Assert.Equal(2, currentVersionProp!.GetValue(body));
+
+            var serverData = serverDataProp!.GetValue(body);
+            var serverDataDto = Assert.IsType<SessionResponseDto>(serverData);
+            Assert.Equal(2, serverDataDto.Version);
+            Assert.Equal("Original", serverDataDto.Name);
+        }
+
+        [Fact]
+        public async Task UpdateSession_ReturnsOkWithVersion2_WhenVersionMissingAndStoredVersionIsOne()
+        {
+            // Arrange: a session at its default version (1) - as if created before version
+            // tracking existed on the client, or simply never updated yet.
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var session = new Session { UserId = 1, Name = "Original", Date = DateTime.UtcNow, Version = 1 };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Updated",
+                Date = DateTime.UtcNow,
+                Version = null // legacy client - never sends version
+            };
+
+            // Act
+            var result = await controller.UpdateSession(session.Id, request);
+
+            // Assert: resolves to 1, matches stored version 1, succeeds and increments to 2
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var dto = Assert.IsType<SessionResponseDto>(okResult.Value);
+            Assert.Equal(2, dto.Version);
+
+            var dbSession = await context.Sessions.FindAsync(session.Id);
+            Assert.Equal(2, dbSession!.Version);
+        }
+
+        [Fact]
+        public async Task UpdateSession_ReturnsConflict_WhenVersionMissingAndStoredVersionIsTwoOrGreater()
+        {
+            // Arrange: session has already been updated once (version 2+), but the
+            // legacy client still has no way to present a version.
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var session = new Session { UserId = 1, Name = "Original", Date = DateTime.UtcNow, Version = 2 };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Updated",
+                Date = DateTime.UtcNow,
+                Version = null // legacy client - never sends version
+            };
+
+            // Act
+            var result = await controller.UpdateSession(session.Id, request);
+
+            // Assert: the legacy-null fallback (1) does not match stored (2) - the
+            // fallback must not bypass conflict detection.
+            Assert.IsType<ConflictObjectResult>(result);
+
+            var dbSession = await context.Sessions.FindAsync(session.Id);
+            Assert.Equal("Original", dbSession!.Name);
+            Assert.Equal(2, dbSession.Version);
+        }
+
+        [Fact]
+        public void SessionUpdateRequestDto_DoesNotExposeIdOrUserId()
+        {
+            // The route id identifies the session and the JWT identifies its owner -
+            // neither must be a client-assignable field on the update contract.
+            var properties = typeof(SessionUpdateRequestDto).GetProperties().Select(p => p.Name);
+
+            Assert.DoesNotContain("Id", properties);
+            Assert.DoesNotContain("UserId", properties);
+        }
+
+        [Fact]
+        public async Task UpdateSession_DoesNotChangeSessionOwnership()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            var session = new Session { UserId = 1, Name = "Original", Date = DateTime.UtcNow, Version = 1 };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Updated",
+                Date = DateTime.UtcNow,
+                Version = 1
+            };
+
+            // Act
+            var result = await controller.UpdateSession(session.Id, request);
+
+            // Assert: ownership is untouched by the update (there is no field on the
+            // request DTO that could carry a different owner in the first place)
+            Assert.IsType<OkObjectResult>(result);
+            var dbSession = await context.Sessions.FindAsync(session.Id);
+            Assert.Equal(1, dbSession!.UserId);
+        }
+
+        [Fact]
+        public async Task UpdateSession_ReturnsNotFound_WhenSessionBelongsToOtherUser()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+            var session = new Session { UserId = 2, Name = "Other User Session", Date = DateTime.UtcNow, Version = 1 };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Hijacked",
+                Date = DateTime.UtcNow,
+                Version = 1
+            };
+
+            // Act
+            var result = await controller.UpdateSession(session.Id, request);
+
+            // Assert: cross-user update is rejected, and the other user's data is untouched
+            Assert.IsType<NotFoundResult>(result);
+            var dbSession = await context.Sessions.FindAsync(session.Id);
+            Assert.Equal("Other User Session", dbSession!.Name);
+        }
+
+        [Fact]
+        public async Task UpdateSession_ReturnsNotFound_WhenSessionDoesNotExist()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Test",
+                Date = DateTime.UtcNow,
+                Version = 1
+            };
+
+            // Act
+            var result = await controller.UpdateSession(999, request);
+
+            // Assert
+            Assert.IsType<NotFoundResult>(result);
+        }
+
+        [Fact]
+        public async Task UpdateSession_OnlyUpdatesPermittedFields()
+        {
+            // Arrange: program linkage and id are not part of SessionUpdateRequestDto,
+            // so they must survive an update completely unchanged.
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var session = new Session
+            {
+                UserId = 1,
+                Name = "Original",
+                Date = DateTime.UtcNow,
+                Version = 1,
+                ProgramId = 42,
+                ProgramWorkoutId = 99
+            };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+            var originalId = session.Id;
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Updated",
+                Status = "in_progress",
+                Date = DateTime.UtcNow,
+                Duration = 45,
+                Notes = "some notes",
+                Version = 1
+            };
+
+            // Act
+            await controller.UpdateSession(originalId, request);
+
+            // Assert: permitted fields changed, everything not on the DTO did not
+            var dbSession = await context.Sessions.FindAsync(originalId);
+            Assert.Equal("Updated", dbSession!.Name);
+            Assert.Equal("in_progress", dbSession.Status);
+            Assert.Equal(45, dbSession.Duration);
+            Assert.Equal("some notes", dbSession.Notes);
+            Assert.Equal(originalId, dbSession.Id);
+            Assert.Equal(1, dbSession.UserId);
+            Assert.Equal(42, dbSession.ProgramId);
+            Assert.Equal(99, dbSession.ProgramWorkoutId);
+        }
+
+        [Fact]
+        public async Task UpdateSession_DoesNotAffectExistingExerciseRelationships()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var session = new Session { UserId = 1, Name = "Original", Date = DateTime.UtcNow, Version = 1 };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var exercise = new Exercise { SessionId = session.Id, Name = "Bench Press" };
+            context.Exercises.Add(exercise);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Updated",
+                Date = DateTime.UtcNow,
+                Version = 1
+            };
+
+            // Act
+            await controller.UpdateSession(session.Id, request);
+
+            // Assert: the exercise relationship is untouched by the session update
+            var exercisesForSession = context.Exercises.Where(e => e.SessionId == session.Id).ToList();
+            Assert.Single(exercisesForSession);
+            Assert.Equal("Bench Press", exercisesForSession[0].Name);
+        }
+
+        [Fact]
+        public async Task UpdateSession_ResponseContainsOnlySessionResponseDtoData()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var session = new Session { UserId = 1, Name = "Original", Date = DateTime.UtcNow, Version = 1 };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new SessionUpdateRequestDto
+            {
+                Name = "Updated",
+                Date = DateTime.UtcNow,
+                Version = 1
+            };
+
+            // Act
+            var result = await controller.UpdateSession(session.Id, request);
+
+            // Assert: the response is exactly the DTO shape, never the EF entity
+            // (which would carry navigation properties, tracking state, etc.)
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            Assert.IsType<SessionResponseDto>(okResult.Value);
+            Assert.IsNotType<Session>(okResult.Value);
         }
 
         [Fact]

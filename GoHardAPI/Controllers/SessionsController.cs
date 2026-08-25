@@ -199,46 +199,49 @@ namespace GoHardAPI.Controllers
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateSession(int id, Session Session)
+        public async Task<IActionResult> UpdateSession(int id, [FromBody] SessionUpdateRequestDto request)
         {
-            if (id != Session.Id)
-            {
-                return BadRequest();
-            }
-
             var userId = GetCurrentUserId();
 
-            // Verify the session belongs to the current user
+            // Verify the session belongs to the current user. The route id identifies
+            // the session and the JWT identifies its owner - the request body carries
+            // neither Id nor UserId, so there is nothing here for a client to spoof.
             var existingSession = await _context.Sessions.FindAsync(id);
             if (existingSession == null || existingSession.UserId != userId)
             {
                 return NotFound();
             }
 
+            // Resolve the submitted version. Missing version (legacy clients that predate
+            // version tracking) falls back to 1, which is the version every session starts
+            // at - this preserves legacy behavior without bypassing conflict detection:
+            // it still has to match the stored version like any explicit value would.
+            var submittedVersion = request.Version ?? 1;
+
             // Check version for conflict detection (Issue #13)
-            if (Session.Version != existingSession.Version)
+            if (submittedVersion != existingSession.Version)
             {
                 return Conflict(new
                 {
                     message = "Version conflict - data was modified by another device",
                     currentVersion = existingSession.Version,
-                    serverData = existingSession
+                    serverData = SessionResponseDto.FromEntity(existingSession)
                 });
             }
 
             // Increment version on update
-            existingSession.Version = Session.Version + 1;
+            existingSession.Version = submittedVersion + 1;
 
             // Update the existing tracked entity instead of tracking a new one
-            existingSession.Name = Session.Name;
-            existingSession.Type = Session.Type;
-            existingSession.Status = Session.Status;
-            existingSession.Date = Session.Date;
-            existingSession.Duration = Session.Duration;
-            existingSession.Notes = Session.Notes;
-            existingSession.StartedAt = Session.StartedAt;
-            existingSession.PausedAt = Session.PausedAt;
-            existingSession.CompletedAt = Session.CompletedAt;
+            existingSession.Name = request.Name;
+            existingSession.Type = request.Type;
+            existingSession.Status = request.Status;
+            existingSession.Date = request.Date;
+            existingSession.Duration = request.Duration;
+            existingSession.Notes = request.Notes;
+            existingSession.StartedAt = request.StartedAt;
+            existingSession.PausedAt = request.PausedAt;
+            existingSession.CompletedAt = request.CompletedAt;
 
             try
             {
@@ -256,7 +259,7 @@ namespace GoHardAPI.Controllers
                 }
             }
 
-            return NoContent();
+            return Ok(SessionResponseDto.FromEntity(existingSession));
         }
 
         [HttpDelete("{id}")]
