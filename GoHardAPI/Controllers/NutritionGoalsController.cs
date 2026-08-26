@@ -1,6 +1,8 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
+using GoHardAPI.DTOs;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -255,71 +257,49 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Get today's nutrition progress (planned and consumed values)
+        /// Get today's nutrition progress (planned and consumed values), derived live
+        /// from today's MealLog entries. See NutritionProgressCalculator for the
+        /// authoritative consumed/planned formula shared by all progress endpoints.
         /// </summary>
         [HttpGet("progress/today")]
-        public async Task<ActionResult<NutritionProgress>> GetTodayProgress()
+        public async Task<ActionResult<NutritionProgressDto>> GetTodayProgress()
         {
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
-            var progress = await _context.NutritionProgresses
-                .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == today);
+            var activeGoal = await _context.NutritionGoals
+                .AsNoTracking()
+                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
 
-            if (progress == null)
-            {
-                // Return empty progress with link to active goal
-                var activeGoal = await _context.NutritionGoals
-                    .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
-
-                progress = new NutritionProgress
-                {
-                    UserId = userId,
-                    Date = today,
-                    NutritionGoalId = activeGoal?.Id,
-                    CreatedAt = DateTime.UtcNow
-                };
-            }
+            var progress = await NutritionProgressCalculator.CalculateAsync(_context, userId, today, activeGoal?.Id);
 
             return Ok(progress);
         }
 
         /// <summary>
-        /// Get nutrition progress for a specific date
+        /// Get nutrition progress for a specific date, derived live from that date's
+        /// MealLog entries.
         /// </summary>
         [HttpGet("progress/date/{date}")]
-        public async Task<ActionResult<NutritionProgress>> GetProgressByDate(DateTime date)
+        public async Task<ActionResult<NutritionProgressDto>> GetProgressByDate(DateTime date)
         {
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var targetDate = date.Date;
+            var activeGoal = await _context.NutritionGoals
+                .AsNoTracking()
+                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
 
-            var progress = await _context.NutritionProgresses
-                .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate);
-
-            if (progress == null)
-            {
-                // Return empty progress
-                var activeGoal = await _context.NutritionGoals
-                    .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
-
-                progress = new NutritionProgress
-                {
-                    UserId = userId,
-                    Date = targetDate,
-                    NutritionGoalId = activeGoal?.Id,
-                    CreatedAt = DateTime.UtcNow
-                };
-            }
+            var progress = await NutritionProgressCalculator.CalculateAsync(_context, userId, date, activeGoal?.Id);
 
             return Ok(progress);
         }
 
         /// <summary>
-        /// Get nutrition progress with goal combined (single API call for dashboard)
+        /// Get nutrition progress with goal combined (single API call for dashboard).
+        /// Progress is derived live from MealLog entries for the requested date.
         /// </summary>
         [HttpGet("dashboard")]
         public async Task<ActionResult<NutritionDashboardResponse>> GetDashboard([FromQuery] DateTime? date = null)
@@ -327,27 +307,22 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var targetDate = date?.Date ?? DateTime.UtcNow.Date;
+            var targetDate = date.HasValue
+                ? DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc)
+                : DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
             // Get active goal
             var goal = await _context.NutritionGoals
+                .AsNoTracking()
                 .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
 
-            // Get progress for date
-            var progress = await _context.NutritionProgresses
-                .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate);
+            var progress = await NutritionProgressCalculator.CalculateAsync(_context, userId, targetDate, goal?.Id);
 
             return Ok(new NutritionDashboardResponse
             {
-                Date = targetDate,
+                Date = progress.Date,
                 Goal = goal,
-                Progress = progress ?? new NutritionProgress
-                {
-                    UserId = userId,
-                    Date = targetDate,
-                    NutritionGoalId = goal?.Id,
-                    CreatedAt = DateTime.UtcNow
-                }
+                Progress = progress
             });
         }
 
@@ -418,6 +393,6 @@ namespace GoHardAPI.Controllers
     {
         public DateTime Date { get; set; }
         public NutritionGoal? Goal { get; set; }
-        public NutritionProgress Progress { get; set; } = null!;
+        public NutritionProgressDto Progress { get; set; } = null!;
     }
 }
