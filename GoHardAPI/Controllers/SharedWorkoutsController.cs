@@ -1,9 +1,11 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
+using GoHardAPI.DTOs;
 using GoHardAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Linq.Expressions;
 using System.Security.Claims;
 
 namespace GoHardAPI.Controllers
@@ -32,32 +34,112 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
+        /// Single source of truth for shared-workout visibility: a workout is visible to
+        /// <paramref name="userId"/> if they created it (when <paramref name="includeOwn"/> is
+        /// true) or if they have an accepted friendship with its creator. Filtering happens as a
+        /// database-level WHERE/EXISTS clause so hidden rows are never materialized, and every
+        /// read/mutation endpoint below composes off this one query instead of re-deriving the
+        /// friendship condition.
+        /// </summary>
+        private IQueryable<SharedWorkout> SharedWorkoutsVisibleTo(int userId, bool includeOwn = true)
+        {
+            return _context.SharedWorkouts.Where(sw =>
+                (includeOwn && sw.SharedByUserId == userId) ||
+                _context.Friendships.Any(f =>
+                    f.Status == "accepted" &&
+                    ((f.RequesterId == userId && f.AddresseeId == sw.SharedByUserId) ||
+                     (f.RequesterId == sw.SharedByUserId && f.AddresseeId == userId))));
+        }
+
+        /// <summary>
+        /// Single source of truth for the SharedWorkoutDto shape used by every read query
+        /// (GetSharedWorkouts, GetSharedWorkout, GetSharedWorkoutsByUser). Built as an
+        /// Expression so EF Core translates it - including the correlated like/save EXISTS
+        /// subqueries - into the SQL SELECT itself; only <see cref="SharedByUser"/>.Name is
+        /// read off the navigation property, so PasswordHash/Email/etc. never leave the
+        /// database. ShareWorkout can't use this (it isn't running a query against
+        /// SharedWorkouts), so it goes through the sibling <see cref="ToDto"/> overload below -
+        /// both funnel into the same SharedWorkoutDto type, so a field added to one call site
+        /// without the other fails to compile instead of silently drifting.
+        /// </summary>
+        private Expression<Func<SharedWorkout, SharedWorkoutDto>> ProjectToDto(int currentUserId)
+        {
+            return sw => new SharedWorkoutDto
+            {
+                Id = sw.Id,
+                OriginalId = sw.OriginalId,
+                Type = sw.Type,
+                SharedByUserId = sw.SharedByUserId,
+                SharedByUserName = sw.SharedByUser != null ? sw.SharedByUser.Name : "Unknown",
+                WorkoutName = sw.WorkoutName,
+                Description = sw.Description,
+                ExercisesJson = sw.ExercisesJson,
+                Duration = sw.Duration,
+                Category = sw.Category,
+                Difficulty = sw.Difficulty,
+                LikeCount = sw.LikeCount,
+                SaveCount = sw.SaveCount,
+                CommentCount = sw.CommentCount,
+                SharedAt = sw.SharedAt,
+                UpdatedAt = sw.UpdatedAt,
+                IsLikedByCurrentUser = _context.SharedWorkoutLikes.Any(l => l.SharedWorkoutId == sw.Id && l.UserId == currentUserId),
+                IsSavedByCurrentUser = _context.SharedWorkoutSaves.Any(s => s.SharedWorkoutId == sw.Id && s.UserId == currentUserId)
+            };
+        }
+
+        /// <summary>
+        /// Maps an already-materialized SharedWorkout (with SharedByUser loaded) to the same
+        /// SharedWorkoutDto shape as <see cref="ProjectToDto"/>, for the one call site
+        /// (ShareWorkout) that has an entity in hand rather than a query to project. EF Core
+        /// cannot translate a call to this method into SQL, which is exactly why it can't be
+        /// reused inside a LINQ Select - see ProjectToDto's remarks.
+        /// </summary>
+        private static SharedWorkoutDto ToDto(SharedWorkout sw, bool isLikedByCurrentUser, bool isSavedByCurrentUser)
+        {
+            return new SharedWorkoutDto
+            {
+                Id = sw.Id,
+                OriginalId = sw.OriginalId,
+                Type = sw.Type,
+                SharedByUserId = sw.SharedByUserId,
+                SharedByUserName = sw.SharedByUser != null ? sw.SharedByUser.Name : "Unknown",
+                WorkoutName = sw.WorkoutName,
+                Description = sw.Description,
+                ExercisesJson = sw.ExercisesJson,
+                Duration = sw.Duration,
+                Category = sw.Category,
+                Difficulty = sw.Difficulty,
+                LikeCount = sw.LikeCount,
+                SaveCount = sw.SaveCount,
+                CommentCount = sw.CommentCount,
+                SharedAt = sw.SharedAt,
+                UpdatedAt = sw.UpdatedAt,
+                IsLikedByCurrentUser = isLikedByCurrentUser,
+                IsSavedByCurrentUser = isSavedByCurrentUser
+            };
+        }
+
+        /// <summary>
         /// Get community shared workouts with optional filtering
         /// </summary>
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<object>>> GetSharedWorkouts(
+        public async Task<ActionResult<IEnumerable<SharedWorkoutDto>>> GetSharedWorkouts(
             [FromQuery] string? category = null,
             [FromQuery] string? difficulty = null,
             [FromQuery] bool friendsOnly = true,
             [FromQuery] int limit = 50)
         {
             var userId = GetCurrentUserId();
-            var query = _context.SharedWorkouts
-                .Include(sw => sw.SharedByUser)
-                .AsQueryable();
 
-            // Filter by friends only (default behavior)
-            // Shows only friends' shares, not the current user's own shares
-            if (friendsOnly)
-            {
-                var friendIds = await _context.Friendships
-                    .Where(f => (f.RequesterId == userId || f.AddresseeId == userId)
-                                && f.Status == "accepted")
-                    .Select(f => f.RequesterId == userId ? f.AddresseeId : f.RequesterId)
-                    .ToListAsync();
-
-                query = query.Where(sw => friendIds.Contains(sw.SharedByUserId));
-            }
+            // friendsOnly=true (default) preserves this endpoint's existing behavior exactly:
+            // friends' shares only, not the caller's own. friendsOnly=false was previously an
+            // unfiltered "everyone" query param with no consumer in GoHardAPP; it now goes through
+            // the same centralized predicate with the caller's own shares included, so opting out
+            // of the strict friends-only view can never expose a stranger's content - it only
+            // toggles whether the caller's own shares appear alongside their friends'.
+            // No .Include(SharedByUser) needed: ProjectToDto only ever reads sw.SharedByUser.Name
+            // inside the Select, which EF Core translates into the projection's own JOIN.
+            IQueryable<SharedWorkout> query = SharedWorkoutsVisibleTo(userId, includeOwn: !friendsOnly);
 
             if (!string.IsNullOrEmpty(category))
             {
@@ -72,27 +154,7 @@ namespace GoHardAPI.Controllers
             var workouts = await query
                 .OrderByDescending(sw => sw.SharedAt)
                 .Take(limit)
-                .Select(sw => new
-                {
-                    sw.Id,
-                    sw.OriginalId,
-                    sw.Type,
-                    sw.SharedByUserId,
-                    SharedByUserName = sw.SharedByUser != null ? sw.SharedByUser.Name : "Unknown",
-                    sw.WorkoutName,
-                    sw.Description,
-                    sw.ExercisesJson,
-                    sw.Duration,
-                    sw.Category,
-                    sw.Difficulty,
-                    sw.LikeCount,
-                    sw.SaveCount,
-                    sw.CommentCount,
-                    sw.SharedAt,
-                    sw.UpdatedAt,
-                    IsLikedByCurrentUser = _context.SharedWorkoutLikes.Any(l => l.SharedWorkoutId == sw.Id && l.UserId == userId),
-                    IsSavedByCurrentUser = _context.SharedWorkoutSaves.Any(s => s.SharedWorkoutId == sw.Id && s.UserId == userId)
-                })
+                .Select(ProjectToDto(userId))
                 .ToListAsync();
 
             return Ok(workouts);
@@ -102,35 +164,17 @@ namespace GoHardAPI.Controllers
         /// Get a specific shared workout by ID
         /// </summary>
         [HttpGet("{id}")]
-        public async Task<ActionResult<object>> GetSharedWorkout(int id)
+        public async Task<ActionResult<SharedWorkoutDto>> GetSharedWorkout(int id)
         {
             var userId = GetCurrentUserId();
-            var workout = await _context.SharedWorkouts
-                .Include(sw => sw.SharedByUser)
+            var workout = await SharedWorkoutsVisibleTo(userId)
                 .Where(sw => sw.Id == id)
-                .Select(sw => new
-                {
-                    sw.Id,
-                    sw.OriginalId,
-                    sw.Type,
-                    sw.SharedByUserId,
-                    SharedByUserName = sw.SharedByUser != null ? sw.SharedByUser.Name : "Unknown",
-                    sw.WorkoutName,
-                    sw.Description,
-                    sw.ExercisesJson,
-                    sw.Duration,
-                    sw.Category,
-                    sw.Difficulty,
-                    sw.LikeCount,
-                    sw.SaveCount,
-                    sw.CommentCount,
-                    sw.SharedAt,
-                    sw.UpdatedAt,
-                    IsLikedByCurrentUser = _context.SharedWorkoutLikes.Any(l => l.SharedWorkoutId == sw.Id && l.UserId == userId),
-                    IsSavedByCurrentUser = _context.SharedWorkoutSaves.Any(s => s.SharedWorkoutId == sw.Id && s.UserId == userId)
-                })
+                .Select(ProjectToDto(userId))
                 .FirstOrDefaultAsync();
 
+            // A non-friend's workout and a nonexistent id both fall out of
+            // SharedWorkoutsVisibleTo and land here identically, so this stays a plain 404 with
+            // no distinguishing detail - avoids enumerating which ids exist.
             if (workout == null)
             {
                 return NotFound();
@@ -143,72 +187,47 @@ namespace GoHardAPI.Controllers
         /// Get workouts shared by a specific user
         /// </summary>
         [HttpGet("user/{userId}")]
-        public async Task<ActionResult<IEnumerable<object>>> GetSharedWorkoutsByUser(int userId)
+        public async Task<ActionResult<IEnumerable<SharedWorkoutDto>>> GetSharedWorkoutsByUser(int userId)
         {
             var currentUserId = GetCurrentUserId();
-            var workouts = await _context.SharedWorkouts
-                .Include(sw => sw.SharedByUser)
+
+            // If the requester isn't the target user and isn't their confirmed friend,
+            // SharedWorkoutsVisibleTo yields no rows for that SharedByUserId, so this returns the
+            // same empty list as a target user with zero shares - it never reveals whether hidden
+            // shares exist.
+            var workouts = await SharedWorkoutsVisibleTo(currentUserId)
                 .Where(sw => sw.SharedByUserId == userId)
                 .OrderByDescending(sw => sw.SharedAt)
-                .Select(sw => new
-                {
-                    sw.Id,
-                    sw.OriginalId,
-                    sw.Type,
-                    sw.SharedByUserId,
-                    SharedByUserName = sw.SharedByUser != null ? sw.SharedByUser.Name : "Unknown",
-                    sw.WorkoutName,
-                    sw.Description,
-                    sw.ExercisesJson,
-                    sw.Duration,
-                    sw.Category,
-                    sw.Difficulty,
-                    sw.LikeCount,
-                    sw.SaveCount,
-                    sw.CommentCount,
-                    sw.SharedAt,
-                    sw.UpdatedAt,
-                    IsLikedByCurrentUser = _context.SharedWorkoutLikes.Any(l => l.SharedWorkoutId == sw.Id && l.UserId == currentUserId),
-                    IsSavedByCurrentUser = _context.SharedWorkoutSaves.Any(s => s.SharedWorkoutId == sw.Id && s.UserId == currentUserId)
-                })
+                .Select(ProjectToDto(currentUserId))
                 .ToListAsync();
 
             return Ok(workouts);
         }
 
         /// <summary>
-        /// Get workouts saved by current user
+        /// Get workouts saved by current user. Saving a workout does not grant permanent access:
+        /// if the friendship that made it visible is later revoked (declined, left pending, or
+        /// the row is removed), it drops out of this list - the SharedWorkoutSave row itself is
+        /// left untouched, it just stops being joinable against a currently-visible workout. The
+        /// join is against SharedWorkoutsVisibleTo (not a materialize-then-filter step), so this
+        /// is a single database round trip with the same correlated-EXISTS friendship check as
+        /// every other read endpoint, and no per-row friendship query.
         /// </summary>
         [HttpGet("saved")]
-        public async Task<ActionResult<IEnumerable<object>>> GetSavedWorkouts()
+        public async Task<ActionResult<IEnumerable<SharedWorkoutDto>>> GetSavedWorkouts()
         {
             var userId = GetCurrentUserId();
+
             var workouts = await _context.SharedWorkoutSaves
                 .Where(sws => sws.UserId == userId)
-                .Include(sws => sws.SharedWorkout)
-                    .ThenInclude(sw => sw!.SharedByUser)
-                .OrderByDescending(sws => sws.SavedAt)
-                .Select(sws => new
-                {
-                    sws.SharedWorkout!.Id,
-                    sws.SharedWorkout.OriginalId,
-                    sws.SharedWorkout.Type,
-                    sws.SharedWorkout.SharedByUserId,
-                    SharedByUserName = sws.SharedWorkout.SharedByUser != null ? sws.SharedWorkout.SharedByUser.Name : "Unknown",
-                    sws.SharedWorkout.WorkoutName,
-                    sws.SharedWorkout.Description,
-                    sws.SharedWorkout.ExercisesJson,
-                    sws.SharedWorkout.Duration,
-                    sws.SharedWorkout.Category,
-                    sws.SharedWorkout.Difficulty,
-                    sws.SharedWorkout.LikeCount,
-                    sws.SharedWorkout.SaveCount,
-                    sws.SharedWorkout.CommentCount,
-                    sws.SharedWorkout.SharedAt,
-                    sws.SharedWorkout.UpdatedAt,
-                    IsLikedByCurrentUser = _context.SharedWorkoutLikes.Any(l => l.SharedWorkoutId == sws.SharedWorkout.Id && l.UserId == userId),
-                    IsSavedByCurrentUser = true
-                })
+                .Join(
+                    SharedWorkoutsVisibleTo(userId),
+                    sws => sws.SharedWorkoutId,
+                    sw => sw.Id,
+                    (sws, sw) => new { sws.SavedAt, Workout = sw })
+                .OrderByDescending(x => x.SavedAt)
+                .Select(x => x.Workout)
+                .Select(ProjectToDto(userId))
                 .ToListAsync();
 
             return Ok(workouts);
@@ -218,7 +237,7 @@ namespace GoHardAPI.Controllers
         /// Share a workout to the community
         /// </summary>
         [HttpPost]
-        public async Task<ActionResult<SharedWorkout>> ShareWorkout(SharedWorkout sharedWorkout)
+        public async Task<ActionResult<SharedWorkoutDto>> ShareWorkout(SharedWorkout sharedWorkout)
         {
             var userId = GetCurrentUserId();
             sharedWorkout.SharedByUserId = userId;
@@ -233,7 +252,10 @@ namespace GoHardAPI.Controllers
             // Load the user information
             await _context.Entry(sharedWorkout).Reference(sw => sw.SharedByUser).LoadAsync();
 
-            return CreatedAtAction(nameof(GetSharedWorkout), new { id = sharedWorkout.Id }, sharedWorkout);
+            // A brand-new share can't have any likes/saves yet - no need to query for them.
+            var dto = ToDto(sharedWorkout, isLikedByCurrentUser: false, isSavedByCurrentUser: false);
+
+            return CreatedAtAction(nameof(GetSharedWorkout), new { id = sharedWorkout.Id }, dto);
         }
 
         /// <summary>
@@ -268,7 +290,9 @@ namespace GoHardAPI.Controllers
         public async Task<IActionResult> ToggleLike(int id)
         {
             var userId = GetCurrentUserId();
-            var sharedWorkout = await _context.SharedWorkouts.FindAsync(id);
+            // Same visibility predicate as the read endpoints: a hidden (non-friend's) workout
+            // must be rejected the same way a missing one is, not merely by existence.
+            var sharedWorkout = await SharedWorkoutsVisibleTo(userId).FirstOrDefaultAsync(sw => sw.Id == id);
 
             if (sharedWorkout == null)
             {
@@ -307,7 +331,9 @@ namespace GoHardAPI.Controllers
         public async Task<IActionResult> ToggleSave(int id)
         {
             var userId = GetCurrentUserId();
-            var sharedWorkout = await _context.SharedWorkouts.FindAsync(id);
+            // Same visibility predicate as the read endpoints: a hidden (non-friend's) workout
+            // must be rejected the same way a missing one is, not merely by existence.
+            var sharedWorkout = await SharedWorkoutsVisibleTo(userId).FirstOrDefaultAsync(sw => sw.Id == id);
 
             if (sharedWorkout == null)
             {
