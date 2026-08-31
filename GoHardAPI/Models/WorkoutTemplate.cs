@@ -45,6 +45,14 @@ namespace GoHardAPI.Models
 
         public bool IsCustom { get; set; } = false; // User-created vs system template
 
+        /// <summary>
+        /// Explicit community visibility for user-created templates. Private (false) by default:
+        /// a custom template is only visible to its owner unless the owner opts in by publishing.
+        /// System templates (CreatedByUserId == null) are globally readable regardless of this flag.
+        /// Community visibility is never inferred from CreatedByUserId alone.
+        /// </summary>
+        public bool IsPublic { get; set; } = false;
+
         public double? Rating { get; set; } // Average rating (0-5)
 
         public int RatingCount { get; set; } = 0;
