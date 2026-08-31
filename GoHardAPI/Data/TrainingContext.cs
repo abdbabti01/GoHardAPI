@@ -205,6 +205,12 @@ namespace GoHardAPI.Data
             modelBuilder.Entity<WorkoutTemplate>()
                 .HasIndex(wt => new { wt.IsCustom, wt.IsActive, wt.Category });
 
+            // Supports the community feed: explicitly published custom templates, optionally
+            // filtered by category. (CreatedByUserId already has an index from the FK above,
+            // covering the system-template and owner-scoped reads.)
+            modelBuilder.Entity<WorkoutTemplate>()
+                .HasIndex(wt => new { wt.IsPublic, wt.Category });
+
             modelBuilder.Entity<WorkoutTemplateRating>()
                 .HasIndex(wtr => new { wtr.WorkoutTemplateId, wtr.UserId })
                 .IsUnique();
