@@ -1,5 +1,6 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
+using GoHardAPI.DTOs;
 using GoHardAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -128,19 +129,48 @@ namespace GoHardAPI.Controllers
 
         // PUT: api/ExerciseSets/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateExerciseSet(int id, ExerciseSet exerciseSet)
+        public async Task<IActionResult> UpdateExerciseSet(int id, [FromBody] ExerciseSetUpdateRequestDto request)
         {
-            if (id != exerciseSet.Id)
+            // The route segment is the identity of record. A body that disagrees
+            // is malformed - fail deterministically before touching the database.
+            if (id != request.Id)
             {
-                return BadRequest();
+                return BadRequest(new { message = "Route id and body id must match." });
             }
 
-            if (!await UserOwnsExerciseSet(id))
+            var userId = GetCurrentUserId();
+
+            // Resolve the full parent chain (set -> exercise -> session) and confirm
+            // the authenticated user owns the session. A foreign or missing set is a
+            // non-disclosing 404, exactly like the other endpoints on this controller.
+            var existing = await _context.ExerciseSets
+                .Include(es => es.Exercise)
+                    .ThenInclude(e => e!.Session)
+                .FirstOrDefaultAsync(es => es.Id == id);
+
+            if (existing == null || existing.Exercise?.Session?.UserId != userId)
             {
                 return NotFound();
             }
 
-            _context.Entry(exerciseSet).State = EntityState.Modified;
+            // The set stays attached to the exercise it already belongs to. A body
+            // naming any other parent - in particular one owned by another user - is
+            // rejected: this endpoint never reparents a set.
+            if (request.ExerciseId != existing.ExerciseId)
+            {
+                return BadRequest(new { message = "An exercise set cannot be moved to a different exercise." });
+            }
+
+            // Update only the scalar fields the client may change. The parent FK
+            // (ExerciseId) and the Version column are deliberately not assignable
+            // through this contract.
+            existing.SetNumber = request.SetNumber;
+            existing.Reps = request.Reps;
+            existing.Weight = request.Weight;
+            existing.Duration = request.Duration;
+            existing.IsCompleted = request.IsCompleted;
+            existing.CompletedAt = request.CompletedAt;
+            existing.Notes = request.Notes;
 
             try
             {
@@ -148,7 +178,7 @@ namespace GoHardAPI.Controllers
             }
             catch (DbUpdateConcurrencyException)
             {
-                if (!_context.ExerciseSets.Any(e => e.Id == id))
+                if (!await _context.ExerciseSets.AnyAsync(e => e.Id == id))
                 {
                     return NotFound();
                 }
