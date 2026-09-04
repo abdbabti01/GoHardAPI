@@ -10,6 +10,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    env:
+      # The keyed-Session-CREATE PostgreSQL integration suites are MANDATORY in CI.
+      # This makes DockerRequiredFactAttribute stop self-skipping and makes the
+      # PostgreSQL fixtures rethrow (instead of degrading to "unavailable") when a
+      # container cannot start. See GoHardAPI.Tests/Infrastructure/PostgresRequirement.cs.
+      REQUIRE_POSTGRES_TESTS: "true"
+
     steps:
     - uses: actions/checkout@v4
 
@@ -18,14 +25,78 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    - name: Require Docker (PostgreSQL Testcontainers)
+      run: |
+        echo "REQUIRE_POSTGRES_TESTS=${REQUIRE_POSTGRES_TESTS}"
+        if ! docker info >/dev/null 2>&1; then
+          echo "::error::Docker daemon is not reachable. PostgreSQL integration tests are mandatory in CI and cannot run without Docker."
+          exit 1
+        fi
+        docker version
+
+    # The test project is deliberately NOT a member of GoHardAPI.sln, so bare
+    # `dotnet build` / `dotnet test` from the repo root resolve to the solution
+    # (API project only) and run ZERO tests. Every command below targets the test
+    # project explicitly; it builds and publishes GoHardAPI via its ProjectReference.
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore GoHardAPI.Tests/GoHardAPI.Tests.csproj
 
     - name: Build
-      run: dotnet build --no-restore --configuration Release
+      run: dotnet build GoHardAPI.Tests/GoHardAPI.Tests.csproj --no-restore --configuration Release
 
-    - name: Test
-      run: dotnet test --configuration Release --verbosity normal --logger "trm;verbosity=detailed"
+    - name: Test (unit + non-PostgreSQL)
+      run: >
+        dotnet test GoHardAPI.Tests/GoHardAPI.Tests.csproj --configuration Release --no-build
+        --filter "Category!=PostgresIntegration"
+        --results-directory "${{ github.workspace }}/TestResults"
+        --logger "trx;LogFileName=unit.trx"
+        --logger "console;verbosity=detailed"
+
+    - name: Test (PostgreSQL integration - mandatory, Testcontainers)
+      run: >
+        dotnet test GoHardAPI.Tests/GoHardAPI.Tests.csproj --configuration Release --no-build
+        --filter "Category=PostgresIntegration"
+        --results-directory "${{ github.workspace }}/TestResults"
+        --logger "trx;LogFileName=pg.trx"
+        --logger "console;verbosity=detailed"
+
+    - name: Assert PostgreSQL tests executed, none skipped, none failed
+      shell: pwsh
+      run: |
+        $trx = Join-Path '${{ github.workspace }}' 'TestResults/pg.trx'
+        if (-not (Test-Path $trx)) {
+          Write-Host "::error::pg.trx was not produced - the PostgreSQL integration run did not execute"
+          exit 1
+        }
+
+        [xml]$doc = Get-Content -LiteralPath $trx -Raw
+        $counters = $doc.TestRun.ResultSummary.Counters
+        $total    = [int]($counters.total)
+        $executed = [int]($counters.executed)
+        $passed   = [int]($counters.passed)
+        $failed   = [int]($counters.failed)
+        $errored  = [int]($counters.error)
+        $notExec  = [int]($counters.notExecuted)
+
+        $results  = @($doc.TestRun.Results.UnitTestResult)
+        $skipped  = @($results | Where-Object { $_.outcome -in @('NotExecuted','Skipped') }).Count
+
+        Write-Host "PostgreSQL suite: total=$total executed=$executed passed=$passed failed=$failed error=$errored notExecuted=$notExec outcome-skipped=$skipped"
+
+        $problems = @()
+        if ($total -le 0)    { $problems += "0 PostgreSQL integration tests were discovered (missing [Trait(""Category"",""PostgresIntegration"")]?)" }
+        if ($executed -le 0) { $problems += "0 PostgreSQL integration tests executed" }
+        if ($failed -gt 0)   { $problems += "$failed PostgreSQL integration test(s) failed" }
+        if ($errored -gt 0)  { $problems += "$errored PostgreSQL integration test(s) errored" }
+        if ($notExec -gt 0 -or $skipped -gt 0) {
+          $problems += "PostgreSQL integration test(s) were skipped in CI (notExecuted=$notExec, outcome-skipped=$skipped)"
+        }
+
+        if ($problems.Count -gt 0) {
+          foreach ($p in $problems) { Write-Host "::error::$p" }
+          exit 1
+        }
+        Write-Host "OK: $executed PostgreSQL integration test(s) executed, 0 skipped, 0 failed."
 
     - name: Publish
       run: dotnet publish GoHardAPI/GoHardAPI.csproj --no-build --configuration Release --output ./publish
@@ -35,3 +106,10 @@ jobs:
       with:
         name: dotnet-app
         path: ./publish
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: ${{ github.workspace }}/TestResults

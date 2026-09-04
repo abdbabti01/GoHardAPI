@@ -121,6 +121,17 @@ namespace GoHardAPI.Models
         // Version tracking for conflict resolution (Issue #13)
         public int Version { get; set; } = 1;
 
+        /// <summary>
+        /// Optional client-supplied idempotency key for keyed CREATE
+        /// (POST /api/v1/sessions). NULL for legacy/unkeyed creates.
+        /// Legacy NULL rows are always allowed and require no backfill; the
+        /// owner-scoped uniqueness on (UserId, ClientOperationId) is enforced
+        /// only for non-NULL keys (see TrainingContext / the
+        /// AddSessionCreateOperationAndClientOperationId migration).
+        /// The durable protocol state lives on <see cref="SessionCreateOperation"/>.
+        /// </summary>
+        public Guid? ClientOperationId { get; set; }
+
         // Navigation properties
         public User? User { get; set; }
         public Program? Program { get; set; }

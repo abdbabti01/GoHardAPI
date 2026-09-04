@@ -2,6 +2,7 @@ using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,10 +18,12 @@ namespace GoHardAPI.Controllers
     public class SessionsController : ControllerBase
     {
         private readonly TrainingContext _context;
+        private readonly SessionCreateService _sessionCreateService;
 
-        public SessionsController(TrainingContext context)
+        public SessionsController(TrainingContext context, SessionCreateService sessionCreateService)
         {
             _context = context;
+            _sessionCreateService = sessionCreateService;
         }
 
         private int GetCurrentUserId()
@@ -67,17 +70,70 @@ namespace GoHardAPI.Controllers
             return session;
         }
 
+        /// <summary>
+        /// Creates a workout session.
+        ///
+        /// Without <c>clientOperationId</c> the behavior is unchanged: a new session is
+        /// created and returned with <c>201</c>.
+        ///
+        /// With <c>clientOperationId</c> the call is idempotent per
+        /// <c>(authenticated user, clientOperationId)</c>:
+        /// <list type="bullet">
+        ///   <item>first call: <c>201</c> with the canonical session;</item>
+        ///   <item>replay (identical or conflicting body): <c>200</c> with the original
+        ///     canonical session, unchanged — first writer wins;</item>
+        ///   <item>completed operation whose session was deleted: <c>410</c>
+        ///     <c>operation_target_deleted</c> — never recreated.</item>
+        /// </list>
+        /// A supplied <c>programId</c> / <c>programWorkoutId</c> must resolve to a resource
+        /// owned by the authenticated user (and, if both are given, the workout must belong
+        /// to that program); a missing OR foreign resource returns the same non-disclosing
+        /// <c>404 { code: "program_not_found" }</c>. This validation runs only for the FIRST
+        /// keyed write and for legacy creates — a keyed replay never revalidates.
+        ///
+        /// The owner always comes from the JWT; the request body cannot set an id, user,
+        /// version or child exercises.
+        ///
+        /// NOTE: <c>operation_canceled</c> (409) is defined but DORMANT in this PR — nothing
+        /// writes <c>SessionCreateOperation.CanceledAt</c> until the P2 DELETE-by-operation-key
+        /// endpoint lands.
+        /// </summary>
         [HttpPost]
-        public async Task<ActionResult<Session>> CreateSession(Session Session)
+        public async Task<ActionResult<SessionResponseDto>> CreateSession(
+            [FromBody] SessionCreateRequestDto request, CancellationToken cancellationToken)
         {
-            // Ensure the session belongs to the current authenticated user
             var userId = GetCurrentUserId();
-            Session.UserId = userId;
 
-            _context.Sessions.Add(Session);
-            await _context.SaveChangesAsync();
+            var outcome = await _sessionCreateService.CreateAsync(userId, request, cancellationToken);
 
-            return CreatedAtAction(nameof(GetSession), new { id = Session.Id }, Session);
+            switch (outcome.Result)
+            {
+                case SessionCreateResult.Created:
+                    return CreatedAtAction(
+                        nameof(GetSession),
+                        new { id = outcome.Session!.Id },
+                        SessionResponseDto.FromEntity(outcome.Session));
+
+                case SessionCreateResult.ReplayedExisting:
+                    return Ok(SessionResponseDto.FromEntity(outcome.Session!));
+
+                case SessionCreateResult.ProgramNotFound:
+                    // Same response for "missing" and "belongs to another user" — no
+                    // cross-user existence oracle.
+                    return NotFound(new { code = outcome.ErrorCode });
+
+                case SessionCreateResult.Canceled:
+                    return Conflict(new { code = outcome.ErrorCode });
+
+                case SessionCreateResult.Gone:
+                    return StatusCode(StatusCodes.Status410Gone, new { code = outcome.ErrorCode });
+
+                case SessionCreateResult.Incomplete:
+                    return Conflict(new { code = outcome.ErrorCode });
+
+                default:
+                    return StatusCode(StatusCodes.Status500InternalServerError);
+            }
         }
 
         /// <summary>

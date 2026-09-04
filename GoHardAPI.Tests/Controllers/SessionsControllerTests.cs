@@ -2,9 +2,11 @@ using GoHardAPI.Controllers;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Security.Claims;
 using Xunit;
 
@@ -23,7 +25,9 @@ namespace GoHardAPI.Tests.Controllers
 
         private SessionsController CreateControllerWithUser(TrainingContext context, int userId)
         {
-            var controller = new SessionsController(context);
+            var controller = new SessionsController(
+                context,
+                new SessionCreateService(context, NullLogger<SessionCreateService>.Instance));
 
             var claims = new List<Claim>
             {
@@ -153,45 +157,318 @@ namespace GoHardAPI.Tests.Controllers
         }
 
         [Fact]
-        public async Task CreateSession_ReturnsCreatedSession()
+        public async Task CreateSession_ReturnsCreatedCanonicalDto_ForLegacyUnkeyedRequest()
         {
             // Arrange
             var context = GetInMemoryContext();
             await CreateTestUser(context);
             var controller = CreateControllerWithUser(context, 1);
-            var newSession = new Session { Name = "New Session", Date = DateTime.UtcNow };
+            var request = new SessionCreateRequestDto { Name = "New Session", Date = DateTime.UtcNow };
 
             // Act
-            var result = await controller.CreateSession(newSession);
+            var result = await controller.CreateSession(request, CancellationToken.None);
 
-            // Assert
+            // Assert: legacy (no clientOperationId) still returns 201, now with the canonical DTO
             var createdResult = Assert.IsType<CreatedAtActionResult>(result.Result);
-            var session = Assert.IsType<Session>(createdResult.Value);
-            Assert.Equal("New Session", session.Name);
-            Assert.Equal(1, session.UserId);
+            var dto = Assert.IsType<SessionResponseDto>(createdResult.Value);
+            Assert.Equal("New Session", dto.Name);
+            Assert.Equal(1, dto.UserId);
+            Assert.IsNotType<Session>(createdResult.Value);
+            Assert.Single(context.Sessions);
+            // Unkeyed create writes no operation record.
+            Assert.Empty(context.SessionCreateOperations);
         }
 
         [Fact]
-        public async Task CreateSession_AssignsCurrentUserId()
+        public async Task CreateSession_AssignsCurrentUserId_FromJwtOnly()
         {
-            // Arrange
+            // Arrange: SessionCreateRequestDto has no UserId field, so ownership can only
+            // come from the JWT.
             var context = GetInMemoryContext();
             await CreateTestUser(context);
             var controller = CreateControllerWithUser(context, 1);
-            var newSession = new Session
-            {
-                Name = "New Session",
-                Date = DateTime.UtcNow,
-                UserId = 999 // Try to set different user
-            };
+            var request = new SessionCreateRequestDto { Name = "New Session", Date = DateTime.UtcNow };
 
             // Act
-            var result = await controller.CreateSession(newSession);
+            var result = await controller.CreateSession(request, CancellationToken.None);
 
             // Assert
             var createdResult = Assert.IsType<CreatedAtActionResult>(result.Result);
-            var session = Assert.IsType<Session>(createdResult.Value);
-            Assert.Equal(1, session.UserId); // Should be current user, not 999
+            var dto = Assert.IsType<SessionResponseDto>(createdResult.Value);
+            Assert.Equal(1, dto.UserId);
+        }
+
+        [Fact]
+        public void SessionCreateRequestDto_DoesNotExposeServerControlledFields()
+        {
+            // No server Id, no UserId, no User navigation, no Version, no Exercises / child graph.
+            var properties = typeof(SessionCreateRequestDto).GetProperties().Select(p => p.Name).ToList();
+
+            Assert.DoesNotContain("Id", properties);
+            Assert.DoesNotContain("UserId", properties);
+            Assert.DoesNotContain("User", properties);
+            Assert.DoesNotContain("Version", properties);
+            Assert.DoesNotContain("Exercises", properties);
+        }
+
+        [Fact]
+        public void SessionCreateRequestDto_ToNewSession_NeverSetsIdUserIdVersionOrChildren()
+        {
+            var request = new SessionCreateRequestDto { Name = "X", Status = "draft", Date = DateTime.UtcNow };
+
+            var session = request.ToNewSession(userId: 7);
+
+            Assert.Equal(0, session.Id);
+            Assert.Equal(7, session.UserId);
+            Assert.Equal(1, session.Version);
+            Assert.Empty(session.Exercises);
+        }
+
+        [Fact]
+        public void SessionCreateRequestDto_IgnoresOverpostedIdUserIdVersionAndExercises_OnBind()
+        {
+            // System.Text.Json drops unknown members; the DTO has no place to put these,
+            // so a client that batches a session + child exercises in one POST body gets
+            // the session created and the children silently ignored (they must go through
+            // POST /sessions/{id}/exercises).
+            const string body = """
+            {
+              "name": "Leg Day", "status": "draft", "date": "2026-09-03",
+              "id": 999, "userId": 4242, "version": 77,
+              "user": { "id": 4242 },
+              "exercises": [ { "name": "Squat", "sets": [ { "reps": 5 } ] } ]
+            }
+            """;
+
+            var dto = System.Text.Json.JsonSerializer.Deserialize<SessionCreateRequestDto>(
+                body, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+            Assert.Equal("Leg Day", dto.Name);
+            var session = dto.ToNewSession(userId: 4);
+            Assert.Equal(0, session.Id);
+            Assert.Equal(4, session.UserId);
+            Assert.Equal(1, session.Version);
+            Assert.Empty(session.Exercises);
+        }
+
+        [Fact]
+        public void SessionResponseDto_PostBody_HasExactlyTheCanonicalScalarKeys_NoChildGraph()
+        {
+            // Locks the 201 body shape: POST now returns SessionResponseDto, not the raw
+            // Session entity, so it no longer carries "exercises"/"user"/"program"/
+            // "programWorkout"/"clientOperationId". Any future drift breaks this test.
+            var session = new Session
+            {
+                Id = 5,
+                UserId = 1,
+                Date = DateTime.UtcNow,
+                Name = "n",
+                Status = "draft",
+                Version = 1,
+                ClientOperationId = Guid.NewGuid(),
+                Exercises = { new Exercise { Name = "x" } },
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(
+                SessionResponseDto.FromEntity(session),
+                new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+                });
+
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var keys = doc.RootElement.EnumerateObject().Select(p => p.Name).OrderBy(k => k).ToArray();
+
+            Assert.Equal(
+                new[]
+                {
+                    "completedAt", "date", "duration", "id", "name", "notes", "pausedAt",
+                    "programId", "programWorkoutId", "startedAt", "status", "type", "userId", "version",
+                },
+                keys);
+        }
+
+        // ===== Keyed CREATE state machine (InMemory logic-level coverage) ======================
+        // These prove the branch logic. They are NOT concurrency evidence — that lives in the
+        // real-PostgreSQL SessionCreateIdempotencyPostgresTests.
+
+        [Fact]
+        public async Task CreateSession_KeyedReplay_Returns200_WithOriginalCanonicalSession_AndNoMutation()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+            var key = Guid.NewGuid();
+
+            var first = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "Original", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+            var created = Assert.IsType<CreatedAtActionResult>(first.Result);
+            var createdDto = Assert.IsType<SessionResponseDto>(created.Value);
+
+            // Conflicting replay body — must be ignored (first writer wins).
+            var replay = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "DIFFERENT", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(replay.Result);
+            var replayDto = Assert.IsType<SessionResponseDto>(ok.Value);
+            Assert.Equal(createdDto.Id, replayDto.Id);
+            Assert.Equal("Original", replayDto.Name);
+            Assert.Single(context.Sessions);
+            Assert.Equal("Original", (await context.Sessions.FindAsync(createdDto.Id))!.Name);
+        }
+
+        [Fact]
+        public async Task CreateSession_DifferentKeys_CreateDifferentSessions()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+
+            var a = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "A", Date = DateTime.UtcNow, ClientOperationId = Guid.NewGuid() },
+                CancellationToken.None);
+            var b = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "B", Date = DateTime.UtcNow, ClientOperationId = Guid.NewGuid() },
+                CancellationToken.None);
+
+            var aDto = Assert.IsType<SessionResponseDto>(Assert.IsType<CreatedAtActionResult>(a.Result).Value);
+            var bDto = Assert.IsType<SessionResponseDto>(Assert.IsType<CreatedAtActionResult>(b.Result).Value);
+            Assert.NotEqual(aDto.Id, bDto.Id);
+            Assert.Equal(2, context.Sessions.Count());
+        }
+
+        [Fact]
+        public async Task CreateSession_SameKeyDifferentUsers_CreateIndependentSessions_AndBCannotSeeA()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+            var key = Guid.NewGuid();
+
+            var aController = CreateControllerWithUser(context, 1);
+            var bController = CreateControllerWithUser(context, 2);
+
+            var a = await aController.CreateSession(
+                new SessionCreateRequestDto { Name = "A-owned", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+            var b = await bController.CreateSession(
+                new SessionCreateRequestDto { Name = "B-owned", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+
+            var aDto = Assert.IsType<SessionResponseDto>(Assert.IsType<CreatedAtActionResult>(a.Result).Value);
+            var bDto = Assert.IsType<SessionResponseDto>(Assert.IsType<CreatedAtActionResult>(b.Result).Value);
+
+            Assert.NotEqual(aDto.Id, bDto.Id);
+            Assert.Equal(1, aDto.UserId);
+            Assert.Equal(2, bDto.UserId);
+            Assert.Equal("A-owned", aDto.Name);
+            Assert.Equal("B-owned", bDto.Name);
+        }
+
+        [Fact]
+        public async Task CreateSession_CanceledOperation_Returns409_operation_canceled_AndCreatesNothing()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var key = Guid.NewGuid();
+            context.SessionCreateOperations.Add(new SessionCreateOperation
+            {
+                UserId = 1,
+                ClientOperationId = key,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-5),
+                CanceledAt = DateTime.UtcNow.AddMinutes(-1),
+            });
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "X", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+
+            var conflict = Assert.IsType<ConflictObjectResult>(result.Result);
+            Assert.Equal(SessionCreateErrorCodes.OperationCanceled,
+                conflict.Value!.GetType().GetProperty("code")!.GetValue(conflict.Value));
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CreateSession_CompletedOperationWhoseSessionWasDeleted_Returns410_AndNeverRecreates()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var key = Guid.NewGuid();
+            context.SessionCreateOperations.Add(new SessionCreateOperation
+            {
+                UserId = 1,
+                ClientOperationId = key,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-5),
+                CompletedAt = DateTime.UtcNow.AddMinutes(-4),
+                SessionId = null, // ON DELETE SET NULL fired when the Session was deleted
+            });
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "X", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+
+            var gone = Assert.IsType<ObjectResult>(result.Result);
+            Assert.Equal(StatusCodes.Status410Gone, gone.StatusCode);
+            Assert.Equal(SessionCreateErrorCodes.OperationTargetDeleted,
+                gone.Value!.GetType().GetProperty("code")!.GetValue(gone.Value));
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CreateSession_IndeterminateOperation_FailsClosed_409_AndCreatesNoSecondSession()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var key = Guid.NewGuid();
+            context.SessionCreateOperations.Add(new SessionCreateOperation
+            {
+                UserId = 1,
+                ClientOperationId = key,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-5),
+                CompletedAt = null,
+                CanceledAt = null,
+                SessionId = null,
+            });
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "X", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+
+            var conflict = Assert.IsType<ConflictObjectResult>(result.Result);
+            Assert.Equal(SessionCreateErrorCodes.OperationIncomplete,
+                conflict.Value!.GetType().GetProperty("code")!.GetValue(conflict.Value));
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CreateSession_KeyedFirstCreate_WritesExactlyOneSessionAndOneOperationRow()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+            var key = Guid.NewGuid();
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "Once", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+
+            var dto = Assert.IsType<SessionResponseDto>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+            Assert.Single(context.Sessions);
+            var op = Assert.Single(context.SessionCreateOperations);
+            Assert.Equal(1, op.UserId);
+            Assert.Equal(key, op.ClientOperationId);
+            Assert.Equal(dto.Id, op.SessionId);
+            Assert.NotNull(op.CompletedAt);
+            Assert.Null(op.CanceledAt);
         }
 
         // ===== UpdateSession (PUT) - SessionUpdateRequestDto / SessionResponseDto contract =====
@@ -748,6 +1025,288 @@ namespace GoHardAPI.Tests.Controllers
             Assert.Single(sessions);
             Assert.Single(sessions[0].Exercises);
             Assert.Equal("Bench Press", sessions[0].Exercises.First().Name);
+        }
+
+        // ===== Program / ProgramWorkout ownership on CREATE ==================================
+        // A supplied programId / programWorkoutId must resolve to a resource owned by the
+        // JWT user. Missing and foreign both return the SAME non-disclosing 404
+        // { code: "program_not_found" }. No FK exception may escape as a 500. A keyed replay
+        // never revalidates. Each removed ownership/relationship predicate must break a test.
+
+        private async Task<GoHardAPI.Models.Program> SeedProgramAsync(TrainingContext ctx, int id, int ownerUserId)
+        {
+            var program = new GoHardAPI.Models.Program { Id = id, UserId = ownerUserId, Title = "P" };
+            ctx.Programs.Add(program);
+            await ctx.SaveChangesAsync();
+            return program;
+        }
+
+        private async Task<ProgramWorkout> SeedProgramWorkoutAsync(TrainingContext ctx, int id, int programId)
+        {
+            var workout = new ProgramWorkout { Id = id, ProgramId = programId, WeekNumber = 1, DayNumber = 1, WorkoutName = "W" };
+            ctx.ProgramWorkouts.Add(workout);
+            await ctx.SaveChangesAsync();
+            return workout;
+        }
+
+        private static string? CodeOf(object? body) =>
+            body?.GetType().GetProperty("code")?.GetValue(body) as string;
+
+        [Theory]
+        [InlineData(null)]                                   // legacy / unkeyed
+        [InlineData("11111111-1111-1111-1111-111111111111")] // keyed
+        public async Task CreateSession_WithOwnedProgramId_Succeeds(string? key)
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await SeedProgramAsync(context, id: 10, ownerUserId: 1);
+            var controller = CreateControllerWithUser(context, 1);
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto
+                {
+                    Name = "S",
+                    Date = DateTime.UtcNow,
+                    ProgramId = 10,
+                    ClientOperationId = key is null ? null : Guid.Parse(key),
+                },
+                CancellationToken.None);
+
+            var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+            var dto = Assert.IsType<SessionResponseDto>(created.Value);
+            Assert.Equal(10, dto.ProgramId);
+            Assert.Equal(10, (await context.Sessions.SingleAsync()).ProgramId);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("22222222-2222-2222-2222-222222222222")]
+        public async Task CreateSession_WithMissingProgramId_Returns404_program_not_found_AndCreatesNothing(string? key)
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            var controller = CreateControllerWithUser(context, 1);
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto
+                {
+                    Name = "S",
+                    Date = DateTime.UtcNow,
+                    ProgramId = 999,
+                    ClientOperationId = key is null ? null : Guid.Parse(key),
+                },
+                CancellationToken.None);
+
+            var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
+            Assert.Equal(SessionCreateErrorCodes.ProgramNotFound, CodeOf(notFound.Value));
+            Assert.Empty(context.Sessions);
+            Assert.Empty(context.SessionCreateOperations);
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("33333333-3333-3333-3333-333333333333")]
+        public async Task CreateSession_WithForeignProgramId_Returns404_AndForeignProgramUntouched(string? key)
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+            await SeedProgramAsync(context, id: 10, ownerUserId: 2); // belongs to user 2
+            var controller = CreateControllerWithUser(context, 1);   // acting as user 1
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto
+                {
+                    Name = "S",
+                    Date = DateTime.UtcNow,
+                    ProgramId = 10,
+                    ClientOperationId = key is null ? null : Guid.Parse(key),
+                },
+                CancellationToken.None);
+
+            var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
+            Assert.Equal(SessionCreateErrorCodes.ProgramNotFound, CodeOf(notFound.Value));
+            Assert.Empty(context.Sessions);
+            Assert.Empty(context.SessionCreateOperations);
+            Assert.Equal(2, (await context.Programs.SingleAsync()).UserId); // untouched
+        }
+
+        [Fact]
+        public async Task CreateSession_WithForeignProgramWorkoutId_Returns404()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+            await SeedProgramAsync(context, id: 10, ownerUserId: 2);
+            await SeedProgramWorkoutAsync(context, id: 100, programId: 10);
+            var controller = CreateControllerWithUser(context, 1);
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "S", Date = DateTime.UtcNow, ProgramWorkoutId = 100 },
+                CancellationToken.None);
+
+            var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
+            Assert.Equal(SessionCreateErrorCodes.ProgramNotFound, CodeOf(notFound.Value));
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CreateSession_WithOwnedProgramWorkoutId_Succeeds()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await SeedProgramAsync(context, id: 10, ownerUserId: 1);
+            await SeedProgramWorkoutAsync(context, id: 100, programId: 10);
+            var controller = CreateControllerWithUser(context, 1);
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "S", Date = DateTime.UtcNow, ProgramWorkoutId = 100 },
+                CancellationToken.None);
+
+            Assert.IsType<CreatedAtActionResult>(result.Result);
+            Assert.Equal(100, (await context.Sessions.SingleAsync()).ProgramWorkoutId);
+        }
+
+        [Fact]
+        public async Task CreateSession_WithMissingProgramWorkoutId_Returns404_AndCreatesNothing()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            var controller = CreateControllerWithUser(context, 1);
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "S", Date = DateTime.UtcNow, ProgramWorkoutId = 424242 },
+                CancellationToken.None);
+
+            var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
+            Assert.Equal(SessionCreateErrorCodes.ProgramNotFound, CodeOf(notFound.Value));
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CreateSession_ProgramIdAndMismatchedProgramWorkoutId_Returns404()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await SeedProgramAsync(context, id: 10, ownerUserId: 1);
+            await SeedProgramAsync(context, id: 11, ownerUserId: 1);
+            await SeedProgramWorkoutAsync(context, id: 100, programId: 11); // workout is in program 11
+            var controller = CreateControllerWithUser(context, 1);
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto
+                {
+                    Name = "S",
+                    Date = DateTime.UtcNow,
+                    ProgramId = 10,
+                    ProgramWorkoutId = 100, // ...but caller claims program 10
+                },
+                CancellationToken.None);
+
+            var notFound = Assert.IsType<NotFoundObjectResult>(result.Result);
+            Assert.Equal(SessionCreateErrorCodes.ProgramNotFound, CodeOf(notFound.Value));
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CreateSession_ProgramIdAndMatchingProgramWorkoutId_Succeeds()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await SeedProgramAsync(context, id: 10, ownerUserId: 1);
+            await SeedProgramWorkoutAsync(context, id: 100, programId: 10);
+            var controller = CreateControllerWithUser(context, 1);
+
+            var result = await controller.CreateSession(
+                new SessionCreateRequestDto
+                {
+                    Name = "S",
+                    Date = DateTime.UtcNow,
+                    ProgramId = 10,
+                    ProgramWorkoutId = 100,
+                },
+                CancellationToken.None);
+
+            Assert.IsType<CreatedAtActionResult>(result.Result);
+        }
+
+        [Fact]
+        public async Task CreateSession_ProgramEnumeration_MissingAndForeignAreIndistinguishable()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+            await SeedProgramAsync(context, id: 10, ownerUserId: 2); // exists, foreign
+            // ids 11..15 do not exist at all
+            var controller = CreateControllerWithUser(context, 1);
+
+            var responses = new List<(int statusCode, string? code)>();
+            foreach (var probe in new[] { 10, 11, 12, 13, 14, 15 })
+            {
+                var r = await controller.CreateSession(
+                    new SessionCreateRequestDto { Name = "S", Date = DateTime.UtcNow, ProgramId = probe },
+                    CancellationToken.None);
+                var nf = Assert.IsType<NotFoundObjectResult>(r.Result);
+                responses.Add((nf.StatusCode ?? 0, CodeOf(nf.Value)));
+            }
+
+            // Every probe - the foreign-but-existing id 10 and the non-existent 11..15 -
+            // returns the identical 404 / program_not_found. No existence oracle.
+            Assert.All(responses, x =>
+            {
+                Assert.Equal(StatusCodes.Status404NotFound, x.statusCode);
+                Assert.Equal(SessionCreateErrorCodes.ProgramNotFound, x.code);
+            });
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CreateSession_KeyedReplay_DoesNotRevalidateProgram_EvenAfterItBecomesForeign()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+            var program = await SeedProgramAsync(context, id: 10, ownerUserId: 1);
+            var controller = CreateControllerWithUser(context, 1);
+            var key = Guid.NewGuid();
+
+            var first = await controller.CreateSession(
+                new SessionCreateRequestDto
+                {
+                    Name = "Original",
+                    Date = DateTime.UtcNow,
+                    ProgramId = 10,
+                    ClientOperationId = key,
+                },
+                CancellationToken.None);
+            var createdDto = Assert.IsType<SessionResponseDto>(
+                Assert.IsType<CreatedAtActionResult>(first.Result).Value);
+
+            // After the canonical first write, program 10 is reassigned to another user.
+            // The session row is untouched; only the program's ownership changed.
+            program.UserId = 2;
+            context.Programs.Update(program);
+            await context.SaveChangesAsync();
+
+            // Replay with the same key must NOT re-check program ownership (which would now
+            // fail), must NOT return 404, and must return the original canonical session
+            // unchanged - first writer wins.
+            var replay = await controller.CreateSession(
+                new SessionCreateRequestDto
+                {
+                    Name = "DIFFERENT",
+                    Date = DateTime.UtcNow,
+                    ProgramId = 10,
+                    ClientOperationId = key,
+                },
+                CancellationToken.None);
+
+            var ok = Assert.IsType<OkObjectResult>(replay.Result);
+            var replayDto = Assert.IsType<SessionResponseDto>(ok.Value);
+            Assert.Equal(createdDto.Id, replayDto.Id);
+            Assert.Equal("Original", replayDto.Name);
+            Assert.Equal(10, replayDto.ProgramId);
+            Assert.Single(context.Sessions);
         }
     }
 }
