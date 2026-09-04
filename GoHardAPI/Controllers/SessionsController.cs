@@ -2,9 +2,11 @@ using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
+using GoHardAPI.RateLimiting;
 using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Text.Json;
@@ -97,8 +99,15 @@ namespace GoHardAPI.Controllers
         /// NOTE: <c>operation_canceled</c> (409) is defined but DORMANT in this PR — nothing
         /// writes <c>SessionCreateOperation.CanceledAt</c> until the P2 DELETE-by-operation-key
         /// endpoint lands.
+        ///
+        /// Rate limited per authenticated user by the <c>session-write</c> token-bucket
+        /// policy (see <see cref="RateLimiting.SessionWriteRateLimiterPolicy"/>). An
+        /// over-limit request is rejected with <c>429 { "code": "rate_limited" }</c> +
+        /// <c>Retry-After</c> before this action runs — no Session or operation row is
+        /// written. No other Session endpoint carries this policy.
         /// </summary>
         [HttpPost]
+        [EnableRateLimiting(SessionWriteRateLimiterPolicy.PolicyName)]
         public async Task<ActionResult<SessionResponseDto>> CreateSession(
             [FromBody] SessionCreateRequestDto request, CancellationToken cancellationToken)
         {
