@@ -9,6 +9,7 @@ namespace GoHardAPI.Data
 
         public DbSet<User> Users { get; set; }
         public DbSet<Session> Sessions { get; set; }
+        public DbSet<SessionCreateOperation> SessionCreateOperations { get; set; }
         public DbSet<Exercise> Exercises { get; set; }
         public DbSet<ExerciseTemplate> ExerciseTemplates { get; set; }
         public DbSet<ExerciseSet> ExerciseSets { get; set; }
@@ -82,6 +83,61 @@ namespace GoHardAPI.Data
                 .WithMany(u => u.Sessions)
                 .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Keyed Session CREATE: owner-scoped uniqueness for the optional client
+            // idempotency key. The index is unique only for NON-NULL keys, so any number
+            // of legacy NULL rows coexist and no backfill is needed. The filter predicate
+            // is written per-provider (bracket-quoted for SQL Server, double-quoted for
+            // PostgreSQL / SQLite) — never the scaffolded SQL Server form against Npgsql.
+            // The production DDL comes from the AddSessionCreateOperationAndClientOperationId
+            // migration's provider switch; this configuration keeps the model snapshot and
+            // any EnsureCreated() path in sync with it.
+            // Keep a dedicated non-unique index on UserId: the composite key index below
+            // is filtered to non-NULL keys, so it does NOT serve the very common
+            // "all sessions for this user" query (every legacy / unkeyed row has a NULL key).
+            modelBuilder.Entity<Session>()
+                .HasIndex(s => s.UserId);
+
+            var sessionOperationKeyIndex = modelBuilder.Entity<Session>()
+                .HasIndex(s => new { s.UserId, s.ClientOperationId })
+                .IsUnique();
+            if (Database.IsSqlServer())
+            {
+                sessionOperationKeyIndex.HasFilter("[ClientOperationId] IS NOT NULL");
+            }
+            else
+            {
+                sessionOperationKeyIndex.HasFilter("\"ClientOperationId\" IS NOT NULL");
+            }
+
+            // Durable source of truth for a keyed Session CREATE operation.
+            modelBuilder.Entity<SessionCreateOperation>(operation =>
+            {
+                operation.HasIndex(o => new { o.UserId, o.ClientOperationId })
+                    .IsUnique();
+                operation.HasIndex(o => o.SessionId);
+
+                // User -> operation-record delete behavior MUST match the provider-branched
+                // DDL in SessionCreateOperationSql:
+                //   PostgreSQL / SQLite : ON DELETE CASCADE (both allow the resulting
+                //                         multiple delete paths into a table);
+                //   SQL Server (dev)    : ON DELETE NO ACTION - SQL Server rejects multiple
+                //                         cascade paths into one table (Users already
+                //                         cascades to Sessions, which the op row also
+                //                         references). Model and deployed schema are kept
+                //                         deliberately equal, not contradictory.
+                operation.HasOne(o => o.User)
+                    .WithMany()
+                    .HasForeignKey(o => o.UserId)
+                    .OnDelete(Database.IsSqlServer() ? DeleteBehavior.NoAction : DeleteBehavior.Cascade);
+
+                // ON DELETE SET NULL: a cascade delete of the Session, or the draft
+                // reaper, blanks SessionId but must never erase the operation record.
+                operation.HasOne(o => o.Session)
+                    .WithMany()
+                    .HasForeignKey(o => o.SessionId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
 
             // Configure Session-Exercise relationship
             modelBuilder.Entity<Exercise>()

@@ -53,6 +53,9 @@ else
 // Register AuthService
 builder.Services.AddScoped<AuthService>();
 
+// Keyed Session CREATE state machine (idempotency, advisory locking, provider-aware)
+builder.Services.AddScoped<SessionCreateService>();
+
 // Register NutritionCalculatorService
 builder.Services.AddScoped<NutritionCalculatorService>();
 
@@ -337,10 +340,11 @@ using (var scope = app.Services.CreateScope())
             Console.WriteLine("No migration history found, but migrations exist.");
             Console.WriteLine("Manually marking old migrations as applied...");
 
-            // Get all migrations except any Programs-related ones
-            var allMigrations = pendingMigrations.Where(m =>
-                !m.Contains("AddProgram") &&
-                !m.StartsWith("202601092")).ToList();
+            // Migrations whose schema already exists (EnsureCreated) and can be stamped
+            // without running. EXCLUDES migrations carrying provider-aware DDL a fresh
+            // database still needs (Programs, the 202601092* chain, and the keyed-Session-
+            // CREATE migration) - those must be applied by Migrate(), never stamped blind.
+            var allMigrations = MigrationBootstrap.MigrationsToPreStamp(pendingMigrations);
 
             // Manually insert into __EFMigrationsHistory
             foreach (var migration in allMigrations)
