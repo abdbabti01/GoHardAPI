@@ -89,7 +89,9 @@ namespace GoHardAPI.Services
             _logger = logger;
         }
 
-        public async Task<SessionCreateOutcome> CreateAsync(
+        // virtual: lets the test project substitute a counting spy to prove a
+        // rate-limited request never reaches this method. No behavioral effect.
+        public virtual async Task<SessionCreateOutcome> CreateAsync(
             int userId, SessionCreateRequestDto request, CancellationToken cancellationToken)
         {
             // ---- Legacy / unkeyed: creation behavior + program-ownership validation ----------
