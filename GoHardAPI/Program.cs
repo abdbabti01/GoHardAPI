@@ -161,9 +161,10 @@ builder.Services.AddCors(options =>
         });
 });
 
-// Add Rate Limiting - preserves the "auth" limiter and the per-IP global limiter,
-// adds the per-authenticated-user token bucket for POST /api/v1/sessions.
-// See GoHardAPI/RateLimiting/RateLimiterRegistration.cs.
+// Rate limiting: the app-wide aggregate GlobalLimiter (separate authed/anonymous
+// ceilings), the per-authenticated-user token bucket for POST /api/v1/sessions, and
+// the per-credential-identity auth-attempt limiter applied by an MVC action filter on
+// login/signup. See GoHardAPI/RateLimiting/RateLimiterRegistration.cs.
 builder.Services.AddGoHardRateLimiting(builder.Configuration);
 
 // Configure API Versioning
@@ -812,7 +813,14 @@ static void RunStartupDatabaseBootstrap(WebApplication app)
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// Disabled for development - app uses HTTP
+// HTTPS redirection stays disabled. In production the app runs behind Railway's
+// edge proxy, which terminates TLS and forwards plain HTTP to this origin; enabling
+// redirection here would bounce every request (the origin only ever sees "http")
+// and risk a redirect loop. TLS is enforced at the edge, not here. No
+// ForwardedHeadersMiddleware is added either: forwarding headers (X-Forwarded-For,
+// X-Real-IP) are never trusted because Railway publishes neither stable inbound
+// proxy CIDRs nor an authoritative guarantee that inbound copies are sanitized, so
+// the rate limiter keys on the real socket peer address only.
 // app.UseHttpsRedirection();
 
 // Use CORS - mobile apps use AllowMobileApps, web uses AllowConfigured.
@@ -820,28 +828,28 @@ app.UseSwaggerUI();
 app.UseCors("AllowMobileApps");
 
 app.UseAuthentication();
-app.UseAuthorization();
 
-// Rate limiting runs AFTER authentication + authorization so the per-user
-// "session-write" policy can partition on the validated JWT user id, and an
-// anonymous / invalid caller is rejected with 401 before reaching it. Routing
-// has already selected the endpoint by this point, so [EnableRateLimiting] on
-// the action is honored. The per-IP GlobalLimiter runs here too (its partition
-// key is the connection IP, independent of pipeline position).
-//
-// Trade-off: requests that UseAuthorization short-circuits with 401/403 on an
-// [Authorize] endpoint (junk / expired bearer spray) no longer reach any
-// limiter. The 401 path is DB-free and fail-fast; a dedicated pre-auth
-// volumetric limiter is a deferred follow-up.
+// Rate limiting runs AFTER authentication (so HttpContext.User is populated and the
+// GlobalLimiter can partition an authenticated request by its validated JWT user id)
+// but BEFORE authorization. Authorization can terminate an unauthorized request
+// without calling the next middleware, so if the limiter ran after it, missing- and
+// invalid-token traffic to [Authorize] endpoints would bypass every limiter. Running
+// it here keeps that traffic constrained by the IP / bounded-fallback global
+// partition. Routing has already selected the endpoint, so [EnableRateLimiting]
+// metadata is honored. Authorization still returns the normal 401/403 on every
+// request the global quota admits.
 app.UseRateLimiter();
 
-// After UseRateLimiter so static asset requests stay under the per-IP
-// GlobalLimiter (unchanged from before this PR).
+app.UseAuthorization();
+
+// After UseRateLimiter so static asset requests stay under the per-client
+// GlobalLimiter (unchanged from before this change).
 app.UseStaticFiles();
 
 app.MapControllers();
 
-// Map health check endpoint for monitoring/load balancers
+// Map health check endpoint for monitoring/load balancers. Left under the per-client
+// GlobalLimiter (unchanged from before this change).
 app.MapHealthChecks("/health");
 
 app.Run();

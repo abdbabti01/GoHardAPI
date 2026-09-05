@@ -258,6 +258,19 @@ namespace GoHardAPI.Tests.RateLimiting
             Assert.Equal(3, await AdmittedOutOf(policy, ctx, 10));
         }
 
+        [Fact] // 7e: a request with no valid user identity gets a no-op limiter, never a shared "anon" bucket
+        public async Task NoValidUser_GetsANoOpLimiter_NotASharedAnonBucket()
+        {
+            var policy = PolicyWith(o => o.TokenLimit = 1);
+
+            // no principal at all
+            Assert.Equal(50, await AdmittedOutOf(policy, new DefaultHttpContext(), 50));
+            // present principal, no usable id
+            Assert.Equal(50, await AdmittedOutOf(policy, ContextWithUser(), 50));
+            Assert.Equal(50, await AdmittedOutOf(policy,
+                ContextWithUser(new Claim(ClaimTypes.NameIdentifier, "not-a-number")), 50));
+        }
+
         [Fact] // 7c: enabled -> two users have independent buckets
         public async Task Enabled_PartitionsPerUser()
         {
@@ -334,8 +347,9 @@ namespace GoHardAPI.Tests.RateLimiting
             Assert.NotNull(options.GlobalLimiter);
         }
 
-        [Fact] // 11: the dead "api" policy is not registered, and nothing references it
-        public void DeadApiLimiter_IsGone_AndUnreferenced()
+        [Fact] // 11: session-write is the only registered rate-limiter policy; "api" and the
+               // old socket-IP "auth" policy are gone, and no [EnableRateLimiting] references them
+        public void SessionWriteIsTheOnlyPolicy_ApiAndAuthPoliciesAreGone()
         {
             var provider = new ServiceCollection()
                 .AddGoHardRateLimiting(new ConfigurationBuilder().Build())
@@ -344,13 +358,13 @@ namespace GoHardAPI.Tests.RateLimiting
 
             var registeredPolicies = PolicyNames(options);
             // Guard against the reflection silently returning nothing on a future BCL
-            // restructure, which would make DoesNotContain("api") pass vacuously.
+            // restructure, which would make the DoesNotContain asserts pass vacuously.
             Assert.NotEmpty(registeredPolicies);
-            Assert.Contains("auth", registeredPolicies);
             Assert.Contains(SessionWriteRateLimiterPolicy.PolicyName, registeredPolicies);
             Assert.DoesNotContain("api", registeredPolicies);
+            Assert.DoesNotContain("auth", registeredPolicies);
 
-            // No endpoint anywhere references "api" (or any policy other than the two we own).
+            // No endpoint references any rate-limiter policy other than session-write.
             var referenced = typeof(SessionsController).Assembly.GetTypes()
                 .SelectMany(t => t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
                     .Cast<MemberInfo>()
@@ -362,7 +376,8 @@ namespace GoHardAPI.Tests.RateLimiting
                 .ToList();
 
             Assert.DoesNotContain("api", referenced);
-            Assert.All(referenced, n => Assert.Contains(n, new[] { "auth", SessionWriteRateLimiterPolicy.PolicyName }));
+            Assert.DoesNotContain("auth", referenced);
+            Assert.All(referenced, n => Assert.Equal(SessionWriteRateLimiterPolicy.PolicyName, n));
         }
 
         // ---- reflection over RateLimiterOptions's internal policy maps --------------

@@ -1,17 +1,16 @@
 using Asp.Versioning;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
+using GoHardAPI.RateLimiting;
 using GoHardAPI.Repositories;
 using GoHardAPI.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace GoHardAPI.Controllers
 {
     [ApiVersion("1.0")]
     [Route("api/v{version:apiVersion}/[controller]")]
     [ApiController]
-    [EnableRateLimiting("auth")]  // SECURITY: Rate limit auth endpoints to prevent brute force
     public class AuthController : ControllerBase
     {
         private readonly IUserRepository _userRepository;
@@ -24,6 +23,7 @@ namespace GoHardAPI.Controllers
         }
 
         [HttpPost("signup")]
+        [AuthAttemptRateLimit(AuthAttemptIdentity.SignupScope)]
         public async Task<ActionResult<AuthResponse>> Signup(SignupRequest request)
         {
             // Check if email already exists
@@ -62,6 +62,7 @@ namespace GoHardAPI.Controllers
         }
 
         [HttpPost("login")]
+        [AuthAttemptRateLimit(AuthAttemptIdentity.LoginScope)]
         public async Task<ActionResult<AuthResponse>> Login(LoginRequest request)
         {
             // Find user by email
