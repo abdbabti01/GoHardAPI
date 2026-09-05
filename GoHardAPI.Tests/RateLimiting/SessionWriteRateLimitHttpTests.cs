@@ -268,16 +268,17 @@ namespace GoHardAPI.Tests.RateLimiting
             Assert.Equal(1, factory.OperationCount(1)); // no duplicate
         }
 
-        // ---- 24 + 10 (HTTP form): existing limiters unchanged -------------------
+        // ---- 24 + 10 (HTTP form): the auth-attempt limiter + global limiter -----
 
         [Fact] // 24 + 10
-        public async Task ExistingAuthLimiter_Still429sWithABareBody_AndGlobalTrafficIsUnaffected()
+        public async Task AuthAttemptLimiter_429sWithABareBody_AndGlobalTrafficIsUnaffected()
         {
             using var factory = Factory(tokenLimit: 3);
 
-            // The "auth" fixed-window limiter is 5/min + queue 2. Fire enough
-            // concurrently that some are rejected immediately (can't even queue),
-            // and stop at the first 429 so queued requests are never awaited.
+            // The per-identity auth-attempt limiter defaults to 5/min + queue 2. All 25
+            // requests carry the SAME email, so they hit one partition: fire enough
+            // concurrently that some are rejected immediately (can't even queue), and
+            // stop at the first 429 so queued requests are never awaited.
             var pending = Enumerable.Range(0, 25).Select(_ =>
             {
                 var c = factory.CreateAnonymousClient();

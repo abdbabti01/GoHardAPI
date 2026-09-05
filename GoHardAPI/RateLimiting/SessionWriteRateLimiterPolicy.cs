@@ -13,13 +13,14 @@ namespace GoHardAPI.RateLimiting
     /// <para><b>Partition key</b> comes exclusively from the server-validated JWT
     /// <c>sub</c> claim (<see cref="ClaimTypes.NameIdentifier"/>) — never from a
     /// request body, query string, header, or any client-supplied id. A numeric
-    /// id becomes <c>"u:&lt;id&gt;"</c>; anything else (no principal, missing or
-    /// non-numeric claim) becomes the constant <c>"anon"</c>. Partition creation
-    /// never throws. Because <c>UseRateLimiter</c> runs after
-    /// <c>UseAuthorization</c> and the endpoint is <c>[Authorize]</c>, a real
-    /// unauthenticated caller is already rejected with 401 before reaching this
-    /// policy; the <c>"anon"</c> bucket is purely defensive and never lets an
-    /// unauthenticated request into the controller.</para>
+    /// id becomes <c>"u:&lt;id&gt;"</c>. A request with <b>no</b> valid user identity
+    /// (no principal, missing or non-numeric claim) gets a <b>no-op limiter</b>: it
+    /// opens and consumes nothing here. <c>UseRateLimiter</c> runs before
+    /// <c>UseAuthorization</c>, so such a request is constrained by the app-wide
+    /// <c>GlobalLimiter</c> (socket-peer partition) and then rejected <c>401</c> by
+    /// authorization — it must not be able to drain a shared "anon" token bucket and
+    /// deny generic Session CREATE to every unauthenticated caller. Partition creation
+    /// never throws.</para>
     ///
     /// <para><b>Rejection</b> is handled here (policy-scoped, not a global
     /// <c>OnRejected</c>) so the existing <c>"auth"</c> limiter and the per-IP
@@ -51,9 +52,12 @@ namespace GoHardAPI.RateLimiting
         {
             var key = ResolvePartitionKey(httpContext);
 
-            if (!_options.Enabled)
+            if (!_options.Enabled || key == AnonymousPartitionKey)
             {
-                // Registered but inert: never limits, never affects other limiters.
+                // Disabled -> registered but inert. No valid user identity -> a no-op
+                // limiter so an unauthenticated caller (this policy now runs before
+                // UseAuthorization) cannot open or drain a shared bucket; the
+                // GlobalLimiter constrains it and authorization returns 401.
                 return RateLimitPartition.GetNoLimiter(key);
             }
 
