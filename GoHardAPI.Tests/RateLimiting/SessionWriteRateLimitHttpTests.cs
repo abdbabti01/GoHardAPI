@@ -157,10 +157,13 @@ namespace GoHardAPI.Tests.RateLimiting
             Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
         }
 
-        // ---- 17/18: only generic POST /sessions is limited -----------------------
+        // ---- 17/18: the create-operation write path is limited; the other Session
+        // writes (PUT / PATCH / DELETE-by-id / add-exercise / from-program-workout) are
+        // not. The cancel counterpart DELETE /sessions/by-operation/{key} DOES carry the
+        // policy and is covered by SessionCreateCancellationHttpTests. --------------
 
         [Fact] // 17 + 18
-        public async Task OnlyGenericCreate_CarriesThePolicy_OtherSessionWritesNeverGet429()
+        public async Task OtherSessionWrites_DoNotCarryThePolicy_AndNeverGet429()
         {
             using var factory = Factory(tokenLimit: 1);
             var client = factory.CreateClientForUser(1);

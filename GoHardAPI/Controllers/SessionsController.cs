@@ -96,15 +96,18 @@ namespace GoHardAPI.Controllers
         /// The owner always comes from the JWT; the request body cannot set an id, user,
         /// version or child exercises.
         ///
-        /// NOTE: <c>operation_canceled</c> (409) is defined but DORMANT in this PR — nothing
-        /// writes <c>SessionCreateOperation.CanceledAt</c> until the P2 DELETE-by-operation-key
-        /// endpoint lands.
+        /// A keyed operation that was canceled through
+        /// <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c> returns
+        /// <c>409 { code: "operation_canceled" }</c> and creates nothing — cancellation wins
+        /// in every accepted create/cancel ordering.
         ///
         /// Rate limited per authenticated user by the <c>session-write</c> token-bucket
         /// policy (see <see cref="RateLimiting.SessionWriteRateLimiterPolicy"/>). An
         /// over-limit request is rejected with <c>429 { "code": "rate_limited" }</c> +
         /// <c>Retry-After</c> before this action runs — no Session or operation row is
-        /// written. No other Session endpoint carries this policy.
+        /// written. The only other endpoint on this policy is its cancel counterpart,
+        /// <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c> (the two share
+        /// one per-user bucket because both write to <c>SessionCreateOperations</c>).
         /// </summary>
         [HttpPost]
         [EnableRateLimiting(SessionWriteRateLimiterPolicy.PolicyName)]
@@ -143,6 +146,56 @@ namespace GoHardAPI.Controllers
                 default:
                     return StatusCode(StatusCodes.Status500InternalServerError);
             }
+        }
+
+        /// <summary>
+        /// Cancels a keyed Session CREATE by its <c>clientOperationId</c>.
+        ///
+        /// This is the server side of delete-during-create convergence: a Flutter Session
+        /// can be deleted locally while its keyed CREATE (POST /api/v1/sessions with a
+        /// <c>clientOperationId</c>) is still in flight, after which the client has no
+        /// <c>serverId</c> with which to delete the remote Session. Cancelling by the
+        /// operation key removes that orphan and blocks the key.
+        ///
+        /// Idempotent. Once accepted:
+        /// <list type="bullet">
+        ///   <item>no Session created by that operation remains — an already-committed
+        ///     Session and its owned children are deleted through the established cascade;</item>
+        ///   <item>a concurrent or later CREATE with the same key creates nothing and
+        ///     returns <c>409 { code: "operation_canceled" }</c>;</item>
+        ///   <item>repeated cancellation succeeds — always <c>204</c>.</item>
+        /// </list>
+        ///
+        /// The authenticated user comes only from the JWT; lookup and mutation are scoped to
+        /// that user. A key owned by another user, or one never used, returns the same
+        /// <c>204</c> — there is no cross-user existence oracle, and no client-supplied
+        /// userId is ever accepted. The empty GUID is rejected with
+        /// <c>400 { code: "invalid_operation_key" }</c> (a non-parseable value is a
+        /// model-binding <c>400</c> before this action runs).
+        ///
+        /// Ordinary <c>DELETE /api/v1/sessions/{id}</c> is unaffected.
+        ///
+        /// Rate limited per authenticated user by the same <c>session-write</c> token-bucket
+        /// policy as keyed <c>POST /api/v1/sessions</c> — the two share one per-user bucket
+        /// because both write to <c>SessionCreateOperations</c>. An over-limit request is
+        /// rejected with <c>429 { "code": "rate_limited" }</c> + <c>Retry-After</c> before
+        /// this action runs; cancellation is idempotent, so a client that honors
+        /// <c>Retry-After</c> converges.
+        /// </summary>
+        [HttpDelete("by-operation/{clientOperationId}")]
+        [EnableRateLimiting(SessionWriteRateLimiterPolicy.PolicyName)]
+        public async Task<IActionResult> CancelSessionCreateByOperation(
+            Guid clientOperationId, CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+
+            if (clientOperationId == Guid.Empty)
+            {
+                return BadRequest(new { code = SessionCancelErrorCodes.InvalidOperationKey });
+            }
+
+            await _sessionCreateService.CancelCreateAsync(userId, clientOperationId, cancellationToken);
+            return NoContent();
         }
 
         /// <summary>

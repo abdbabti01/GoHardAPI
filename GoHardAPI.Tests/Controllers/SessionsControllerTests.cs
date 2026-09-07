@@ -1308,5 +1308,238 @@ namespace GoHardAPI.Tests.Controllers
             Assert.Equal(10, replayDto.ProgramId);
             Assert.Single(context.Sessions);
         }
+
+        // ===== DELETE /api/v1/sessions/by-operation/{clientOperationId} =====================
+        // Delete-during-session-create convergence. Logic-level (InMemory) coverage of the
+        // controller + SessionCreateService.CancelCreateAsync state transitions. Real
+        // concurrency / advisory-lock ordering evidence lives in
+        // SessionCreateCancellationPostgresTests.
+
+        private static async Task<Guid> CreateKeyedSessionAsync(SessionsController controller, string name)
+        {
+            var key = Guid.NewGuid();
+            var created = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = name, Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+            Assert.IsType<CreatedAtActionResult>(created.Result);
+            return key;
+        }
+
+        [Fact]
+        public async Task CancelSessionCreate_BeforeCreate_Returns204_WritesTombstone_ThenKeyedCreateReturns409()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+            var key = Guid.NewGuid();
+
+            // A: cancellation arrives before the CREATE ever does.
+            var cancel = await controller.CancelSessionCreateByOperation(key, CancellationToken.None);
+            Assert.IsType<NoContentResult>(cancel);
+
+            var op = Assert.Single(context.SessionCreateOperations);
+            Assert.Equal(1, op.UserId);
+            Assert.Equal(key, op.ClientOperationId);
+            Assert.NotNull(op.CanceledAt);
+            Assert.Null(op.SessionId);
+            Assert.Empty(context.Sessions);
+
+            // E: the delayed CREATE with the same key must not recreate anything.
+            var create = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "late", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+            var conflict = Assert.IsType<ConflictObjectResult>(create.Result);
+            Assert.Equal(SessionCreateErrorCodes.OperationCanceled,
+                conflict.Value!.GetType().GetProperty("code")!.GetValue(conflict.Value));
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CancelSessionCreate_AfterCreate_Returns204_DeletesSession_KeepsTombstone_ThenKeyedCreateReturns409()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+            var key = await CreateKeyedSessionAsync(controller, "doomed");
+            Assert.Single(context.Sessions);
+
+            // C: cancellation after the CREATE committed.
+            var cancel = await controller.CancelSessionCreateByOperation(key, CancellationToken.None);
+            Assert.IsType<NoContentResult>(cancel);
+            Assert.Empty(context.Sessions);
+
+            var op = Assert.Single(context.SessionCreateOperations);
+            Assert.NotNull(op.CanceledAt);
+            Assert.Null(op.SessionId); // ON DELETE SET NULL semantics: pointer blanked, row kept
+
+            // E: retrying the CREATE must not resurrect the Session.
+            var create = await controller.CreateSession(
+                new SessionCreateRequestDto { Name = "resurrect?", Date = DateTime.UtcNow, ClientOperationId = key },
+                CancellationToken.None);
+            var conflict = Assert.IsType<ConflictObjectResult>(create.Result);
+            Assert.Equal(SessionCreateErrorCodes.OperationCanceled,
+                conflict.Value!.GetType().GetProperty("code")!.GetValue(conflict.Value));
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CancelSessionCreate_Repeated_Returns204EachTime_AndStaysCanceled()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+            var key = await CreateKeyedSessionAsync(controller, "s");
+
+            var first = await controller.CancelSessionCreateByOperation(key, CancellationToken.None);
+            var canceledAt = (await context.SessionCreateOperations.SingleAsync()).CanceledAt;
+
+            var second = await controller.CancelSessionCreateByOperation(key, CancellationToken.None);
+            var third = await controller.CancelSessionCreateByOperation(key, CancellationToken.None);
+
+            Assert.IsType<NoContentResult>(first);
+            Assert.IsType<NoContentResult>(second);
+            Assert.IsType<NoContentResult>(third);
+
+            var op = Assert.Single(context.SessionCreateOperations);
+            Assert.NotNull(op.CanceledAt);
+            Assert.Equal(canceledAt, op.CanceledAt); // D: a safe retry does not move the tombstone
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CancelSessionCreate_EmptyKey_Returns400_invalid_operation_key_AndWritesNothing()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+
+            var result = await controller.CancelSessionCreateByOperation(Guid.Empty, CancellationToken.None);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            Assert.Equal(SessionCancelErrorCodes.InvalidOperationKey,
+                badRequest.Value!.GetType().GetProperty("code")!.GetValue(badRequest.Value));
+            Assert.Empty(context.SessionCreateOperations);
+            Assert.Empty(context.Sessions);
+        }
+
+        [Fact]
+        public async Task CancelSessionCreate_ForeignUsersKey_Returns204_AndLeavesThatUsersOperationAndSessionUntouched()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+
+            // User 2 owns a completed keyed CREATE under the shared key.
+            var sharedKey = await CreateKeyedSessionAsync(CreateControllerWithUser(context, 2), "B-owned");
+            var bSessionId = (await context.Sessions.SingleAsync()).Id;
+
+            // User 1 tries to cancel the same key. Non-disclosing: 204, no error, and it
+            // never touches user 2's operation row or Session.
+            var result = await CreateControllerWithUser(context, 1)
+                .CancelSessionCreateByOperation(sharedKey, CancellationToken.None);
+            Assert.IsType<NoContentResult>(result);
+
+            var bOp = await context.SessionCreateOperations.SingleAsync(o => o.UserId == 2);
+            Assert.Null(bOp.CanceledAt);
+            Assert.Equal(bSessionId, bOp.SessionId);
+            Assert.NotNull(await context.Sessions.FindAsync(bSessionId));
+
+            // User 1 got its own independent tombstone under (1, sharedKey).
+            var aOp = await context.SessionCreateOperations.SingleAsync(o => o.UserId == 1);
+            Assert.NotNull(aOp.CanceledAt);
+        }
+
+        [Fact]
+        public async Task CancelSessionCreate_SameKeyTwoUsers_EachCancelsOnlyOwnOperation()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+            var sharedKey = Guid.NewGuid();
+
+            var aController = CreateControllerWithUser(context, 1);
+            var bController = CreateControllerWithUser(context, 2);
+
+            await aController.CreateSession(
+                new SessionCreateRequestDto { Name = "A", Date = DateTime.UtcNow, ClientOperationId = sharedKey },
+                CancellationToken.None);
+            await bController.CreateSession(
+                new SessionCreateRequestDto { Name = "B", Date = DateTime.UtcNow, ClientOperationId = sharedKey },
+                CancellationToken.None);
+
+            // Only user 1 cancels.
+            Assert.IsType<NoContentResult>(
+                await aController.CancelSessionCreateByOperation(sharedKey, CancellationToken.None));
+
+            Assert.NotNull((await context.SessionCreateOperations.SingleAsync(o => o.UserId == 1)).CanceledAt);
+            Assert.Null((await context.SessionCreateOperations.SingleAsync(o => o.UserId == 2)).CanceledAt);
+
+            // User 2's keyed replay still works and returns user 2's canonical Session.
+            var bReplay = await bController.CreateSession(
+                new SessionCreateRequestDto { Name = "B-again", Date = DateTime.UtcNow, ClientOperationId = sharedKey },
+                CancellationToken.None);
+            var bDto = Assert.IsType<SessionResponseDto>(Assert.IsType<OkObjectResult>(bReplay.Result).Value);
+            Assert.Equal(2, bDto.UserId);
+            Assert.Equal("B", bDto.Name);
+        }
+
+        [Fact]
+        public async Task CancelSessionCreate_AfterCreateWithChildren_RemovesExercisesAndSets()
+        {
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var controller = CreateControllerWithUser(context, 1);
+            var key = await CreateKeyedSessionAsync(controller, "with-children");
+            var sessionId = (await context.Sessions.SingleAsync()).Id;
+
+            var exercise = new Exercise { SessionId = sessionId, Name = "Squat" };
+            context.Exercises.Add(exercise);
+            await context.SaveChangesAsync();
+            context.ExerciseSets.Add(new ExerciseSet { ExerciseId = exercise.Id, SetNumber = 1, Reps = 5 });
+            await context.SaveChangesAsync();
+
+            Assert.IsType<NoContentResult>(
+                await controller.CancelSessionCreateByOperation(key, CancellationToken.None));
+
+            Assert.Empty(context.Sessions);
+            Assert.Empty(context.Exercises);
+            Assert.Empty(context.ExerciseSets);
+            Assert.NotNull((await context.SessionCreateOperations.SingleAsync()).CanceledAt);
+        }
+
+        [Fact]
+        public async Task CancelSessionCreate_OperationRowWithCrossUserSessionPointer_NeverDeletesTheOtherUsersSession()
+        {
+            // Defense in depth: even a corrupted operation row whose SessionId points at
+            // ANOTHER user's Session must not let the caller delete that Session. The
+            // owner-scoped `s.UserId == userId` predicate on the delete lookup is the guard.
+            var context = GetInMemoryContext();
+            await CreateTestUser(context, 1);
+            await CreateTestUser(context, 2);
+
+            var user2Session = new Session { UserId = 2, Name = "user2-private", Date = DateTime.UtcNow };
+            context.Sessions.Add(user2Session);
+            await context.SaveChangesAsync();
+
+            var key = Guid.NewGuid();
+            context.SessionCreateOperations.Add(new SessionCreateOperation
+            {
+                UserId = 1,
+                ClientOperationId = key,
+                CreatedAt = DateTime.UtcNow.AddMinutes(-5),
+                CompletedAt = DateTime.UtcNow.AddMinutes(-4),
+                SessionId = user2Session.Id, // corrupted: points at user 2's Session
+            });
+            await context.SaveChangesAsync();
+
+            var result = await CreateControllerWithUser(context, 1)
+                .CancelSessionCreateByOperation(key, CancellationToken.None);
+
+            Assert.IsType<NoContentResult>(result);
+            // User 2's Session survives untouched; user 1's operation row is tombstoned.
+            Assert.NotNull(await context.Sessions.FindAsync(user2Session.Id));
+            Assert.Equal("user2-private", (await context.Sessions.FindAsync(user2Session.Id))!.Name);
+            Assert.NotNull((await context.SessionCreateOperations.SingleAsync(o => o.UserId == 1)).CanceledAt);
+        }
     }
 }

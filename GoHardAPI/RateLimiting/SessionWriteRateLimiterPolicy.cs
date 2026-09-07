@@ -7,8 +7,11 @@ using Microsoft.Extensions.Options;
 namespace GoHardAPI.RateLimiting
 {
     /// <summary>
-    /// Per-authenticated-user token-bucket policy for generic Session CREATE
-    /// (<c>POST /api/v1/sessions</c> only).
+    /// Per-authenticated-user token-bucket policy for the Session create-operation write
+    /// path: <c>POST /api/v1/sessions</c> (keyed or legacy create) and its cancel
+    /// counterpart <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c>. Both
+    /// carry <c>[EnableRateLimiting(PolicyName)]</c> and share one per-user bucket because
+    /// both persist rows in <c>SessionCreateOperations</c>. No other endpoint uses it.
     ///
     /// <para><b>Partition key</b> comes exclusively from the server-validated JWT
     /// <c>sub</c> claim (<see cref="ClaimTypes.NameIdentifier"/>) — never from a

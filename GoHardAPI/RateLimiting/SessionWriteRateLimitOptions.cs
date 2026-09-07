@@ -5,10 +5,11 @@ namespace GoHardAPI.RateLimiting
     /// (<c>RateLimiting:SessionWrite</c>), overridable by environment variables
     /// (e.g. <c>RateLimiting__SessionWrite__TokenLimit</c>).
     ///
-    /// Drives the per-authenticated-user token-bucket limiter applied to the
-    /// single endpoint <c>POST /api/v1/sessions</c> (generic Session CREATE).
-    /// It does not touch any other endpoint, the <c>"auth"</c> limiter, or the
-    /// per-IP global limiter.
+    /// Drives the per-authenticated-user token-bucket limiter applied to the Session
+    /// create-operation write path: <c>POST /api/v1/sessions</c> and
+    /// <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c> (one shared
+    /// per-user bucket). It does not touch any other endpoint, the <c>"auth"</c>
+    /// limiter, or the per-IP global limiter.
     ///
     /// State is process-local: the bucket lives in this instance's memory. The
     /// design assumes ONE Railway API instance; with N instances the effective
