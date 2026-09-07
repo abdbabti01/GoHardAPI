@@ -8,10 +8,18 @@ namespace GoHardAPI.RateLimiting
 {
     /// <summary>
     /// Per-authenticated-user token-bucket policy for the Session create-operation write
-    /// path: <c>POST /api/v1/sessions</c> (keyed or legacy create) and its cancel
-    /// counterpart <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c>. Both
-    /// carry <c>[EnableRateLimiting(PolicyName)]</c> and share one per-user bucket because
-    /// both persist rows in <c>SessionCreateOperations</c>. No other endpoint uses it.
+    /// path:
+    /// <list type="bullet">
+    ///   <item><c>POST /api/v1/sessions</c> (keyed or legacy create);</item>
+    ///   <item><c>POST /api/v1/sessions/from-program-workout</c> (keyed or legacy create —
+    ///     it persists a Session, its child Exercises, and, when keyed, a
+    ///     <c>SessionCreateOperations</c> row);</item>
+    ///   <item>the cancel counterpart
+    ///     <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c>.</item>
+    /// </list>
+    /// All three carry <c>[EnableRateLimiting(PolicyName)]</c> and share one per-user bucket
+    /// because all three write to <c>Sessions</c> / <c>SessionCreateOperations</c>. No other
+    /// endpoint uses it.
     ///
     /// <para><b>Partition key</b> comes exclusively from the server-validated JWT
     /// <c>sub</c> claim (<see cref="ClaimTypes.NameIdentifier"/>) — never from a

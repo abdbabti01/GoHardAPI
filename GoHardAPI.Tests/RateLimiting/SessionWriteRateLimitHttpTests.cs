@@ -158,9 +158,11 @@ namespace GoHardAPI.Tests.RateLimiting
         }
 
         // ---- 17/18: the create-operation write path is limited; the other Session
-        // writes (PUT / PATCH / DELETE-by-id / add-exercise / from-program-workout) are
-        // not. The cancel counterpart DELETE /sessions/by-operation/{key} DOES carry the
-        // policy and is covered by SessionCreateCancellationHttpTests. --------------
+        // writes (PUT / PATCH / DELETE-by-id / add-exercise) are not. POST
+        // /sessions/from-program-workout DOES carry the policy (it also writes the
+        // Sessions / SessionCreateOperations create-operation path) and the cancel
+        // counterpart DELETE /sessions/by-operation/{key} does too (the latter covered
+        // by SessionCreateCancellationHttpTests). --------------
 
         [Fact] // 17 + 18
         public async Task OtherSessionWrites_DoNotCarryThePolicy_AndNeverGet429()
@@ -172,9 +174,7 @@ namespace GoHardAPI.Tests.RateLimiting
             Assert.Equal(HttpStatusCode.Created, (await client.PostAsync(CreateUrl, UnkeyedBody())).StatusCode);
             Assert.Equal((HttpStatusCode)429, (await client.PostAsync(CreateUrl, UnkeyedBody())).StatusCode);
 
-            // Every other Session-write endpoint: whatever they return, it is NEVER 429.
-            var fromProgram = await client.PostAsync("/api/v1/sessions/from-program-workout",
-                JsonContent.Create(new { programWorkoutId = 999999, programId = 999999 }));
+            // Every OTHER Session-write endpoint: whatever they return, it is NEVER 429.
             var put = await client.PutAsync("/api/v1/sessions/999999", UnkeyedBody());
             var patchStatus = await client.PatchAsync("/api/v1/sessions/999999/status",
                 JsonContent.Create(new { status = "in_progress" }));
@@ -184,10 +184,170 @@ namespace GoHardAPI.Tests.RateLimiting
             var addExercise = await client.PostAsync("/api/v1/sessions/999999/exercises",
                 JsonContent.Create(new { exerciseTemplateId = 999999 }));
 
-            foreach (var resp in new[] { fromProgram, put, patchStatus, patchStart, del, addExercise })
+            foreach (var resp in new[] { put, patchStatus, patchStart, del, addExercise })
             {
                 Assert.NotEqual((HttpStatusCode)429, resp.StatusCode);
             }
+        }
+
+        [Fact] // 18b: from-program-workout shares the same per-user bucket as POST /sessions.
+        public async Task FromProgramWorkout_CarriesTheSessionWritePolicy_429AfterBucketDrained()
+        {
+            using var factory = Factory(tokenLimit: 1);
+            var client = factory.CreateClientForUser(1);
+
+            // Drain the shared per-user session-write bucket with the generic create.
+            Assert.Equal(HttpStatusCode.Created, (await client.PostAsync(CreateUrl, UnkeyedBody())).StatusCode);
+
+            var rejected = await client.PostAsync("/api/v1/sessions/from-program-workout",
+                JsonContent.Create(new { programWorkoutId = 999999, programId = 999999 }));
+
+            Assert.Equal((HttpStatusCode)429, rejected.StatusCode);
+            Assert.Equal("{\"code\":\"rate_limited\"}", await rejected.Content.ReadAsStringAsync());
+            Assert.True(rejected.Headers.TryGetValues("Retry-After", out _));
+        }
+
+        // ---- 18c-18h: behavioral proof that the from-program-workout create-operation path
+        // (keyed AND unkeyed) is on the SAME per-user session-write budget as
+        // POST /sessions and DELETE /sessions/by-operation/{key} ----------------------
+
+        private const string FromProgramWorkoutUrl = "/api/v1/sessions/from-program-workout";
+
+        private static HttpContent FpwUnkeyed(int programId, int workoutId) =>
+            JsonContent.Create(new { programWorkoutId = workoutId, programId });
+
+        private static HttpContent FpwKeyed(int programId, int workoutId, Guid key) =>
+            JsonContent.Create(new { programWorkoutId = workoutId, programId, clientOperationId = key });
+
+        [Fact] // 18c: both the keyed and the unkeyed from-program-workout request are limited.
+        public async Task FromProgramWorkout_KeyedAndUnkeyed_AreBothSubjectToThePolicy()
+        {
+            using var factory = Factory(tokenLimit: 1);
+            var (p, w) = factory.SeedProgramWorkout(1);
+            var client = factory.CreateClientForUser(1);
+
+            // Unkeyed drains the single token.
+            Assert.Equal(HttpStatusCode.Created, (await client.PostAsync(FromProgramWorkoutUrl, FpwUnkeyed(p, w))).StatusCode);
+
+            // Keyed request now rejected on the same bucket.
+            var keyedRejected = await client.PostAsync(FromProgramWorkoutUrl, FpwKeyed(p, w, Guid.NewGuid()));
+            Assert.Equal((HttpStatusCode)429, keyedRejected.StatusCode);
+            Assert.Equal("{\"code\":\"rate_limited\"}", await keyedRejected.Content.ReadAsStringAsync());
+            Assert.True(keyedRejected.Headers.TryGetValues("Retry-After", out var ra1)
+                       && int.TryParse(string.Join("", ra1), out var s1) && s1 >= 1);
+
+            // And the reverse: with a fresh bucket, keyed drains and unkeyed is then rejected.
+            using var factory2 = Factory(tokenLimit: 1);
+            var (p2, w2) = factory2.SeedProgramWorkout(1);
+            var client2 = factory2.CreateClientForUser(1);
+            Assert.Equal(HttpStatusCode.Created,
+                (await client2.PostAsync(FromProgramWorkoutUrl, FpwKeyed(p2, w2, Guid.NewGuid()))).StatusCode);
+            var unkeyedRejected = await client2.PostAsync(FromProgramWorkoutUrl, FpwUnkeyed(p2, w2));
+            Assert.Equal((HttpStatusCode)429, unkeyedRejected.StatusCode);
+        }
+
+        [Fact] // 18d: generic CREATE, from-program-workout CREATE and cancel share ONE user bucket.
+        public async Task AllThreeCreateOperationEndpoints_ConsumeTheSameUserBudget()
+        {
+            using var factory = Factory(tokenLimit: 1);
+            var (p, w) = factory.SeedProgramWorkout(1);
+            var client = factory.CreateClientForUser(1);
+
+            // Spend the single token on a from-program-workout create.
+            Assert.Equal(HttpStatusCode.Created, (await client.PostAsync(FromProgramWorkoutUrl, FpwUnkeyed(p, w))).StatusCode);
+
+            // Both siblings are now over budget for THIS user.
+            var genericRejected = await client.PostAsync(CreateUrl, UnkeyedBody());
+            Assert.Equal((HttpStatusCode)429, genericRejected.StatusCode);
+            Assert.Equal("{\"code\":\"rate_limited\"}", await genericRejected.Content.ReadAsStringAsync());
+
+            var cancelRejected = await client.DeleteAsync($"/api/v1/sessions/by-operation/{Guid.NewGuid()}");
+            Assert.Equal((HttpStatusCode)429, cancelRejected.StatusCode);
+            Assert.Equal("{\"code\":\"rate_limited\"}", await cancelRejected.Content.ReadAsStringAsync());
+        }
+
+        [Fact] // 18e: exhausting A's from-program-workout budget does not touch B's.
+        public async Task FromProgramWorkout_ExhaustingUserA_LeavesUserBAdmitted()
+        {
+            using var factory = Factory(tokenLimit: 2);
+            var (pa, wa) = factory.SeedProgramWorkout(1);
+            var (pb, wb) = factory.SeedProgramWorkout(2);
+            var a = factory.CreateClientForUser(1);
+            var b = factory.CreateClientForUser(2);
+
+            Assert.Equal(HttpStatusCode.Created, (await a.PostAsync(FromProgramWorkoutUrl, FpwUnkeyed(pa, wa))).StatusCode);
+            Assert.Equal(HttpStatusCode.Created, (await a.PostAsync(FromProgramWorkoutUrl, FpwUnkeyed(pa, wa))).StatusCode);
+            Assert.Equal((HttpStatusCode)429, (await a.PostAsync(FromProgramWorkoutUrl, FpwUnkeyed(pa, wa))).StatusCode);
+
+            // B's bucket is independent.
+            Assert.Equal(HttpStatusCode.Created, (await b.PostAsync(FromProgramWorkoutUrl, FpwUnkeyed(pb, wb))).StatusCode);
+            Assert.Equal(HttpStatusCode.Created, (await b.PostAsync(FromProgramWorkoutUrl, FpwKeyed(pb, wb, Guid.NewGuid()))).StatusCode);
+        }
+
+        [Fact] // 18f: a rejected from-program-workout request writes NOTHING and never reaches the service.
+        public async Task RejectedFromProgramWorkout_WritesNoSessionChildrenOrOperationRow_AndSkipsTheService()
+        {
+            using var factory = Factory(tokenLimit: 1);
+            var (p, w) = factory.SeedProgramWorkout(1);
+            var client = factory.CreateClientForUser(1);
+
+            // One admitted create so there is prior state to compare against.
+            Assert.Equal(HttpStatusCode.Created,
+                (await client.PostAsync(FromProgramWorkoutUrl, FpwKeyed(p, w, Guid.NewGuid()))).StatusCode);
+            var sessions = factory.SessionCount(1);
+            var exercises = factory.ExerciseCount(1);
+            var ops = factory.OperationCount(1);
+            var calls = factory.CreateCalls;
+
+            // This one WOULD succeed (valid owned program+workout) but the bucket is empty.
+            var rejected = await client.PostAsync(FromProgramWorkoutUrl, FpwKeyed(p, w, Guid.NewGuid()));
+            Assert.Equal((HttpStatusCode)429, rejected.StatusCode);
+
+            Assert.Equal(sessions, factory.SessionCount(1));   // no new Session
+            Assert.Equal(exercises, factory.ExerciseCount(1)); // no new Exercises
+            Assert.Equal(ops, factory.OperationCount(1));      // no new operation row
+            Assert.Equal(calls, factory.CreateCalls);          // service never invoked
+        }
+
+        [Fact] // 18g: an admitted from-program-workout create keeps its established shape/status.
+        public async Task AdmittedFromProgramWorkout_Returns201_WithExercises_ThenKeyedReplayReturns200()
+        {
+            using var factory = Factory(tokenLimit: 5);
+            var (p, w) = factory.SeedProgramWorkout(1, "[{\"name\":\"Squat\"},{\"name\":\"Bench\"},{\"name\":\"Row\"}]");
+            var client = factory.CreateClientForUser(1);
+            var key = Guid.NewGuid();
+
+            var first = await client.PostAsync(FromProgramWorkoutUrl, FpwKeyed(p, w, key));
+            Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+            var firstBody = await first.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(3, firstBody.GetProperty("exercises").GetArrayLength());
+            var firstId = firstBody.GetProperty("id").GetInt32();
+
+            var replay = await client.PostAsync(FromProgramWorkoutUrl, FpwKeyed(p, w, key));
+            Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+            var replayBody = await replay.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(firstId, replayBody.GetProperty("id").GetInt32());
+            Assert.Equal(3, replayBody.GetProperty("exercises").GetArrayLength()); // no duplicate children
+
+            Assert.Equal(1, factory.SessionCount(1));
+            Assert.Equal(1, factory.OperationCount(1));
+        }
+
+        [Fact] // 18h: the empty-GUID key is a 400 (not a 429) even when the bucket still has tokens,
+                // and the 400 is returned BEFORE any write.
+        public async Task FromProgramWorkout_EmptyGuidKey_Returns400_invalid_operation_key_NotRateLimited()
+        {
+            using var factory = Factory(tokenLimit: 5);
+            var (p, w) = factory.SeedProgramWorkout(1);
+            var client = factory.CreateClientForUser(1);
+
+            var resp = await client.PostAsync(FromProgramWorkoutUrl, FpwKeyed(p, w, Guid.Empty));
+
+            Assert.Equal(HttpStatusCode.BadRequest, resp.StatusCode);
+            Assert.Contains("invalid_operation_key", await resp.Content.ReadAsStringAsync());
+            Assert.Equal(0, factory.SessionCount(1));
+            Assert.Equal(0, factory.ExerciseCount(1));
+            Assert.Equal(0, factory.OperationCount(1));
         }
 
         // ---- 19/20: nothing happens after rejection ------------------------------

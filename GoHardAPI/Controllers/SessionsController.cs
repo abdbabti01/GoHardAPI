@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
-using System.Text.Json;
 
 namespace GoHardAPI.Controllers
 {
@@ -199,121 +198,157 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Creates a new session from a program workout
-        /// Copies exercises from the program workout and links the session to the program
+        /// Creates a new session from a program workout: copies exercises from the program
+        /// workout and links the session to the program.
+        ///
+        /// <para>Without <c>clientOperationId</c> the behavior is unchanged: a new session
+        /// (plus its exercises) is created and returned with <c>201</c>, no operation row.</para>
+        ///
+        /// <para>With <c>clientOperationId</c> the call joins the <b>same</b> durable
+        /// creation/cancellation protocol as keyed <c>POST /api/v1/sessions</c>, idempotent
+        /// per <c>(authenticated user, clientOperationId)</c>:</para>
+        /// <list type="bullet">
+        ///   <item>first call: <c>201</c> with the canonical session and its exercises;</item>
+        ///   <item>replay (identical, conflicting, different workout, or a key first used by
+        ///     <c>POST /api/v1/sessions</c>): <c>200</c> with the original canonical session,
+        ///     unchanged — first writer wins, no duplicate exercises, the source workout is
+        ///     never re-read;</item>
+        ///   <item>canceled via
+        ///     <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c>:
+        ///     <c>409 { code: "operation_canceled" }</c>, nothing created;</item>
+        ///   <item>completed operation whose session was deleted:
+        ///     <c>410 { code: "operation_target_deleted" }</c> — never recreated;</item>
+        ///   <item>unparseable source <c>ExercisesJson</c>:
+        ///     <c>400 { code: "program_workout_data_invalid" }</c> (no tombstone; a corrected
+        ///     retry can still succeed);</item>
+        ///   <item>empty-GUID <c>clientOperationId</c>:
+        ///     <c>400 { code: "invalid_operation_key" }</c>, rejected before any persistence
+        ///     (a non-parseable value is a model-binding <c>400</c>). A <c>null</c> key keeps
+        ///     the unkeyed path and is never treated as empty.</item>
+        /// </list>
+        /// The owner always comes from the JWT; a missing OR foreign program / workout returns
+        /// the non-disclosing <c>404 { code: "program_not_found" }</c>.
+        ///
+        /// Rate limited per authenticated user by the shared <c>session-write</c> token-bucket
+        /// policy — the same per-user bucket as <c>POST /api/v1/sessions</c> and
+        /// <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c>, because all three
+        /// write to <c>SessionCreateOperations</c> / <c>Sessions</c>.
         /// </summary>
         [HttpPost("from-program-workout")]
-        public async Task<ActionResult<Session>> CreateSessionFromProgramWorkout([FromBody] CreateSessionFromProgramWorkoutDto dto)
+        [EnableRateLimiting(SessionWriteRateLimiterPolicy.PolicyName)]
+        public async Task<ActionResult<Session>> CreateSessionFromProgramWorkout(
+            [FromBody] CreateSessionFromProgramWorkoutDto dto, CancellationToken cancellationToken)
         {
             var userId = GetCurrentUserId();
 
-            // Get the program workout with its program
+            if (dto.ClientOperationId is { })
+            {
+                return await CreateSessionFromProgramWorkoutKeyedAsync(userId, dto, cancellationToken);
+            }
+
+            // ---- legacy unkeyed path: response shapes preserved exactly ----
             var programWorkout = await _context.ProgramWorkouts
                 .Include(pw => pw.Program)
-                .FirstOrDefaultAsync(pw => pw.Id == dto.ProgramWorkoutId);
+                .FirstOrDefaultAsync(pw => pw.Id == dto.ProgramWorkoutId, cancellationToken);
 
             if (programWorkout == null)
             {
                 return NotFound("Program workout not found");
             }
 
-            // Verify user owns the program
             if (programWorkout.Program.UserId != userId)
             {
                 return Unauthorized("You don't have access to this program");
             }
 
-            // Use the stored ScheduledDate if available, otherwise calculate it
-            // ScheduledDate is set when the program is created to avoid timezone issues
-            var scheduledDate = programWorkout.ScheduledDate?.Date
-                ?? programWorkout.Program.StartDate
-                    .AddDays((programWorkout.WeekNumber - 1) * 7 + (programWorkout.DayNumber - 1))
-                    .Date;
-
-            var today = DateTime.UtcNow.Date;
-
-            // Determine status based on scheduled date
-            // - If scheduled for future: status = 'planned'
-            // - If scheduled for today or past: status = 'draft' (user can start immediately)
-            var status = scheduledDate > today ? SessionStatus.Planned : SessionStatus.Draft;
-
-            // Create session linked to program workout
-            var session = new Session
-            {
-                UserId = userId,
-                Date = scheduledDate, // Use calculated scheduled date
-                Name = programWorkout.WorkoutName,
-                Type = programWorkout.WorkoutType ?? "Workout",
-                Status = status, // Use calculated status
-                ProgramId = dto.ProgramId, // Use ProgramId from request (fixes issue with old ProgramWorkout data)
-                ProgramWorkoutId = programWorkout.Id
-            };
-
-            _context.Sessions.Add(session);
-            await _context.SaveChangesAsync(); // Save to get the session ID
-
-            // Parse exercises from JSON and create Exercise records
+            Session session;
             try
             {
-                var exercisesData = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(programWorkout.ExercisesJson);
-
-                if (exercisesData != null)
-                {
-                    foreach (var exerciseData in exercisesData)
-                    {
-                        var exercise = new Exercise
-                        {
-                            SessionId = session.Id,
-                            Name = exerciseData.ContainsKey("name") ? exerciseData["name"].GetString() ?? "Exercise" : "Exercise"
-                        };
-
-                        // Copy other fields if they exist
-                        if (exerciseData.ContainsKey("exerciseTemplateId") && exerciseData["exerciseTemplateId"].ValueKind != JsonValueKind.Null)
-                        {
-                            exercise.ExerciseTemplateId = exerciseData["exerciseTemplateId"].GetInt32();
-                        }
-
-                        if (exerciseData.ContainsKey("notes"))
-                        {
-                            exercise.Notes = exerciseData["notes"].GetString();
-                        }
-
-                        if (exerciseData.ContainsKey("rest") && exerciseData["rest"].ValueKind != JsonValueKind.Null)
-                        {
-                            exercise.RestTime = exerciseData["rest"].GetInt32();
-                        }
-
-                        _context.Exercises.Add(exercise);
-                    }
-
-                    await _context.SaveChangesAsync();
-                }
+                // Shared materializer: scheduled date, status, and the exercise copy live in
+                // one place so this path and the keyed service path cannot drift.
+                session = ProgramWorkoutSessionMaterializer.Build(userId, programWorkout, dto.ProgramId);
             }
-            catch (JsonException ex)
+            catch (ProgramWorkoutSessionMaterializer.ExercisesJsonFormatException ex)
             {
-                // If JSON parsing fails, return error instead of silently creating empty session
-                Console.WriteLine($"Error parsing exercises JSON: {ex.Message}");
-
-                // Delete the session since we couldn't create exercises
-                _context.Sessions.Remove(session);
-                await _context.SaveChangesAsync();
-
+                var detail = ex.InnerException?.Message ?? ex.Message;
+                Console.WriteLine($"Error parsing exercises JSON: {detail}");
                 return BadRequest(new
                 {
                     message = "Failed to parse exercises from program workout",
-                    error = ex.Message
+                    error = detail
                 });
             }
 
-            // Reload session with exercises
+            _context.Sessions.Add(session);
+            await _context.SaveChangesAsync(cancellationToken);
+
             var createdSession = await _context.Sessions
                 .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseSets)
                 .Include(s => s.Exercises)
                     .ThenInclude(e => e.ExerciseTemplate)
-                .FirstOrDefaultAsync(s => s.Id == session.Id);
+                .FirstOrDefaultAsync(s => s.Id == session.Id, cancellationToken);
 
             return CreatedAtAction(nameof(GetSession), new { id = session.Id }, createdSession);
+        }
+
+        private async Task<ActionResult<Session>> CreateSessionFromProgramWorkoutKeyedAsync(
+            int userId, CreateSessionFromProgramWorkoutDto dto, CancellationToken cancellationToken)
+        {
+            var outcome = await _sessionCreateService.CreateFromProgramWorkoutAsync(userId, dto, cancellationToken);
+
+            switch (outcome.Result)
+            {
+                case SessionCreateResult.Created:
+                case SessionCreateResult.ReplayedExisting:
+                    {
+                        // Reload the canonical session with its child graph for the body (the
+                        // service returns the entity without children loaded).
+                        var canonical = await _context.Sessions
+                            .Include(s => s.Exercises.OrderBy(e => e.SortOrder))
+                                .ThenInclude(e => e.ExerciseSets)
+                            .Include(s => s.Exercises)
+                                .ThenInclude(e => e.ExerciseTemplate)
+                            .FirstOrDefaultAsync(
+                                s => s.Id == outcome.Session!.Id && s.UserId == userId, cancellationToken);
+
+                        // A concurrent DELETE /sessions/{id} or cancel between the service
+                        // commit and this reload: treat it exactly like a completed operation
+                        // whose Session is gone rather than returning a 200/201 with no body.
+                        if (canonical is null)
+                        {
+                            return StatusCode(StatusCodes.Status410Gone,
+                                new { code = SessionCreateErrorCodes.OperationTargetDeleted });
+                        }
+
+                        return outcome.Result == SessionCreateResult.Created
+                            ? CreatedAtAction(nameof(GetSession), new { id = outcome.Session!.Id }, canonical)
+                            : Ok(canonical);
+                    }
+
+                case SessionCreateResult.ProgramNotFound:
+                    return NotFound(new { code = outcome.ErrorCode });
+
+                case SessionCreateResult.ProgramWorkoutDataInvalid:
+                    return BadRequest(new { code = outcome.ErrorCode });
+
+                case SessionCreateResult.InvalidOperationKey:
+                    // Empty-GUID key: rejected before persistence, same code the
+                    // by-operation cancel endpoint returns for the empty GUID.
+                    return BadRequest(new { code = outcome.ErrorCode });
+
+                case SessionCreateResult.Canceled:
+                    return Conflict(new { code = outcome.ErrorCode });
+
+                case SessionCreateResult.Gone:
+                    return StatusCode(StatusCodes.Status410Gone, new { code = outcome.ErrorCode });
+
+                case SessionCreateResult.Incomplete:
+                    return Conflict(new { code = outcome.ErrorCode });
+
+                default:
+                    return StatusCode(StatusCodes.Status500InternalServerError);
+            }
         }
 
         [HttpPut("{id}")]

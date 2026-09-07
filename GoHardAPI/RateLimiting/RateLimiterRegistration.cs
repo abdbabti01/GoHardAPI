@@ -25,7 +25,8 @@ namespace GoHardAPI.RateLimiting
     ///     routes is still constrained. It also bounds a rotating-identity auth
     ///     attacker — service protection, not per-client fairness.</item>
     ///   <item><c>"session-write"</c> — the per-authenticated-user token bucket
-    ///     (<see cref="SessionWriteRateLimiterPolicy"/>) for <c>POST /api/v1/sessions</c>.
+    ///     (<see cref="SessionWriteRateLimiterPolicy"/>) for <c>POST /api/v1/sessions</c>,
+    ///     <c>POST /api/v1/sessions/from-program-workout</c> and the cancel counterpart.
     ///     No-op limiter for a request with no valid user identity.</item>
     /// </list>
     ///
@@ -72,7 +73,9 @@ namespace GoHardAPI.RateLimiting
             {
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-                // --- per-authenticated-user token bucket for generic Session CREATE ---
+                // --- per-authenticated-user token bucket for the Session create-operation
+                //     write path (POST /sessions, POST /sessions/from-program-workout,
+                //     DELETE /sessions/by-operation/{key}) ---
                 options.AddPolicy<string, SessionWriteRateLimiterPolicy>(
                     SessionWriteRateLimiterPolicy.PolicyName);
 

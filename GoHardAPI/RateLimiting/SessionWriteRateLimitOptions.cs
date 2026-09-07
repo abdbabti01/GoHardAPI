@@ -6,7 +6,8 @@ namespace GoHardAPI.RateLimiting
     /// (e.g. <c>RateLimiting__SessionWrite__TokenLimit</c>).
     ///
     /// Drives the per-authenticated-user token-bucket limiter applied to the Session
-    /// create-operation write path: <c>POST /api/v1/sessions</c> and
+    /// create-operation write path: <c>POST /api/v1/sessions</c>,
+    /// <c>POST /api/v1/sessions/from-program-workout</c> and
     /// <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c> (one shared
     /// per-user bucket). It does not touch any other endpoint, the <c>"auth"</c>
     /// limiter, or the per-IP global limiter.
