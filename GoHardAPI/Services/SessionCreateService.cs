@@ -36,6 +36,26 @@ namespace GoHardAPI.Services
 
         /// <summary>The operation record is in an indeterminate state. Fail closed — no second Session. HTTP 409 <c>operation_incomplete</c>.</summary>
         Incomplete,
+
+        /// <summary>
+        /// A keyed <c>from-program-workout</c> CREATE whose source
+        /// <c>ProgramWorkout.ExercisesJson</c> could not be parsed. Nothing created, no
+        /// tombstone written (a corrected retry can still succeed).
+        /// HTTP 400 <c>program_workout_data_invalid</c>. Only reachable from
+        /// <see cref="SessionCreateService.CreateFromProgramWorkoutAsync"/>.
+        /// </summary>
+        ProgramWorkoutDataInvalid,
+
+        /// <summary>
+        /// A keyed <c>from-program-workout</c> CREATE whose supplied
+        /// <c>ClientOperationId</c> is the empty GUID — a value the by-operation
+        /// cancellation endpoint refuses, so it must never identify a created Session.
+        /// Rejected before any persistence. HTTP 400 <c>invalid_operation_key</c>. Only
+        /// reachable from <see cref="SessionCreateService.CreateFromProgramWorkoutAsync"/>
+        /// (the generic <c>POST /api/v1/sessions</c> contract is intentionally unchanged
+        /// here).
+        /// </summary>
+        InvalidOperationKey,
     }
 
     /// <summary>Outcome of <see cref="SessionCreateService.CreateAsync"/>.</summary>
@@ -51,6 +71,10 @@ namespace GoHardAPI.Services
             new(SessionCreateResult.Gone, null, SessionCreateErrorCodes.OperationTargetDeleted);
         public static readonly SessionCreateOutcome Incomplete =
             new(SessionCreateResult.Incomplete, null, SessionCreateErrorCodes.OperationIncomplete);
+        public static readonly SessionCreateOutcome ProgramWorkoutDataInvalid =
+            new(SessionCreateResult.ProgramWorkoutDataInvalid, null, SessionCreateErrorCodes.ProgramWorkoutDataInvalid);
+        public static readonly SessionCreateOutcome InvalidOperationKey =
+            new(SessionCreateResult.InvalidOperationKey, null, SessionCancelErrorCodes.InvalidOperationKey);
     }
 
     /// <summary>
@@ -90,6 +114,23 @@ namespace GoHardAPI.Services
             _logger = logger;
         }
 
+        /// <summary>
+        /// Produces the genuine first-write result for a keyed CREATE. It runs INSIDE the
+        /// operation lock + transaction and ONLY when no operation row yet exists for
+        /// <c>(UserId, ClientOperationId)</c>: it returns either the Session to persist —
+        /// with any child graph already attached through navigation collections — or a
+        /// terminal failure outcome. It must not open a transaction, take a lock, or call
+        /// SaveChanges. Replay paths never invoke it, so the canonical write is never
+        /// re-validated or re-materialized.
+        /// </summary>
+        private delegate Task<KeyedFirstWrite> FirstWriteFactory(CancellationToken cancellationToken);
+
+        private readonly record struct KeyedFirstWrite(Session? Session, SessionCreateOutcome? Failure)
+        {
+            public static KeyedFirstWrite Ok(Session session) => new(session, null);
+            public static KeyedFirstWrite Fail(SessionCreateOutcome outcome) => new(null, outcome);
+        }
+
         // virtual: lets the test project substitute a counting spy to prove a
         // rate-limited request never reaches this method. No behavioral effect.
         public virtual async Task<SessionCreateOutcome> CreateAsync(
@@ -98,41 +139,165 @@ namespace GoHardAPI.Services
             // ---- Legacy / unkeyed: creation behavior + program-ownership validation ----------
             if (request.ClientOperationId is not { } key)
             {
-                if (!await ProgramLinkageOwnedAsync(
-                        userId, request.ProgramId, request.ProgramWorkoutId, cancellationToken))
-                {
-                    return SessionCreateOutcome.ProgramNotFound;
-                }
-
-                var session = request.ToNewSession(userId);
-                _context.Sessions.Add(session);
-                try
-                {
-                    await _context.SaveChangesAsync(cancellationToken);
-                }
-                catch (Exception ex) when (IsProgramForeignKeyViolation(ex))
-                {
-                    // A program was deleted between the check and the insert (TOCTOU).
-                    // Never surface a raw FK exception as a 500.
-                    _context.ChangeTracker.Clear();
-                    return SessionCreateOutcome.ProgramNotFound;
-                }
-                return SessionCreateOutcome.Created(session);
+                return await CreateUnkeyedAsync(
+                    userId, ct => GenericFirstWriteAsync(userId, request, ct), cancellationToken);
             }
 
+            return await RunKeyedWithRetryAsync(
+                userId, key, ct => GenericFirstWriteAsync(userId, request, ct), cancellationToken);
+        }
+
+        /// <summary>First-write step for the generic <c>POST /api/v1/sessions</c>.</summary>
+        private async Task<KeyedFirstWrite> GenericFirstWriteAsync(
+            int userId, SessionCreateRequestDto request, CancellationToken cancellationToken)
+        {
+            if (!await ProgramLinkageOwnedAsync(
+                    userId, request.ProgramId, request.ProgramWorkoutId, cancellationToken))
+            {
+                return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramNotFound);
+            }
+
+            return KeyedFirstWrite.Ok(request.ToNewSession(userId));
+        }
+
+        /// <summary>
+        /// Unkeyed create: run the first-write factory, one save, HTTP 201. No transaction,
+        /// no lock, no operation row — the historical behavior. A raced program delete
+        /// (TOCTOU FK violation) is converted to <c>program_not_found</c>, never a raw 500.
+        /// </summary>
+        private async Task<SessionCreateOutcome> CreateUnkeyedAsync(
+            int userId, FirstWriteFactory firstWrite, CancellationToken cancellationToken)
+        {
+            var first = await firstWrite(cancellationToken);
+            if (first.Failure is not null)
+            {
+                return first.Failure;
+            }
+
+            _context.Sessions.Add(first.Session!);
+            try
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception ex) when (IsProgramForeignKeyViolation(ex))
+            {
+                _context.ChangeTracker.Clear();
+                return SessionCreateOutcome.ProgramNotFound;
+            }
+            return SessionCreateOutcome.Created(first.Session!);
+        }
+
+        /// <summary>
+        /// Keyed / legacy CREATE from a program workout — the durable-protocol counterpart of
+        /// <see cref="CreateAsync"/> for <c>POST /api/v1/sessions/from-program-workout</c>.
+        ///
+        /// <para><b>No key</b> — legacy behavior: validate program / workout ownership,
+        /// materialize the Session + Exercises, one save, HTTP 201. No operation row.</para>
+        ///
+        /// <para><b>Keyed</b> — idempotent per <c>(authenticated UserId, ClientOperationId)</c>
+        /// on the <b>same</b> <see cref="SessionCreateOperation"/> registry, the <b>same</b>
+        /// transaction-owned operation lock (<see cref="AcquireOperationLockAsync"/>) and the
+        /// <b>same</b> state machine as keyed <see cref="CreateAsync"/>. The genuine first
+        /// write materializes the Session, its Exercises and the completed operation row
+        /// atomically; a replay returns the canonical Session untouched and never re-reads the
+        /// ProgramWorkout or creates a second child graph. Cancellation via
+        /// <see cref="CancelCreateAsync"/> wins in every accepted ordering.</para>
+        ///
+        /// <para>A supplied <c>ClientOperationId</c> of <see cref="Guid.Empty"/> is rejected
+        /// (<see cref="SessionCreateResult.InvalidOperationKey"/>) before any persistence: the
+        /// by-operation cancellation endpoint refuses the empty GUID, so a Session must never
+        /// be created under a key that can never be cancelled. A <c>null</c> key still takes
+        /// the unkeyed compatibility path; it is never treated as an empty key and vice
+        /// versa.</para>
+        /// </summary>
+        public virtual async Task<SessionCreateOutcome> CreateFromProgramWorkoutAsync(
+            int userId, CreateSessionFromProgramWorkoutDto request, CancellationToken cancellationToken)
+        {
+            if (request.ClientOperationId is not { } key)
+            {
+                return await CreateUnkeyedAsync(
+                    userId, ct => ProgramWorkoutFirstWriteAsync(userId, request, ct), cancellationToken);
+            }
+
+            if (key == Guid.Empty)
+            {
+                // Reject before touching the database. The empty GUID is not a usable
+                // idempotency key: DELETE /api/v1/sessions/by-operation/{key} refuses it,
+                // so a Session created under it could never be cancelled by operation key.
+                return SessionCreateOutcome.InvalidOperationKey;
+            }
+
+            return await RunKeyedWithRetryAsync(
+                userId, key, ct => ProgramWorkoutFirstWriteAsync(userId, request, ct), cancellationToken);
+        }
+
+        /// <summary>
+        /// First-write step for a from-program-workout CREATE: validates that BOTH the
+        /// request's <c>ProgramId</c> and the referenced <c>ProgramWorkout</c>'s parent
+        /// program belong to <paramref name="userId"/> (missing OR foreign collapse to the
+        /// same non-disclosing <see cref="SessionCreateOutcome.ProgramNotFound"/>), then
+        /// materializes the Session + Exercises. Read-only apart from the returned,
+        /// not-yet-added entity graph.
+        /// </summary>
+        private async Task<KeyedFirstWrite> ProgramWorkoutFirstWriteAsync(
+            int userId, CreateSessionFromProgramWorkoutDto request, CancellationToken cancellationToken)
+        {
+            var workout = await _context.ProgramWorkouts
+                .AsNoTracking()
+                .Include(pw => pw.Program)
+                .FirstOrDefaultAsync(pw => pw.Id == request.ProgramWorkoutId, cancellationToken);
+
+            // Missing workout, a workout with no parent, or a parent owned by another user:
+            // one indistinguishable outcome, so this is never a cross-user existence oracle.
+            if (workout?.Program is null || workout.Program.UserId != userId)
+            {
+                return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramNotFound);
+            }
+
+            // request.ProgramId is stamped onto the Session verbatim (the legacy contract
+            // trusts the request over a possibly-stale ProgramWorkout.ProgramId); it must
+            // still be a program this user owns.
+            var requestedProgramOwned = await _context.Programs
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == request.ProgramId && p.UserId == userId, cancellationToken);
+            if (!requestedProgramOwned)
+            {
+                return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramNotFound);
+            }
+
+            try
+            {
+                return KeyedFirstWrite.Ok(
+                    ProgramWorkoutSessionMaterializer.Build(userId, workout, request.ProgramId));
+            }
+            catch (ProgramWorkoutSessionMaterializer.ExercisesJsonFormatException)
+            {
+                return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramWorkoutDataInvalid);
+            }
+        }
+
+        /// <summary>
+        /// Shared keyed-CREATE driver: the non-relational degrade path plus the bounded
+        /// retry loop around <see cref="RunKeyedAttemptAsync"/>. The only thing that varies
+        /// between the generic and the from-program-workout entry points is
+        /// <paramref name="firstWrite"/>.
+        /// </summary>
+        private async Task<SessionCreateOutcome> RunKeyedWithRetryAsync(
+            int userId, Guid key, FirstWriteFactory firstWrite, CancellationToken cancellationToken)
+        {
             // A non-relational provider (InMemory, only in unit tests) cannot run a real
             // transaction or advisory lock. Degrade to a plain keyed insert so the unit
             // path still works; production is always relational.
             if (!_context.Database.IsRelational())
             {
-                return await CreateKeyedWithoutTransactionAsync(userId, key, request, cancellationToken);
+                return await CreateKeyedWithoutTransactionAsync(userId, key, firstWrite, cancellationToken);
             }
 
             for (var attempt = 1; ; attempt++)
             {
                 try
                 {
-                    return await RunKeyedAttemptAsync(userId, key, request, cancellationToken);
+                    return await RunKeyedAttemptAsync(userId, key, firstWrite, cancellationToken);
                 }
                 catch (Exception ex) when (attempt < MaxAttempts && IsRetryable(ex))
                 {
@@ -145,7 +310,7 @@ namespace GoHardAPI.Services
         }
 
         private async Task<SessionCreateOutcome> RunKeyedAttemptAsync(
-            int userId, Guid key, SessionCreateRequestDto request, CancellationToken cancellationToken)
+            int userId, Guid key, FirstWriteFactory firstWrite, CancellationToken cancellationToken)
         {
             // Each attempt starts from a clean slate. A prior attempt that failed on a
             // retryable error (e.g. the unique-index race) leaves its Added Session +
@@ -166,17 +331,24 @@ namespace GoHardAPI.Services
 
             if (op is null)
             {
-                // FIRST keyed write only. Validate program linkage here, inside the lock,
-                // before creating anything. Replay branches below never reach this and so
-                // never revalidate or mutate the canonical first write.
-                if (!await ProgramLinkageOwnedAsync(
-                        userId, request.ProgramId, request.ProgramWorkoutId, cancellationToken))
+                // FIRST keyed write only. The factory validates ownership and builds the
+                // Session (+ any child graph) here, inside the lock. Replay branches below
+                // never reach it and so never revalidate or re-materialize the canonical
+                // first write.
+                var first = await firstWrite(cancellationToken);
+                if (first.Failure is not null)
                 {
                     await tx.RollbackAsync(cancellationToken);
-                    return SessionCreateOutcome.ProgramNotFound;
+                    _context.ChangeTracker.Clear();
+                    return first.Failure;
                 }
 
-                var session = request.ToNewSession(userId);
+                var session = first.Session!;
+                // The owner-scoped partial unique index on Sessions (UserId, ClientOperationId)
+                // is the database-level backstop against a double-create should the advisory
+                // lock ever fail to serialize two callers (23505 -> retry -> replay).
+                session.ClientOperationId = key;
+
                 var record = new SessionCreateOperation
                 {
                     UserId = userId,
@@ -185,16 +357,20 @@ namespace GoHardAPI.Services
                 };
 
                 _context.SessionCreateOperations.Add(record);
-                _context.Sessions.Add(session);
+                if (_context.Entry(session).State == EntityState.Detached)
+                {
+                    _context.Sessions.Add(session);
+                }
                 try
                 {
-                    await _context.SaveChangesAsync(cancellationToken); // both rows; session.Id assigned
+                    // Session + any child Exercises/Sets + the operation row, one transaction.
+                    await _context.SaveChangesAsync(cancellationToken); // session.Id assigned
                 }
                 catch (Exception ex) when (IsProgramForeignKeyViolation(ex))
                 {
-                    // Program deleted between the check and the insert (TOCTOU). Roll the
-                    // whole attempt back — no operation row, no session — and return 404,
-                    // never a raw FK 500.
+                    // Program / workout deleted between the check and the insert (TOCTOU).
+                    // Roll the whole attempt back — no operation row, no session, no
+                    // children — and return 404, never a raw FK 500.
                     await tx.RollbackAsync(cancellationToken);
                     _context.ChangeTracker.Clear();
                     return SessionCreateOutcome.ProgramNotFound;
@@ -245,14 +421,14 @@ namespace GoHardAPI.Services
         }
 
         private async Task<SessionCreateOutcome> CreateKeyedWithoutTransactionAsync(
-            int userId, Guid key, SessionCreateRequestDto request, CancellationToken cancellationToken)
+            int userId, Guid key, FirstWriteFactory firstWrite, CancellationToken cancellationToken)
         {
             var op = await _context.SessionCreateOperations
                 .FirstOrDefaultAsync(o => o.UserId == userId && o.ClientOperationId == key, cancellationToken);
 
             if (op is not null)
             {
-                // Replay: never revalidate program linkage, never mutate.
+                // Replay: never revalidate, never re-materialize, never mutate.
                 if (op.CanceledAt is not null) return SessionCreateOutcome.Canceled;
                 if (op.CompletedAt is not null)
                 {
@@ -267,13 +443,14 @@ namespace GoHardAPI.Services
                 return SessionCreateOutcome.Incomplete;
             }
 
-            if (!await ProgramLinkageOwnedAsync(
-                    userId, request.ProgramId, request.ProgramWorkoutId, cancellationToken))
+            var first = await firstWrite(cancellationToken);
+            if (first.Failure is not null)
             {
-                return SessionCreateOutcome.ProgramNotFound;
+                return first.Failure;
             }
 
-            var session = request.ToNewSession(userId);
+            var session = first.Session!;
+            session.ClientOperationId = key;
             var record = new SessionCreateOperation
             {
                 UserId = userId,
@@ -281,7 +458,10 @@ namespace GoHardAPI.Services
                 CreatedAt = DateTime.UtcNow,
             };
             _context.SessionCreateOperations.Add(record);
-            _context.Sessions.Add(session);
+            if (_context.Entry(session).State == EntityState.Detached)
+            {
+                _context.Sessions.Add(session);
+            }
             await _context.SaveChangesAsync(cancellationToken);
             record.SessionId = session.Id;
             record.CompletedAt = DateTime.UtcNow;

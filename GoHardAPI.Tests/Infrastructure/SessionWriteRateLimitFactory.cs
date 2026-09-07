@@ -148,6 +148,43 @@ namespace GoHardAPI.Tests.Infrastructure
             return ctx.SessionCreateOperations.Count(o => o.UserId == userId);
         }
 
+        public long ExerciseCount(int userId)
+        {
+            using var scope = Services.CreateScope();
+            var ctx = scope.ServiceProvider.GetRequiredService<TrainingContext>();
+            return ctx.Exercises.Count(e => ctx.Sessions.Any(s => s.Id == e.SessionId && s.UserId == userId));
+        }
+
+        /// <summary>Seeds <paramref name="userId"/> plus a program + one workout it owns, and
+        /// returns their ids for a <c>POST /sessions/from-program-workout</c> body.</summary>
+        public (int programId, int workoutId) SeedProgramWorkout(int userId, string exercisesJson = "[{\"name\":\"Squat\"},{\"name\":\"Bench\"}]")
+        {
+            SeedUser(userId);
+            using var scope = Services.CreateScope();
+            var ctx = scope.ServiceProvider.GetRequiredService<TrainingContext>();
+            var program = new GoHardAPI.Models.Program
+            {
+                UserId = userId,
+                Title = "P",
+                StartDate = new DateTime(2020, 1, 6, 0, 0, 0, DateTimeKind.Utc),
+                CreatedAt = DateTime.UtcNow,
+            };
+            ctx.Programs.Add(program);
+            ctx.SaveChanges();
+            var workout = new ProgramWorkout
+            {
+                ProgramId = program.Id,
+                WeekNumber = 1,
+                DayNumber = 1,
+                WorkoutName = "Day 1",
+                WorkoutType = "Strength",
+                ExercisesJson = exercisesJson,
+            };
+            ctx.ProgramWorkouts.Add(workout);
+            ctx.SaveChanges();
+            return (program.Id, workout.Id);
+        }
+
         public static string MintToken(int userId)
         {
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(JwtSecret));
@@ -175,8 +212,10 @@ namespace GoHardAPI.Tests.Infrastructure
     }
 
     /// <summary>
-    /// Counts every <see cref="SessionCreateService.CreateAsync"/> call and forwards to the
-    /// real implementation. Proves a rate-limited request is rejected before the controller.
+    /// Counts every <see cref="SessionCreateService.CreateAsync"/> and
+    /// <see cref="SessionCreateService.CreateFromProgramWorkoutAsync"/> call and forwards to
+    /// the real implementation. Proves a rate-limited request is rejected before the
+    /// controller ever reaches the service.
     /// </summary>
     public sealed class SpySessionCreateService : SessionCreateService
     {
@@ -194,6 +233,13 @@ namespace GoHardAPI.Tests.Infrastructure
         {
             _counter.Bump();
             return base.CreateAsync(userId, request, cancellationToken);
+        }
+
+        public override Task<SessionCreateOutcome> CreateFromProgramWorkoutAsync(
+            int userId, CreateSessionFromProgramWorkoutDto request, CancellationToken cancellationToken)
+        {
+            _counter.Bump();
+            return base.CreateFromProgramWorkoutAsync(userId, request, cancellationToken);
         }
     }
 }

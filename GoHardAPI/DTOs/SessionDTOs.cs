@@ -10,6 +10,33 @@ namespace GoHardAPI.DTOs
         public int ProgramWorkoutId { get; set; }
         public int ProgramId { get; set; } // Pass programId to fix old data issue
         public DateTime? ScheduledDate { get; set; } // Optional: client-calculated date (in local timezone)
+
+        /// <summary>
+        /// Optional client idempotency key. When present,
+        /// <c>POST /api/v1/sessions/from-program-workout</c> joins the <b>same</b> durable
+        /// creation/cancellation protocol as keyed <c>POST /api/v1/sessions</c>, idempotent
+        /// per <c>(authenticated UserId, ClientOperationId)</c>:
+        /// <list type="bullet">
+        ///   <item>the first request materializes exactly one Session <b>and its
+        ///     Exercises</b>, plus a completed <c>SessionCreateOperation</c> row, atomically;</item>
+        ///   <item>every later request with the same key returns that same canonical Session
+        ///     unchanged — <b>no duplicate Exercises/Sets</b>, and the source ProgramWorkout
+        ///     is never re-read (first writer wins, exactly like keyed
+        ///     <c>POST /api/v1/sessions</c>);</item>
+        ///   <item><c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c> cancels
+        ///     this creation before, during, or after it commits.</item>
+        /// </list>
+        /// When absent (<c>null</c>), the unkeyed compatibility path is used: a new Session is
+        /// always created (<c>201</c>) with no operation row. A <c>null</c> key is never
+        /// treated as an empty key.
+        ///
+        /// A supplied <see cref="Guid.Empty"/> is rejected with
+        /// <c>400 { code: "invalid_operation_key" }</c> before any persistence — the same
+        /// value the by-operation cancellation endpoint refuses, so a Session must never be
+        /// created under a key that can never be cancelled. A non-parseable value is a
+        /// model-binding <c>400</c>.
+        /// </summary>
+        public Guid? ClientOperationId { get; set; }
     }
 
     /// <summary>
@@ -106,6 +133,15 @@ namespace GoHardAPI.DTOs
         public const string OperationTargetDeleted = "operation_target_deleted";
 
         /// <summary>
+        /// A keyed <c>POST /api/v1/sessions/from-program-workout</c> whose source
+        /// <c>ProgramWorkout.ExercisesJson</c> is not a parseable JSON array of objects.
+        /// Nothing is created and the operation is <b>not</b> tombstoned, so a retry after
+        /// the template is corrected can still succeed. HTTP 400. Never returned by the
+        /// generic <c>POST /api/v1/sessions</c>.
+        /// </summary>
+        public const string ProgramWorkoutDataInvalid = "program_workout_data_invalid";
+
+        /// <summary>
         /// The operation record is in an indeterminate state (present but never
         /// completed and not canceled). Fail closed — no second Session is created. HTTP 409.
         /// </summary>
@@ -113,15 +149,20 @@ namespace GoHardAPI.DTOs
     }
 
     /// <summary>
-    /// Fixed, non-sensitive error codes returned by
-    /// DELETE /api/v1/sessions/by-operation/{clientOperationId}. Stable strings.
+    /// Fixed, non-sensitive error codes for an unusable operation key. Stable strings.
+    /// Returned by <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c> and by
+    /// keyed <c>POST /api/v1/sessions/from-program-workout</c> — the same string identifies
+    /// the same rejection (the empty GUID) on both the create and the cancel side, so a
+    /// client branches on one code regardless of which endpoint it hit.
     /// </summary>
     public static class SessionCancelErrorCodes
     {
         /// <summary>
         /// The supplied operation key is the empty GUID (a non-parseable value is rejected
         /// by model binding before the action runs). HTTP 400. Not a resource-existence
-        /// signal — it never depends on whether any operation exists.
+        /// signal — it never depends on whether any operation exists. On keyed
+        /// <c>POST /api/v1/sessions/from-program-workout</c> it is returned before any
+        /// persistence; the generic <c>POST /api/v1/sessions</c> contract does not use it.
         /// </summary>
         public const string InvalidOperationKey = "invalid_operation_key";
     }
