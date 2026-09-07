@@ -43,13 +43,13 @@ namespace GoHardAPI.Models
         public DateTime? CompletedAt { get; set; }
 
         /// <summary>
-        /// Set when the operation was canceled out of band. A replay of a canceled
-        /// operation creates nothing and returns <c>409 operation_canceled</c>.
-        ///
-        /// DORMANT in P1: no code path writes this column yet. The producer is the P2
-        /// DELETE-by-operation-key endpoint; until it lands, the <c>operation_canceled</c>
-        /// branch of <see cref="Services.SessionCreateService"/> is unreachable in
-        /// production (exercised only by tests that seed the row directly).
+        /// Set when the operation was canceled out of band by
+        /// <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c>
+        /// (<see cref="Services.SessionCreateService.CancelCreateAsync"/>). A concurrent or
+        /// later keyed CREATE for this <c>(UserId, ClientOperationId)</c> then creates
+        /// nothing and returns <c>409 operation_canceled</c>. The row is a permanent
+        /// tombstone: cancellation may also delete the produced Session (blanking
+        /// <see cref="SessionId"/> via <c>ON DELETE SET NULL</c>) but never removes this row.
         /// </summary>
         public DateTime? CanceledAt { get; set; }
 

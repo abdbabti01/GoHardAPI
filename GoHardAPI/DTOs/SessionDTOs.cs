@@ -96,9 +96,9 @@ namespace GoHardAPI.DTOs
         public const string ProgramNotFound = "program_not_found";
 
         /// <summary>
-        /// Replay of an operation that was canceled. HTTP 409.
-        /// DORMANT in P1 — nothing writes <c>SessionCreateOperation.CanceledAt</c> until the
-        /// P2 DELETE-by-operation-key endpoint.
+        /// A keyed CREATE for a <c>(user, clientOperationId)</c> that was canceled via
+        /// DELETE /api/v1/sessions/by-operation/{clientOperationId}. Nothing is created.
+        /// HTTP 409.
         /// </summary>
         public const string OperationCanceled = "operation_canceled";
 
@@ -110,6 +110,20 @@ namespace GoHardAPI.DTOs
         /// completed and not canceled). Fail closed — no second Session is created. HTTP 409.
         /// </summary>
         public const string OperationIncomplete = "operation_incomplete";
+    }
+
+    /// <summary>
+    /// Fixed, non-sensitive error codes returned by
+    /// DELETE /api/v1/sessions/by-operation/{clientOperationId}. Stable strings.
+    /// </summary>
+    public static class SessionCancelErrorCodes
+    {
+        /// <summary>
+        /// The supplied operation key is the empty GUID (a non-parseable value is rejected
+        /// by model binding before the action runs). HTTP 400. Not a resource-existence
+        /// signal — it never depends on whether any operation exists.
+        /// </summary>
+        public const string InvalidOperationKey = "invalid_operation_key";
     }
 
     /// <summary>

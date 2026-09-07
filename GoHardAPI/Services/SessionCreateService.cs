@@ -24,9 +24,10 @@ namespace GoHardAPI.Services
         ProgramNotFound,
 
         /// <summary>
-        /// The keyed operation was canceled. Nothing created. HTTP 409 <c>operation_canceled</c>.
-        /// DORMANT in P1 — nothing writes <c>SessionCreateOperation.CanceledAt</c> until the
-        /// P2 DELETE-by-operation-key endpoint.
+        /// The keyed operation was canceled via
+        /// <c>DELETE /api/v1/sessions/by-operation/{clientOperationId}</c>
+        /// (<see cref="SessionCreateService.CancelCreateAsync"/>). Nothing created.
+        /// HTTP 409 <c>operation_canceled</c>.
         /// </summary>
         Canceled,
 
@@ -209,8 +210,9 @@ namespace GoHardAPI.Services
 
             if (op.CanceledAt is not null)
             {
-                // DORMANT in P1 (no producer of CanceledAt); reachable only via a P2 cancel
-                // endpoint or a direct DB write.
+                // Cancelled via CancelCreateAsync (or a direct DB write). The shared
+                // operation lock guarantees that if cancel committed first, this CREATE
+                // observes CanceledAt and creates nothing.
                 await tx.RollbackAsync(cancellationToken);
                 return SessionCreateOutcome.Canceled;
             }
@@ -285,6 +287,174 @@ namespace GoHardAPI.Services
             record.CompletedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync(cancellationToken);
             return SessionCreateOutcome.Created(session);
+        }
+
+        /// <summary>
+        /// Cancels the keyed Session CREATE identified by <paramref name="key"/> for the
+        /// authenticated <paramref name="userId"/>. Idempotent and safe to retry.
+        ///
+        /// <para>Once this returns (the work is committed):</para>
+        /// <list type="bullet">
+        ///   <item>a durable <see cref="SessionCreateOperation"/> tombstone exists for
+        ///     <c>(userId, key)</c> with <see cref="SessionCreateOperation.CanceledAt"/> set;</item>
+        ///   <item>no Session produced by that operation remains — an already-created Session
+        ///     and its owned children (<c>Exercises</c> → <c>ExerciseSets</c>) are removed via
+        ///     the established cascade;</item>
+        ///   <item>a concurrent or later keyed CREATE with the same key creates nothing:
+        ///     <see cref="RunKeyedAttemptAsync"/> observes <c>CanceledAt</c> and returns
+        ///     <see cref="SessionCreateResult.Canceled"/>.</item>
+        /// </list>
+        ///
+        /// <para>Cancel and CREATE serialize on the <b>same</b> transaction-scoped operation
+        /// lock (<see cref="AcquireOperationLockAsync"/>): PostgreSQL
+        /// <c>pg_advisory_xact_lock</c> / SQL Server <c>sp_getapplock</c>, both owned by the
+        /// transaction. Cancellation therefore wins in every accepted ordering across
+        /// multiple API instances and independent PostgreSQL transactions — there is no
+        /// process-local lock.</para>
+        ///
+        /// <para>Lookup and mutation are scoped by <paramref name="userId"/>. A key owned by
+        /// another user is invisible here and that user's tombstone / Session is never
+        /// touched; the caller cannot learn whether such a key exists. A key this user has
+        /// never used still gets a tombstone written, so a cancel that arrives before the
+        /// CREATE is honored.</para>
+        ///
+        /// <para>The empty GUID is not a real idempotency key: it is rejected without a
+        /// database write.</para>
+        /// </summary>
+        public virtual async Task CancelCreateAsync(int userId, Guid key, CancellationToken cancellationToken)
+        {
+            if (key == Guid.Empty)
+            {
+                return;
+            }
+
+            // A non-relational provider (InMemory, unit tests only) has no real transaction
+            // or advisory lock. Production is always relational.
+            if (!_context.Database.IsRelational())
+            {
+                await CancelCreateWithoutTransactionAsync(userId, key, cancellationToken);
+                return;
+            }
+
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await RunCancelAttemptAsync(userId, key, cancellationToken);
+                    return;
+                }
+                catch (Exception ex) when (attempt < MaxAttempts && IsRetryable(ex))
+                {
+                    _logger.LogWarning(ex,
+                        "Retryable failure on keyed session-create cancel (attempt {Attempt}/{Max}) for user {UserId}, operation {OperationId}",
+                        attempt, MaxAttempts, userId, key);
+                    await Task.Delay(20 * attempt, cancellationToken);
+                }
+            }
+        }
+
+        private async Task RunCancelAttemptAsync(int userId, Guid key, CancellationToken cancellationToken)
+        {
+            // Same clean-slate contract as RunKeyedAttemptAsync: a prior attempt that failed
+            // on a retryable error leaves Added/Modified entities tracked after its
+            // rolled-back transaction.
+            _context.ChangeTracker.Clear();
+
+            await using var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+            // The one transaction-scoped lock the keyed CREATE also takes. Whichever of
+            // create / cancel acquires it first runs to completion before the other reads
+            // anything, so no check-then-act race can leave a Session after cancellation.
+            await AcquireOperationLockAsync(userId, key, cancellationToken);
+
+            var op = await _context.SessionCreateOperations
+                .FirstOrDefaultAsync(o => o.UserId == userId && o.ClientOperationId == key, cancellationToken);
+
+            if (op is null)
+            {
+                // Cancel reached the server before any CREATE (or this user never used this
+                // key). Persist the tombstone now so a later keyed CREATE is refused.
+                _context.SessionCreateOperations.Add(new SessionCreateOperation
+                {
+                    UserId = userId,
+                    ClientOperationId = key,
+                    CreatedAt = DateTime.UtcNow,
+                    CanceledAt = DateTime.UtcNow,
+                });
+                await _context.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+                return;
+            }
+
+            if (op.CanceledAt is null)
+            {
+                op.CanceledAt = DateTime.UtcNow;
+            }
+
+            // If the operation already produced a Session, delete it and its owned children.
+            // Loading the child graph makes the cascade deterministic on every provider; the
+            // database ON DELETE CASCADE (Exercises → ExerciseSets) is the backstop. The
+            // Session lookup is itself owner-scoped — a corrupted cross-user SessionId
+            // pointer must never let one user delete another user's Session.
+            if (op.SessionId is { } sessionId)
+            {
+                var session = await _context.Sessions
+                    .Include(s => s.Exercises)
+                        .ThenInclude(e => e.ExerciseSets)
+                    .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId, cancellationToken);
+
+                if (session is not null)
+                {
+                    _context.Sessions.Remove(session);
+                }
+            }
+
+            // The operation row itself is NEVER removed:
+            // FK_SessionCreateOperations_Sessions_SessionId is ON DELETE SET NULL, so
+            // deleting the Session only blanks the pointer. The CanceledAt tombstone
+            // survives to keep this key permanently unusable for CREATE.
+            await _context.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+
+        private async Task CancelCreateWithoutTransactionAsync(
+            int userId, Guid key, CancellationToken cancellationToken)
+        {
+            var op = await _context.SessionCreateOperations
+                .FirstOrDefaultAsync(o => o.UserId == userId && o.ClientOperationId == key, cancellationToken);
+
+            if (op is null)
+            {
+                _context.SessionCreateOperations.Add(new SessionCreateOperation
+                {
+                    UserId = userId,
+                    ClientOperationId = key,
+                    CreatedAt = DateTime.UtcNow,
+                    CanceledAt = DateTime.UtcNow,
+                });
+                await _context.SaveChangesAsync(cancellationToken);
+                return;
+            }
+
+            if (op.CanceledAt is null)
+            {
+                op.CanceledAt = DateTime.UtcNow;
+            }
+
+            if (op.SessionId is { } sessionId)
+            {
+                var session = await _context.Sessions
+                    .Include(s => s.Exercises)
+                        .ThenInclude(e => e.ExerciseSets)
+                    .FirstOrDefaultAsync(s => s.Id == sessionId && s.UserId == userId, cancellationToken);
+
+                if (session is not null)
+                {
+                    _context.Sessions.Remove(session);
+                }
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
         /// <summary>
