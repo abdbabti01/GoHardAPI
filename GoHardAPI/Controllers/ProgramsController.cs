@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using GoHardAPI.Data;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using System.Security.Claims;
 
 namespace GoHardAPI.Controllers
@@ -68,6 +69,11 @@ namespace GoHardAPI.Controllers
                 .ThenByDescending(p => p.CreatedAt)
                 .ToListAsync();
 
+            foreach (var program in programs)
+            {
+                await SelfHealWorkoutOccurrenceKeysAsync(program.Workouts);
+            }
+
             return Ok(programs);
         }
 
@@ -89,6 +95,8 @@ namespace GoHardAPI.Controllers
             {
                 return NotFound();
             }
+
+            await SelfHealWorkoutOccurrenceKeysAsync(program.Workouts);
 
             return Ok(program);
         }
@@ -122,7 +130,8 @@ namespace GoHardAPI.Controllers
                 program.EndDate = program.StartDate.AddDays(program.TotalWeeks * 7);
             }
 
-            // Calculate ScheduledDate for each workout based on program's StartDate
+            // Calculate ScheduledDate for each workout based on program's StartDate, and
+            // validate/normalize each workout's exercise-occurrence identities.
             if (program.Workouts != null)
             {
                 foreach (var workout in program.Workouts)
@@ -130,6 +139,13 @@ namespace GoHardAPI.Controllers
                     workout.ScheduledDate = program.StartDate
                         .AddDays((workout.WeekNumber - 1) * 7 + (workout.DayNumber - 1))
                         .Date;
+
+                    var normalized = ProgramWorkoutExerciseOccurrences.Normalize(workout.ExercisesJson);
+                    if (!normalized.IsValid)
+                    {
+                        return BadRequest(new { message = normalized.Error });
+                    }
+                    workout.ExercisesJson = normalized.Json;
                 }
             }
 
@@ -358,6 +374,8 @@ namespace GoHardAPI.Controllers
                 return BadRequest(new { message = "Cannot activate a program with no workouts" });
             }
 
+            await SelfHealWorkoutOccurrenceKeysAsync(program.Workouts);
+
             // Validate at least one workout has exercises
             var workoutsWithExercises = program.Workouts
                 .Where(w => !string.IsNullOrEmpty(w.ExercisesJson) && w.ExercisesJson != "[]")
@@ -480,6 +498,8 @@ namespace GoHardAPI.Controllers
                 .OrderBy(w => w.OrderIndex)
                 .ToListAsync();
 
+            await SelfHealWorkoutOccurrenceKeysAsync(workouts);
+
             return Ok(workouts);
         }
 
@@ -508,6 +528,8 @@ namespace GoHardAPI.Controllers
                 return NotFound("No workout scheduled for today");
             }
 
+            await SelfHealWorkoutOccurrenceKeysAsync(new[] { workout });
+
             return Ok(workout);
         }
 
@@ -525,6 +547,13 @@ namespace GoHardAPI.Controllers
             {
                 return NotFound();
             }
+
+            var normalized = ProgramWorkoutExerciseOccurrences.Normalize(workout.ExercisesJson);
+            if (!normalized.IsValid)
+            {
+                return BadRequest(new { message = normalized.Error });
+            }
+            workout.ExercisesJson = normalized.Json;
 
             workout.ProgramId = id;
             _context.ProgramWorkouts.Add(workout);
@@ -556,12 +585,18 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
+            var normalized = ProgramWorkoutExerciseOccurrences.Normalize(workout.ExercisesJson);
+            if (!normalized.IsValid)
+            {
+                return BadRequest(new { message = normalized.Error });
+            }
+
             // Update fields
             existingWorkout.WorkoutName = workout.WorkoutName;
             existingWorkout.WorkoutType = workout.WorkoutType;
             existingWorkout.Description = workout.Description;
             existingWorkout.EstimatedDuration = workout.EstimatedDuration;
-            existingWorkout.ExercisesJson = workout.ExercisesJson;
+            existingWorkout.ExercisesJson = normalized.Json;
             existingWorkout.WarmUp = workout.WarmUp;
             existingWorkout.CoolDown = workout.CoolDown;
             existingWorkout.IsCompleted = workout.IsCompleted;
@@ -732,6 +767,54 @@ namespace GoHardAPI.Controllers
         private bool ProgramExists(int id)
         {
             return _context.Programs.Any(e => e.Id == id);
+        }
+
+        /// <summary>
+        /// Self-heal pass for a GET (or activation) response: fills in and durably persists any
+        /// missing exercise <c>occurrenceKey</c> values on each workout
+        /// (<see cref="ProgramWorkoutExerciseOccurrences.EnsurePersistedAsync"/>), so a legacy
+        /// template becomes stable before a capable client reads it and never has its keys
+        /// regenerated on a later read. Safe to call whether <paramref name="workouts"/> came
+        /// from a tracked or an <c>AsNoTracking</c> query: for a tracked entity the in-memory
+        /// property change is explicitly marked unmodified afterward, so it can never be
+        /// re-persisted (and potentially clobber a concurrent edit) by an unrelated
+        /// <c>SaveChangesAsync</c> later in the same request — the durable write already
+        /// happened, if it happened at all, through <c>EnsurePersistedAsync</c>'s own
+        /// compare-and-swap.
+        /// </summary>
+        private async Task SelfHealWorkoutOccurrenceKeysAsync(IEnumerable<ProgramWorkout>? workouts)
+        {
+            if (workouts == null)
+            {
+                return;
+            }
+
+            foreach (var workout in workouts)
+            {
+                var normalized = await ProgramWorkoutExerciseOccurrences.EnsurePersistedAsync(
+                    _context, workout, HttpContext.RequestAborted);
+
+                if (normalized == workout.ExercisesJson)
+                {
+                    continue;
+                }
+
+                workout.ExercisesJson = normalized;
+
+                var entry = _context.Entry(workout);
+                if (entry.State != EntityState.Detached)
+                {
+                    // NOT `Property(...).IsModified = false` — that setter resyncs CurrentValue
+                    // back to OriginalValue, which would silently revert the CLR assignment
+                    // above. Instead, tell the tracker the ORIGINAL (as-loaded) value is now
+                    // this one: CurrentValue keeps our normalized text, IsModified becomes false
+                    // as a side effect (current == original), and an unrelated SaveChangesAsync
+                    // later in the same request has nothing to persist for this property — the
+                    // durable write already happened, if it happened at all, inside
+                    // EnsurePersistedAsync's own compare-and-swap.
+                    entry.Property(w => w.ExercisesJson).OriginalValue = normalized;
+                }
+            }
         }
     }
 

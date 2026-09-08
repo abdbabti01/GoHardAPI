@@ -114,6 +114,19 @@ namespace GoHardAPI.Services
                         exercise.RestTime = exerciseData["rest"].GetInt32();
                     }
 
+                    // Copied verbatim, never invented here: the source ProgramWorkout is
+                    // expected to already carry a persisted occurrenceKey per entry (the
+                    // caller normalizes/persists it via
+                    // ProgramWorkoutExerciseOccurrences.EnsurePersistedAsync before calling
+                    // Build). An entry that still lacks one (never normalized, or predates
+                    // this field) simply materializes with a null OccurrenceKey — no
+                    // positional or name-based identity is ever guessed.
+                    if (exerciseData.ContainsKey("occurrenceKey")
+                        && exerciseData["occurrenceKey"].ValueKind == JsonValueKind.String)
+                    {
+                        exercise.OccurrenceKey = exerciseData["occurrenceKey"].GetString();
+                    }
+
                     session.Exercises.Add(exercise);
                 }
             }
