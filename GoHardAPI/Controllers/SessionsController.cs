@@ -247,7 +247,12 @@ namespace GoHardAPI.Controllers
             }
 
             // ---- legacy unkeyed path: response shapes preserved exactly ----
+            // AsNoTracking: this method only reads programWorkout (ownership check + the
+            // materializer source); it must stay untracked so the occurrence-key normalization
+            // below persists exclusively through its own compare-and-swap write, never through
+            // an incidental SaveChangesAsync update from this method's change tracker.
             var programWorkout = await _context.ProgramWorkouts
+                .AsNoTracking()
                 .Include(pw => pw.Program)
                 .FirstOrDefaultAsync(pw => pw.Id == dto.ProgramWorkoutId, cancellationToken);
 
@@ -260,6 +265,12 @@ namespace GoHardAPI.Controllers
             {
                 return Unauthorized("You don't have access to this program");
             }
+
+            // Occurrence identity must be durable before the Session exists even on this
+            // unkeyed legacy path — same normalize-and-persist step the keyed service path
+            // takes (GoHardAPI.Services.ProgramWorkoutExerciseOccurrences.EnsurePersistedAsync).
+            programWorkout.ExercisesJson = await ProgramWorkoutExerciseOccurrences.EnsurePersistedAsync(
+                _context, programWorkout, cancellationToken);
 
             Session session;
             try

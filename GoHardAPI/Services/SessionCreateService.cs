@@ -122,6 +122,16 @@ namespace GoHardAPI.Services
         /// terminal failure outcome. It must not open a transaction, take a lock, or call
         /// SaveChanges. Replay paths never invoke it, so the canonical write is never
         /// re-validated or re-materialized.
+        ///
+        /// <para>Exception: the from-program-workout factory
+        /// (<see cref="ProgramWorkoutFirstWriteAsync"/>) may issue one direct
+        /// <c>ExecuteUpdateAsync</c> statement — never <c>SaveChanges</c>, never a new
+        /// transaction/lock — via <see cref="ProgramWorkoutExerciseOccurrences.EnsurePersistedAsync"/>
+        /// to durably fill in any missing exercise <c>occurrenceKey</c> on the source
+        /// <c>ProgramWorkout</c> before materializing. It participates in the caller's
+        /// already-open ambient transaction, so it rolls back with everything else on failure,
+        /// and its compare-and-swap guard means a lost race is a no-op, not a conflicting
+        /// write.</para>
         /// </summary>
         private delegate Task<KeyedFirstWrite> FirstWriteFactory(CancellationToken cancellationToken);
 
@@ -264,6 +274,14 @@ namespace GoHardAPI.Services
             {
                 return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramNotFound);
             }
+
+            // Occurrence identity must be durable BEFORE the Session exists, even if no GET
+            // ever preceded this create: fill in and persist any missing occurrenceKey values
+            // on the source workout now (compare-and-swap; never clobbers a concurrent edit),
+            // then materialize from that normalized text. Build() itself stays read-only and
+            // never invents a key on its own.
+            workout.ExercisesJson = await ProgramWorkoutExerciseOccurrences.EnsurePersistedAsync(
+                _context, workout, cancellationToken);
 
             try
             {

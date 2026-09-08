@@ -1137,7 +1137,11 @@ Please provide:
                                 reps = e.Reps,
                                 weight = e.Weight,
                                 rest = e.RestTime,
-                                notes = e.Notes
+                                notes = e.Notes,
+                                // Every AI-generated entry is a distinct occurrence, even when
+                                // it repeats the same exercise name/template elsewhere in the
+                                // workout — see GoHardAPI.Services.ProgramWorkoutExerciseOccurrences.
+                                occurrenceKey = Guid.NewGuid().ToString("N")
                             }).ToList();
                             exercisesJson = System.Text.Json.JsonSerializer.Serialize(exercisesList);
                         }
@@ -1547,7 +1551,10 @@ IMPORTANT RULES:
                                     reps = e.Reps,
                                     weight = e.Weight,
                                     rest = e.RestTime,
-                                    notes = e.Notes
+                                    notes = e.Notes,
+                                    // Distinct occurrence per generated entry — see
+                                    // GoHardAPI.Services.ProgramWorkoutExerciseOccurrences.
+                                    occurrenceKey = Guid.NewGuid().ToString("N")
                                 }).ToList())
                             : "[]"
                     };
