@@ -61,6 +61,9 @@ builder.Services.AddScoped<NutritionCalculatorService>();
 // Register FileUploadService
 builder.Services.AddScoped<FileUploadService>();
 
+// Derives a user's current body measurements from Body Metrics history
+builder.Services.AddScoped<CurrentMeasurementsService>();
+
 // Register Repositories
 builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 builder.Services.AddScoped<ISessionRepository, SessionRepository>();

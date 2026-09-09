@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using GoHardAPI.Data;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using System.Security.Claims;
 
 namespace GoHardAPI.Controllers
@@ -103,9 +104,22 @@ namespace GoHardAPI.Controllers
 
             _context.BodyMetrics.Add(metric);
 
+            // This row now covers any measurement field it fills. Retire the
+            // matching legacy profile scalar (User.X -> null) in the SAME
+            // transaction, so User.X stays non-null iff no row has ever filled X
+            // (see CurrentMeasurementsService). Current values themselves are
+            // derived on read - there is no summary column to keep in step.
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (user is not null)
+            {
+                CurrentMeasurementsService.RetireCoveredLegacyScalars(user, metric);
+            }
+
             // AUTO-UPDATE BODY-RELATED GOALS
             await UpdateBodyMetricGoals(userId, metric);
 
+            // One SaveChanges: the row, the legacy-scalar retirement and the goal
+            // updates commit together or not at all.
             await _context.SaveChangesAsync();
 
             return CreatedAtAction(nameof(GetBodyMetric), new { id = metric.Id }, metric);
@@ -131,9 +145,23 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
+            // Whether the row covered a field BEFORE this edit - so an edit that
+            // CLEARS the only usable weight/height still retires a still-present
+            // pre-change legacy scalar (a delete of the same row would).
+            var preImageCovered = new BodyMetric
+            {
+                Weight = existingMetric.Weight,
+                Height = existingMetric.Height,
+                BodyFatPercentage = existingMetric.BodyFatPercentage,
+            };
+
             // Update fields
             existingMetric.RecordedAt = metric.RecordedAt;
             existingMetric.Weight = metric.Weight;
+            // Height was previously omitted here, which left an edit of a row
+            // unable to change the current profile height. It is a measurement
+            // field like the rest and is now saved.
+            existingMetric.Height = metric.Height;
             existingMetric.BodyFatPercentage = metric.BodyFatPercentage;
             existingMetric.ChestCircumference = metric.ChestCircumference;
             existingMetric.WaistCircumference = metric.WaistCircumference;
@@ -144,8 +172,21 @@ namespace GoHardAPI.Controllers
             existingMetric.Notes = metric.Notes;
             existingMetric.PhotoUrl = metric.PhotoUrl;
 
+            // A field this row covers with a usable value EITHER before or after
+            // the edit is history-covered - retire that legacy scalar in the same
+            // transaction. Retirement is monotonic, so covering it either way is
+            // safe and clearing a field never un-retires.
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+            if (user is not null)
+            {
+                CurrentMeasurementsService.RetireCoveredLegacyScalars(user, existingMetric);
+                CurrentMeasurementsService.RetireCoveredLegacyScalars(user, preImageCovered);
+            }
+
             try
             {
+                // One SaveChanges: the edited row and the legacy-scalar
+                // retirement commit together or not at all.
                 await _context.SaveChangesAsync();
             }
             catch (DbUpdateConcurrencyException)
@@ -175,7 +216,30 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
+            // The removed row's coverage of a field makes any still-present
+            // legacy User.X for that field unprovable (an old "Updated from
+            // profile" edit set both User.X and a matching row). Retire it in
+            // the same transaction - unconditionally, exactly like create/update:
+            // if surviving rows still cover the field the derived read uses them
+            // anyway, and if none do NULL is the intended answer. Monotonic +
+            // idempotent, so overlapping deletes converge with no lock and no
+            // read-then-write race. A field the removed row never covered is
+            // untouched, so a genuine legacy value with no history survives.
+            if (CurrentMeasurementsService.IsUsable(metric.Weight)
+                || CurrentMeasurementsService.IsUsable(metric.Height)
+                || CurrentMeasurementsService.IsUsable(metric.BodyFatPercentage))
+            {
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+                if (user is not null)
+                {
+                    CurrentMeasurementsService.RetireCoveredLegacyScalars(user, metric);
+                }
+            }
+
             _context.BodyMetrics.Remove(metric);
+
+            // One SaveChanges: the removal and any legacy-scalar retirement
+            // commit together or not at all.
             await _context.SaveChangesAsync();
 
             return NoContent();

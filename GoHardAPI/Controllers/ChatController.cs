@@ -19,12 +19,18 @@ namespace GoHardAPI.Controllers
     {
         private readonly TrainingContext _context;
         private readonly AIService _aiService;
+        private readonly CurrentMeasurementsService _currentMeasurements;
         private readonly ILogger<ChatController> _logger;
 
-        public ChatController(TrainingContext context, AIService aiService, ILogger<ChatController> logger)
+        public ChatController(
+            TrainingContext context,
+            AIService aiService,
+            CurrentMeasurementsService currentMeasurements,
+            ILogger<ChatController> logger)
         {
             _context = context;
             _aiService = aiService;
+            _currentMeasurements = currentMeasurements;
             _logger = logger;
         }
 
@@ -330,26 +336,35 @@ namespace GoHardAPI.Controllers
             _context.ChatConversations.Add(conversation);
             await _context.SaveChangesAsync();
 
-            // Build user profile section if metrics are available
+            // Build user profile section if metrics are available. Weight / height
+            // / body fat are the user's CURRENT measurements, resolved from Body
+            // Metrics history with the same per-field semantics as
+            // ProfileController / NutritionController (CurrentMeasurementsService);
+            // a since-deleted measurement is never used, an unknown value is just
+            // omitted. Target weight / gender / DOB are plain profile fields.
             var userProfileSection = "";
-            if (user != null && (user.Weight.HasValue || user.Height.HasValue || user.DateOfBirth.HasValue))
+            if (user != null)
             {
-                var age = CalculateAge(user.DateOfBirth);
-                var weightLbs = user.Weight.HasValue ? (user.Weight.Value * 2.205).ToString("F0") : "Not set";
-                var weightKg = user.Weight.HasValue ? user.Weight.Value.ToString("F1") : "Not set";
-                var heightIn = user.Height.HasValue ? (user.Height.Value / 2.54).ToString("F0") : "Not set";
-                var heightCm = user.Height.HasValue ? user.Height.Value.ToString("F0") : "Not set";
+                var measurements = await _currentMeasurements.GetForUserAsync(user);
+                if (measurements.WeightKg.HasValue || measurements.HeightCm.HasValue || user.DateOfBirth.HasValue)
+                {
+                    var age = CalculateAge(user.DateOfBirth);
+                    var weightLbs = measurements.WeightKg.HasValue ? (measurements.WeightKg.Value * 2.205).ToString("F0") : "Not set";
+                    var weightKg = measurements.WeightKg.HasValue ? measurements.WeightKg.Value.ToString("F1") : "Not set";
+                    var heightIn = measurements.HeightCm.HasValue ? (measurements.HeightCm.Value / 2.54).ToString("F0") : "Not set";
+                    var heightCm = measurements.HeightCm.HasValue ? measurements.HeightCm.Value.ToString("F0") : "Not set";
 
-                userProfileSection = $@"
+                    userProfileSection = $@"
 
 **User Profile:**
 - Weight: {weightKg}kg ({weightLbs}lbs)
 - Height: {heightCm}cm ({heightIn} inches)
 - Age: {age} years
 - Gender: {user.Gender ?? "Not specified"}
-- Body Fat: {(user.BodyFatPercentage.HasValue ? $"{user.BodyFatPercentage.Value}%" : "Not set")}
+- Body Fat: {(measurements.BodyFatPercentage.HasValue ? $"{measurements.BodyFatPercentage.Value}%" : "Not set")}
 - Target Weight: {(user.TargetWeight.HasValue ? $"{user.TargetWeight.Value}kg" : "Not set")}
 ";
+                }
             }
 
             // Build structured prompt from form data - requests JSON block with summary
