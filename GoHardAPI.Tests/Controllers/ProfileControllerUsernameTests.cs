@@ -9,6 +9,7 @@ using GoHardAPI.DTOs;
 using GoHardAPI.Models;
 using GoHardAPI.Repositories;
 using GoHardAPI.Services;
+using GoHardAPI.Tests.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
@@ -45,12 +46,12 @@ namespace GoHardAPI.Tests.Controllers
 
         private static ProfileController NewController(TrainingContext ctx, int userId)
         {
-            var env = new StubWebHostEnvironment();
             var controller = new ProfileController(
                 ctx,
-                new FileUploadService(env),
+                TestProfilePhotoStorage.UnusedService(),
                 new UserRepository(ctx),
-                new CurrentMeasurementsService(ctx));
+                new CurrentMeasurementsService(ctx),
+                TestScopeFactory.Unused());
 
             controller.ControllerContext = new ControllerContext
             {
@@ -291,18 +292,6 @@ namespace GoHardAPI.Tests.Controllers
             return parameter.GetCustomAttributes(typeof(ValidationAttribute), inherit: true)
                 .Cast<ValidationAttribute>()
                 .ToArray();
-        }
-
-        private sealed class StubWebHostEnvironment : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
-        {
-            public string WebRootPath { get; set; } = System.IO.Path.GetTempPath();
-            public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; }
-                = new Microsoft.Extensions.FileProviders.NullFileProvider();
-            public string ApplicationName { get; set; } = "Tests";
-            public string ContentRootPath { get; set; } = System.IO.Path.GetTempPath();
-            public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; }
-                = new Microsoft.Extensions.FileProviders.NullFileProvider();
-            public string EnvironmentName { get; set; } = "Test";
         }
     }
 }

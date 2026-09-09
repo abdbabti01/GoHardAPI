@@ -515,9 +515,10 @@ namespace GoHardAPI.Tests.Controllers
         {
             var controller = new ProfileController(
                 ctx,
-                new FileUploadService(new StubEnv()),
+                GoHardAPI.Tests.Infrastructure.TestProfilePhotoStorage.UnusedService(),
                 new UserRepository(ctx),
-                new CurrentMeasurementsService(ctx));
+                new CurrentMeasurementsService(ctx),
+                GoHardAPI.Tests.Infrastructure.TestScopeFactory.Unused());
             controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
@@ -552,18 +553,6 @@ namespace GoHardAPI.Tests.Controllers
                 DbContextEventData eventData, InterceptionResult<int> result,
                 CancellationToken cancellationToken = default)
                 => throw new InvalidOperationException("boom");
-        }
-
-        private sealed class StubEnv : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
-        {
-            public string WebRootPath { get; set; } = System.IO.Path.GetTempPath();
-            public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; }
-                = new Microsoft.Extensions.FileProviders.NullFileProvider();
-            public string ApplicationName { get; set; } = "Tests";
-            public string ContentRootPath { get; set; } = System.IO.Path.GetTempPath();
-            public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; }
-                = new Microsoft.Extensions.FileProviders.NullFileProvider();
-            public string EnvironmentName { get; set; } = "Test";
         }
     }
 }
