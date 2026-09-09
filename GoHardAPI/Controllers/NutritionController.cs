@@ -16,15 +16,18 @@ namespace GoHardAPI.Controllers
     {
         private readonly TrainingContext _context;
         private readonly NutritionCalculatorService _calculator;
+        private readonly CurrentMeasurementsService _currentMeasurements;
         private readonly ILogger<NutritionController> _logger;
 
         public NutritionController(
             TrainingContext context,
             NutritionCalculatorService calculator,
+            CurrentMeasurementsService currentMeasurements,
             ILogger<NutritionController> logger)
         {
             _context = context;
             _calculator = calculator;
+            _currentMeasurements = currentMeasurements;
             _logger = logger;
         }
 
@@ -39,47 +42,35 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Get user metrics from latest BodyMetric first, fallback to User profile
+        /// Current weight/height for TDEE, resolved with the SAME per-field
+        /// semantics as <c>ProfileController</c> and <c>ChatController</c>
+        /// (<see cref="CurrentMeasurementsService"/>: newest <c>RecordedAt</c>,
+        /// then newest <c>Id</c>, first non-null per field; legacy
+        /// <c>User.X</c> only where history has never covered X). Activity level
+        /// is not a body measurement here - it keeps its own "latest row's
+        /// ActivityLevel, else the profile value, else a default" rule, only the
+        /// tie-break is aligned. A missing weight/height comes back as <c>0</c>,
+        /// which the callers turn into a specific <c>MISSING_*</c> 400 - never an
+        /// invented estimate, and never a since-deleted measurement.
         /// </summary>
-        private async Task<(decimal weight, decimal height, string activityLevel, bool fromBodyMetrics)> GetUserMetricsAsync(int userId, Models.User user)
+        private async Task<(decimal weight, decimal height, string activityLevel)> GetUserMetricsAsync(Models.User user)
         {
-            // Try to get latest body metric first
-            var latestMetric = await _context.BodyMetrics
-                .Where(bm => bm.UserId == userId)
+            var current = await _currentMeasurements.GetForUserAsync(user);
+
+            var latestActivityLevel = await _context.BodyMetrics
+                .AsNoTracking()
+                .Where(bm => bm.UserId == user.Id && bm.ActivityLevel != null && bm.ActivityLevel != "")
                 .OrderByDescending(bm => bm.RecordedAt)
+                .ThenByDescending(bm => bm.Id)
+                .Select(bm => bm.ActivityLevel)
                 .FirstOrDefaultAsync();
 
-            decimal? weight = null;
-            decimal? height = null;
-            string? activityLevel = null;
-            bool fromBodyMetrics = false;
+            var activityLevel = latestActivityLevel ?? user.ActivityLevel ?? "ModeratelyActive";
 
-            // Prefer body metric values
-            if (latestMetric != null)
-            {
-                if (latestMetric.Weight.HasValue && latestMetric.Weight > 0)
-                {
-                    weight = latestMetric.Weight.Value;
-                    fromBodyMetrics = true;
-                }
-                if (latestMetric.Height.HasValue && latestMetric.Height > 0)
-                {
-                    height = latestMetric.Height.Value;
-                    fromBodyMetrics = true;
-                }
-                if (!string.IsNullOrEmpty(latestMetric.ActivityLevel))
-                {
-                    activityLevel = latestMetric.ActivityLevel;
-                    fromBodyMetrics = true;
-                }
-            }
+            var weight = current.WeightKg is { } w and > 0 ? (decimal)w : 0m;
+            var height = current.HeightCm is { } h and > 0 ? (decimal)h : 0m;
 
-            // Fallback to user profile for missing values
-            weight ??= user.Weight.HasValue ? (decimal)user.Weight.Value : 0;
-            height ??= user.Height.HasValue ? (decimal)user.Height.Value : 0;
-            activityLevel ??= user.ActivityLevel ?? "ModeratelyActive";
-
-            return (weight.Value, height.Value, activityLevel, fromBodyMetrics);
+            return (weight, height, activityLevel);
         }
 
         /// <summary>
@@ -99,12 +90,13 @@ namespace GoHardAPI.Controllers
                 }
 
                 // Get metrics from BodyMetrics first, fallback to profile
-                var (weightKg, heightCm, activityLevel, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
+                var (weightKg, heightCm, activityLevel) = await GetUserMetricsAsync(user);
 
                 // Validate required metrics with specific error codes
                 if (weightKg <= 0)
                 {
-                    return BadRequest(new {
+                    return BadRequest(new
+                    {
                         code = "MISSING_WEIGHT",
                         message = "Please set your weight in body metrics or profile first",
                         action = "GO_TO_BODY_METRICS",
@@ -114,7 +106,8 @@ namespace GoHardAPI.Controllers
 
                 if (heightCm <= 0)
                 {
-                    return BadRequest(new {
+                    return BadRequest(new
+                    {
                         code = "MISSING_HEIGHT",
                         message = "Please set your height in body metrics or profile first",
                         action = "GO_TO_BODY_METRICS",
@@ -196,12 +189,13 @@ namespace GoHardAPI.Controllers
                 }
 
                 // Get metrics from BodyMetrics first, fallback to profile
-                var (weightKg, heightCm, activityLevel, fromBodyMetrics) = await GetUserMetricsAsync(userId, user);
+                var (weightKg, heightCm, activityLevel) = await GetUserMetricsAsync(user);
 
                 // Validate required metrics with specific error codes
                 if (weightKg <= 0)
                 {
-                    return BadRequest(new {
+                    return BadRequest(new
+                    {
                         code = "MISSING_WEIGHT",
                         message = "Please set your weight in body metrics or profile first",
                         action = "GO_TO_BODY_METRICS",
@@ -211,7 +205,8 @@ namespace GoHardAPI.Controllers
 
                 if (heightCm <= 0)
                 {
-                    return BadRequest(new {
+                    return BadRequest(new
+                    {
                         code = "MISSING_HEIGHT",
                         message = "Please set your height in body metrics or profile first",
                         action = "GO_TO_BODY_METRICS",

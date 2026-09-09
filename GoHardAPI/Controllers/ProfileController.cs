@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
+using GoHardAPI.Repositories;
 using GoHardAPI.Services;
 using System.Security.Claims;
 
@@ -16,13 +17,28 @@ namespace GoHardAPI.Controllers
     [Authorize]
     public class ProfileController : ControllerBase
     {
+        /// <summary>
+        /// The unique index on <c>Users.Username</c>
+        /// (<c>TrainingContext.OnModelCreating</c>). Used to recognise the one
+        /// concurrent-claim violation that maps to 409.
+        /// </summary>
+        private const string UsernameUniqueIndex = "IX_Users_Username";
+
         private readonly TrainingContext _context;
         private readonly FileUploadService _fileUploadService;
+        private readonly IUserRepository _userRepository;
+        private readonly CurrentMeasurementsService _currentMeasurements;
 
-        public ProfileController(TrainingContext context, FileUploadService fileUploadService)
+        public ProfileController(
+            TrainingContext context,
+            FileUploadService fileUploadService,
+            IUserRepository userRepository,
+            CurrentMeasurementsService currentMeasurements)
         {
             _context = context;
             _fileUploadService = fileUploadService;
+            _userRepository = userRepository;
+            _currentMeasurements = currentMeasurements;
         }
 
         /// <summary>
@@ -48,17 +64,6 @@ namespace GoHardAPI.Controllers
                 age--;
 
             return age;
-        }
-
-        /// <summary>
-        /// Calculate BMI from height and weight
-        /// </summary>
-        private double? CalculateBMI(double? height, double? weight)
-        {
-            if (height == null || weight == null || height == 0) return null;
-
-            var heightInMeters = height.Value / 100; // convert cm to meters
-            return weight.Value / (heightInMeters * heightInMeters);
         }
 
         /// <summary>
@@ -127,14 +132,13 @@ namespace GoHardAPI.Controllers
 
             // Calculate derived fields
             var age = CalculateAge(user.DateOfBirth);
-            var bmi = CalculateBMI(user.Height, user.Weight);
 
-            // Update BMI in database if calculated
-            if (bmi.HasValue && user.BMI != bmi.Value)
-            {
-                user.BMI = bmi.Value;
-                await _context.SaveChangesAsync();
-            }
+            // Current body measurements are DERIVED from Body Metrics history on
+            // every read (per field: newest RecordedAt, then newest Id, first
+            // non-null; legacy User.X only when history has never covered X).
+            // There is no persisted summary, so nothing here can be left stale by
+            // a concurrent body-metric write.
+            var measurements = await _currentMeasurements.GetForUserAsync(user);
 
             // Get stats
             var stats = await GetProfileStats(userId);
@@ -142,17 +146,18 @@ namespace GoHardAPI.Controllers
             var response = new ProfileResponse(
                 user.Id,
                 user.Name,
+                user.Username,
                 user.Email,
                 user.ProfilePhotoUrl,
                 user.Bio,
                 user.DateOfBirth,
                 age,
                 user.Gender,
-                user.Height,
-                user.Weight,
+                measurements.HeightCm,
+                measurements.WeightKg,
                 user.TargetWeight,
-                user.BodyFatPercentage,
-                user.BMI,
+                measurements.BodyFatPercentage,
+                measurements.Bmi,
                 user.ExperienceLevel,
                 user.PrimaryGoal,
                 user.Goals,
@@ -178,20 +183,36 @@ namespace GoHardAPI.Controllers
             if (user == null)
                 return NotFound("User not found");
 
-            // Track if weight or height changed for BodyMetric creation
-            bool weightChanged = request.Weight.HasValue && request.Weight != user.Weight;
-            bool heightChanged = request.Height.HasValue && request.Height != user.Height;
-            bool bodyFatChanged = request.BodyFatPercentage.HasValue && request.BodyFatPercentage != user.BodyFatPercentage;
+            // Username: optional. null -> unchanged. Re-submitting the caller's own
+            // current value (ordinal) -> no-op, succeeds. A different value must be
+            // free across every OTHER account (ownership is the JWT-derived userId,
+            // never anything in the body). The pre-check is best-effort; the
+            // IX_Users_Username unique index is the real guarantee against a
+            // concurrent claim - handled on SaveChanges below. Case comparison is
+            // delegated to UsernameExistsAsync, exactly as signup does, so the two
+            // entry points stay identical on any given provider (see PR notes on
+            // SQL Server CI vs PostgreSQL CS collation).
+            if (request.Username != null
+                && !string.Equals(request.Username, user.Username, StringComparison.Ordinal))
+            {
+                // excludeUserId: userId so a caller re-casing their OWN handle
+                // ("alice" -> "Alice") is not blocked by their own row on a
+                // case-insensitive collation, and "taken" strictly means "by
+                // another account".
+                if (await _userRepository.UsernameExistsAsync(request.Username, excludeUserId: userId))
+                {
+                    return Conflict(new { message = "Username already taken" });
+                }
+
+                user.Username = request.Username;
+            }
 
             // Update fields (only update if provided)
             if (request.Name != null) user.Name = request.Name;
             if (request.Bio != null) user.Bio = request.Bio;
             if (request.DateOfBirth.HasValue) user.DateOfBirth = request.DateOfBirth;
             if (request.Gender != null) user.Gender = request.Gender;
-            if (request.Height.HasValue) user.Height = request.Height;
-            if (request.Weight.HasValue) user.Weight = request.Weight;
             if (request.TargetWeight.HasValue) user.TargetWeight = request.TargetWeight;
-            if (request.BodyFatPercentage.HasValue) user.BodyFatPercentage = request.BodyFatPercentage;
             if (request.ExperienceLevel != null) user.ExperienceLevel = request.ExperienceLevel;
             if (request.PrimaryGoal != null) user.PrimaryGoal = request.PrimaryGoal;
             if (request.Goals != null) user.Goals = request.Goals;
@@ -199,26 +220,26 @@ namespace GoHardAPI.Controllers
             if (request.ThemePreference != null) user.ThemePreference = request.ThemePreference;
             if (request.FavoriteExercises != null) user.FavoriteExercises = request.FavoriteExercises;
 
-            // Recalculate BMI
-            user.BMI = CalculateBMI(user.Height, user.Weight);
+            // Height / Weight / BodyFatPercentage / BMI are intentionally NOT
+            // written from a profile edit. Current measurements are owned by
+            // /bodymetrics and derived on read by CurrentMeasurementsService;
+            // this endpoint must neither set them directly nor insert a synthetic
+            // "Updated from profile" measurement-history row (both used to happen
+            // here). The fields stay on the DTO only so an older mobile build's
+            // request body still binds without a 400.
 
-            // Create BodyMetric entry if weight, height, or body fat changed
-            if (weightChanged || heightChanged || bodyFatChanged)
+            try
             {
-                var bodyMetric = new BodyMetric
-                {
-                    UserId = userId,
-                    RecordedAt = DateTime.UtcNow,
-                    CreatedAt = DateTime.UtcNow,
-                    Weight = request.Weight.HasValue ? (decimal)request.Weight.Value : null,
-                    Height = request.Height.HasValue ? (decimal)request.Height.Value : null,
-                    BodyFatPercentage = request.BodyFatPercentage.HasValue ? (decimal)request.BodyFatPercentage.Value : null,
-                    Notes = "Updated from profile"
-                };
-                _context.BodyMetrics.Add(bodyMetric);
+                await _context.SaveChangesAsync();
             }
-
-            await _context.SaveChangesAsync();
+            catch (DbUpdateException ex)
+                when (UniqueConstraintViolation.Matches(ex, UsernameUniqueIndex, "Users.Username"))
+            {
+                // Lost a concurrent race for the same username between the
+                // pre-check and this write. ONLY the username index maps to 409;
+                // every other DbUpdateException propagates unchanged.
+                return Conflict(new { message = "Username already taken" });
+            }
 
             // Return updated profile
             return await GetProfile();

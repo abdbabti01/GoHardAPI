@@ -28,9 +28,10 @@ namespace GoHardAPI.Repositories
             return await _dbSet.FirstOrDefaultAsync(u => u.Username == username);
         }
 
-        public async Task<bool> UsernameExistsAsync(string username)
+        public async Task<bool> UsernameExistsAsync(string username, int? excludeUserId = null)
         {
-            return await _dbSet.AnyAsync(u => u.Username == username);
+            return await _dbSet.AnyAsync(u =>
+                u.Username == username && (excludeUserId == null || u.Id != excludeUserId));
         }
     }
 }
