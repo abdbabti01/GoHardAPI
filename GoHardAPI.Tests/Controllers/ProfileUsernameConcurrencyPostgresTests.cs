@@ -34,8 +34,8 @@ namespace GoHardAPI.Tests.Controllers
         private static ProfileController Controller(TrainingContext ctx, int userId)
         {
             var controller = new ProfileController(
-                ctx, new FileUploadService(new StubEnv()), new UserRepository(ctx),
-                new CurrentMeasurementsService(ctx));
+                ctx, TestProfilePhotoStorage.UnusedService(), new UserRepository(ctx),
+                new CurrentMeasurementsService(ctx), TestScopeFactory.Unused());
             controller.ControllerContext = new ControllerContext
             {
                 HttpContext = new DefaultHttpContext
@@ -121,18 +121,6 @@ namespace GoHardAPI.Tests.Controllers
             // so an unrelated DbUpdateException is never reported as "username taken".
             Assert.False(UniqueConstraintViolation.Matches(ex, "IX_Users_Email"));
             Assert.False(UniqueConstraintViolation.Matches(ex, "IX_Users_Usernam")); // prefix, not equal
-        }
-
-        private sealed class StubEnv : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
-        {
-            public string WebRootPath { get; set; } = System.IO.Path.GetTempPath();
-            public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; }
-                = new Microsoft.Extensions.FileProviders.NullFileProvider();
-            public string ApplicationName { get; set; } = "Tests";
-            public string ContentRootPath { get; set; } = System.IO.Path.GetTempPath();
-            public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; }
-                = new Microsoft.Extensions.FileProviders.NullFileProvider();
-            public string EnvironmentName { get; set; } = "Test";
         }
     }
 }

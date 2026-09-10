@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using GoHardAPI.Configuration;
 using GoHardAPI.Converters;
 using GoHardAPI.Data;
 using GoHardAPI.RateLimiting;
@@ -57,6 +58,30 @@ builder.Services.AddScoped<SessionCreateService>();
 
 // Register NutritionCalculatorService
 builder.Services.AddScoped<NutritionCalculatorService>();
+
+// ---- Profile photo storage ----------------------------------------------------
+// Physical directory for profile-photo files. MUST live outside the publish
+// output so it can be backed by a persistent volume. Precedence:
+//   1. PROFILE_PHOTO_STORAGE_PATH env var
+//   2. config key ProfilePhotoStorage:Directory
+//   3. (non-Production only) a stable temp path
+// In Production, an unset value is a hard startup failure - we never silently
+// use ephemeral storage. NOTE: a resolvable directory does NOT prove a volume
+// is actually mounted there; that must be verified out of band.
+var profilePhotoDir = ProfilePhotoStorageResolver.Resolve(
+    Environment.GetEnvironmentVariable(ProfilePhotoStorageOptions.EnvironmentVariable),
+    builder.Configuration.GetSection(ProfilePhotoStorageOptions.SectionName)["Directory"],
+    builder.Environment.IsProduction(),
+    out var usedDevFallback);
+
+if (usedDevFallback)
+{
+    Console.WriteLine($"⚠️  ProfilePhotoStorage not configured - using dev default: {profilePhotoDir}");
+}
+
+Directory.CreateDirectory(profilePhotoDir);
+
+builder.Services.AddSingleton(new ProfilePhotoStorageOptions { Directory = profilePhotoDir });
 
 // Register FileUploadService
 builder.Services.AddScoped<FileUploadService>();
@@ -847,6 +872,15 @@ app.UseAuthorization();
 
 // After UseRateLimiter so static asset requests stay under the per-client
 // GlobalLimiter (unchanged from before this change).
+//
+// Profile photos are served FIRST, from the configured storage directory, so a
+// freshly uploaded photo always wins. Serving rules live in one place
+// (ProfilePhotoStaticFiles) shared with the serving tests. The wwwroot
+// UseStaticFiles below then acts as a fallback for any legacy file still
+// shipped in the image under wwwroot/uploads/profiles (see the rollout notes).
+app.UseStaticFiles(ProfilePhotoStaticFiles.BuildOptions(
+    app.Services.GetRequiredService<ProfilePhotoStorageOptions>().Directory));
+
 app.UseStaticFiles();
 
 app.MapControllers();

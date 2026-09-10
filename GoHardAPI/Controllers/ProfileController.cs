@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
@@ -28,17 +29,31 @@ namespace GoHardAPI.Controllers
         private readonly FileUploadService _fileUploadService;
         private readonly IUserRepository _userRepository;
         private readonly CurrentMeasurementsService _currentMeasurements;
+        private readonly IServiceScopeFactory _scopeFactory;
+
+        /// <summary>
+        /// Test seam: invoked once inside <see cref="UploadPhoto"/> immediately
+        /// after the compare-and-set <c>ExecuteUpdateAsync</c> has returned
+        /// successfully (the write is committed) but before the caller sees
+        /// success. Throwing here reproduces a lost confirmation - a transient
+        /// error or a client disconnect that lands after the row was already
+        /// updated - so the post-exception reconciliation path can be exercised
+        /// against a genuinely committed write. Always <c>null</c> in production.
+        /// </summary>
+        internal Action? AfterPhotoCompareAndSetForTests { get; set; }
 
         public ProfileController(
             TrainingContext context,
             FileUploadService fileUploadService,
             IUserRepository userRepository,
-            CurrentMeasurementsService currentMeasurements)
+            CurrentMeasurementsService currentMeasurements,
+            IServiceScopeFactory scopeFactory)
         {
             _context = context;
             _fileUploadService = fileUploadService;
             _userRepository = userRepository;
             _currentMeasurements = currentMeasurements;
+            _scopeFactory = scopeFactory;
         }
 
         /// <summary>
@@ -246,9 +261,15 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// POST /api/profile/photo - Upload profile photo
+        /// POST /api/profile/photo - Upload (or replace) the caller's profile
+        /// photo. The new image is validated and written to a fresh file BEFORE
+        /// anything else changes; the previous photo is only removed after the
+        /// new reference is committed. A failed upload or a lost concurrent race
+        /// never destroys the previous photo.
         /// </summary>
         [HttpPost("photo")]
+        [RequestSizeLimit(6 * 1024 * 1024)]                       // ~5 MB image + multipart overhead
+        [RequestFormLimits(MultipartBodyLengthLimit = 6 * 1024 * 1024)]
         public async Task<ActionResult<PhotoUploadResponse>> UploadPhoto(IFormFile photo)
         {
             var userId = GetCurrentUserId();
@@ -257,31 +278,138 @@ namespace GoHardAPI.Controllers
             if (user == null)
                 return NotFound("User not found");
 
+            var previousUrl = user.ProfilePhotoUrl;
+            // The row is mutated below via ExecuteUpdateAsync (a compare-and-set,
+            // bypassing the change tracker). Detach the tracked copy so a future
+            // SaveChanges() added to this method can't write its stale
+            // ProfilePhotoUrl back over the CAS result.
+            _context.Entry(user).State = EntityState.Detached;
+
+            // 1. Validate + write the NEW file. Nothing existing is touched.
+            SavedProfilePhoto saved;
             try
             {
-                // Delete old photo if exists
-                if (!string.IsNullOrEmpty(user.ProfilePhotoUrl))
+                saved = await _fileUploadService.SaveNewAsync(userId, photo, HttpContext.RequestAborted);
+            }
+            catch (PhotoValidationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+
+            // 2. Publish the new reference with a database compare-and-set: swap
+            //    only if the current value is still what this request started
+            //    from. This serialises concurrent uploads/removes ACROSS
+            //    instances (never an in-process lock) - exactly one write wins.
+            int affected;
+            try
+            {
+                affected = await _context.Users
+                    .Where(u => u.Id == userId && u.ProfilePhotoUrl == previousUrl)
+                    .ExecuteUpdateAsync(
+                        s => s.SetProperty(u => u.ProfilePhotoUrl, saved.RelativeUrl),
+                        HttpContext.RequestAborted);
+
+                // Test-only: simulate a lost confirmation on the now-committed
+                // write (no-op in production).
+                AfterPhotoCompareAndSetForTests?.Invoke();
+            }
+            catch (Exception)
+            {
+                // The CAS call threw or was cancelled. That tells us only that
+                // THIS request stopped waiting for confirmation - it does not
+                // establish what happened on the server. The UPDATE may have
+                // committed, may have failed, or may still be running.
+                //
+                // The only outcome we can act on is a positive one: a fresh-
+                // connection read that shows the row ALREADY holds the exact
+                // unique URL this request wrote (a name only this request can
+                // produce). That proves our CAS committed - treat it as success.
+                //
+                // Every other case - a different URL, a null, or a failed read -
+                // is inconclusive. A client-side exception is not evidence that
+                // the server operation finished, so a different observed value
+                // must NOT be read as "our write rolled back": it may commit a
+                // moment later. In all of these cases we delete NEITHER file and
+                // propagate the failure. Preserving both is deliberate: an
+                // orphaned new file is recoverable; deleting a photo the row
+                // does (or is about to) reference is not.
+                var (reconciled, committedUrl) = await TryReadCommittedPhotoUrlAsync(userId);
+
+                if (!(reconciled
+                      && string.Equals(committedUrl, saved.RelativeUrl, StringComparison.Ordinal)))
                 {
-                    _fileUploadService.DeleteProfilePhoto(user.ProfilePhotoUrl);
+                    // Outcome uncertain - keep BOTH files, surface the error.
+                    throw;
                 }
 
-                // Upload new photo
-                var photoUrl = await _fileUploadService.UploadProfilePhotoAsync(userId, photo);
-
-                // Update user record
-                user.ProfilePhotoUrl = photoUrl;
-                await _context.SaveChangesAsync();
-
-                return Ok(new PhotoUploadResponse(photoUrl));
+                // Positively confirmed: the row holds our new URL, so the CAS
+                // committed. Continue exactly as for affected == 1.
+                affected = 1;
             }
-            catch (Exception ex)
+
+            if (affected == 0)
             {
-                return BadRequest(ex.Message);
+                // Another upload/remove for this user committed first. Our new
+                // file is unreferenced - drop it - and ask the client to retry.
+                _fileUploadService.TryDeleteByRelativeUrl(saved.RelativeUrl);
+                return Conflict(new
+                {
+                    message = "Your profile photo was changed by another request. Please try again.",
+                });
+            }
+
+            // 3. New reference is committed. Only now remove the OLD file, best
+            //    effort - a cleanup failure must not fail an already successful
+            //    replacement (leaves a recoverable orphan, logged in the service).
+            if (!string.IsNullOrEmpty(previousUrl)
+                && !string.Equals(previousUrl, saved.RelativeUrl, StringComparison.Ordinal))
+            {
+                _fileUploadService.TryDeleteByRelativeUrl(previousUrl);
+            }
+
+            return Ok(new PhotoUploadResponse(saved.RelativeUrl));
+        }
+
+        /// <summary>
+        /// Reads the committed <c>ProfilePhotoUrl</c> for <paramref name="userId"/>
+        /// on a FRESH context (its own connection) with a token that is NOT
+        /// <c>HttpContext.RequestAborted</c> - so a client disconnect that just
+        /// aborted the compare-and-set cannot also abort this read.
+        ///
+        /// This is used for ONE decision only: has the row already committed the
+        /// exact unique URL the current request wrote? A match is a positive
+        /// confirmation that the CAS committed (only that request can produce
+        /// that name). It is NOT used to conclude the opposite: a non-matching
+        /// value, a null, or a failed read (<paramref name="reconciled"/> ==
+        /// <c>false</c>) all mean "unknown" - the earlier exception is not
+        /// evidence that the server write finished, so an in-flight commit is
+        /// still possible. Callers must treat every non-positive result as
+        /// uncertain and preserve files accordingly.
+        /// </summary>
+        private async Task<(bool reconciled, string? photoUrl)> TryReadCommittedPhotoUrlAsync(int userId)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var context = scope.ServiceProvider.GetRequiredService<TrainingContext>();
+                var url = await context.Users
+                    .AsNoTracking()
+                    .Where(u => u.Id == userId)
+                    .Select(u => u.ProfilePhotoUrl)
+                    .FirstOrDefaultAsync(cts.Token);
+                return (true, url);
+            }
+            catch
+            {
+                return (false, null);
             }
         }
 
         /// <summary>
-        /// DELETE /api/profile/photo - Delete profile photo
+        /// DELETE /api/profile/photo - Remove the caller's profile photo. The
+        /// database reference is cleared first; the file is cleaned up
+        /// afterwards, best effort.
         /// </summary>
         [HttpDelete("photo")]
         public async Task<IActionResult> DeletePhoto()
@@ -292,24 +420,28 @@ namespace GoHardAPI.Controllers
             if (user == null)
                 return NotFound("User not found");
 
-            if (string.IsNullOrEmpty(user.ProfilePhotoUrl))
+            var currentUrl = user.ProfilePhotoUrl;
+            if (string.IsNullOrEmpty(currentUrl))
                 return NotFound("No profile photo to delete");
+            _context.Entry(user).State = EntityState.Detached; // see UploadPhoto
 
-            try
+            // 1. Clear the reference FIRST, and only for the exact photo the
+            //    caller saw - a concurrent upload that already replaced it wins
+            //    (affected == 0) and owns its own file's lifecycle.
+            var affected = await _context.Users
+                .Where(u => u.Id == userId && u.ProfilePhotoUrl == currentUrl)
+                .ExecuteUpdateAsync(
+                    s => s.SetProperty(u => u.ProfilePhotoUrl, (string?)null),
+                    HttpContext.RequestAborted);
+
+            // 2. Reference removed - now best-effort file cleanup, only for the
+            //    photo we actually un-referenced.
+            if (affected == 1)
             {
-                // Delete file
-                _fileUploadService.DeleteProfilePhoto(user.ProfilePhotoUrl);
-
-                // Update user record
-                user.ProfilePhotoUrl = null;
-                await _context.SaveChangesAsync();
-
-                return NoContent();
+                _fileUploadService.TryDeleteByRelativeUrl(currentUrl);
             }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+
+            return NoContent();
         }
     }
 }
