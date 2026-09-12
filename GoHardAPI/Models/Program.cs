@@ -16,7 +16,19 @@ namespace GoHardAPI.Models
         /// <summary>Completed programs have been finished</summary>
         Completed,
         /// <summary>Archived programs are hidden from active view</summary>
-        Archived
+        Archived,
+        /// <summary>
+        /// Soft-deleted programs. DELETE /Programs/{id} never issues a physical DELETE
+        /// against this row — it only sets Status to this value. This is what actually
+        /// closes the concurrent-creation-vs-delete race: a Session linked to this
+        /// program (whether linked before or concurrently with the delete request) can
+        /// never be cascade-removed by the database, because the parent row is never
+        /// removed. Every read/mutation endpoint on this controller excludes/rejects
+        /// deleted programs unconditionally, so a deleted program disappears from the
+        /// user's perspective exactly as a hard delete would have, and can never be
+        /// resurrected through another action.
+        /// </summary>
+        Deleted
     }
 
     /// <summary>
@@ -30,6 +42,7 @@ namespace GoHardAPI.Models
             ProgramStatus.Active => "active",
             ProgramStatus.Completed => "completed",
             ProgramStatus.Archived => "archived",
+            ProgramStatus.Deleted => "deleted",
             _ => "active"
         };
 
@@ -39,6 +52,7 @@ namespace GoHardAPI.Models
             "active" => ProgramStatus.Active,
             "completed" => ProgramStatus.Completed,
             "archived" => ProgramStatus.Archived,
+            "deleted" => ProgramStatus.Deleted,
             _ => ProgramStatus.Active
         };
     }

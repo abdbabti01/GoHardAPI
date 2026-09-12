@@ -44,7 +44,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var query = _context.Programs
-                .Where(p => p.UserId == userId);
+                .Where(p => p.UserId == userId && p.Status != ProgramStatus.Deleted.ToApiString());
 
             // Filter by specific status if provided
             if (!string.IsNullOrEmpty(status))
@@ -89,7 +89,8 @@ namespace GoHardAPI.Controllers
             var program = await _context.Programs
                 .Include(p => p.Workouts.OrderBy(w => w.WeekNumber).ThenBy(w => w.OrderIndex))
                 .Include(p => p.Goal)
-                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId
+                    && p.Status != ProgramStatus.Deleted.ToApiString());
 
             if (program == null)
             {
@@ -170,7 +171,8 @@ namespace GoHardAPI.Controllers
             }
 
             var existingProgram = await _context.Programs.FindAsync(id);
-            if (existingProgram == null || existingProgram.UserId != userId)
+            if (existingProgram == null || existingProgram.UserId != userId
+                || existingProgram.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -213,7 +215,8 @@ namespace GoHardAPI.Controllers
 
             var program = await _context.Programs
                 .Include(p => p.Workouts)
-                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId
+                    && p.Status != ProgramStatus.Deleted.ToApiString());
 
             if (program == null)
             {
@@ -249,13 +252,41 @@ namespace GoHardAPI.Controllers
                 completedWorkoutsCount,
                 hasData = sessionsCount > 0 || workoutsCount > 0,
                 warning = sessionsCount > 0
-                    ? $"This will permanently delete {sessionsCount} session(s), including {completedSessionsCount} completed workout(s) with {exercisesCount} exercises and {setsCount} sets."
+                    ? $"This will preserve {sessionsCount} session(s), including {completedSessionsCount} completed workout(s) with {exercisesCount} exercises and {setsCount} sets — they'll remain in your workout history, just no longer linked to this program. Consider Stop Program instead if you only want to remove it from active use."
                     : null
             });
         }
 
         /// <summary>
-        /// Delete a program
+        /// Delete a program. This never issues a physical DELETE against the Programs
+        /// table — it detaches linked Sessions (ProgramId/ProgramWorkoutId set to null,
+        /// for display cleanliness) and then soft-deletes the program itself
+        /// (<see cref="ProgramStatus.Deleted"/>). Every other endpoint on this
+        /// controller treats a soft-deleted program as not found, so from the user's
+        /// perspective the program is gone exactly as a hard delete would have made it
+        /// appear; <c>GetPrograms</c>/<c>GetProgram</c> exclude it unconditionally, and
+        /// it can never be resurrected through Archive/Unarchive/Complete/Activate/etc.
+        /// The program's own ProgramWorkout rows (plan templates, not history) are left
+        /// untouched — they are never queried once the parent is excluded from every
+        /// list/detail endpoint, and are cleaned up for real only if a future, separate
+        /// hard-purge job is added.
+        ///
+        /// This is what closes the concurrent-creation-vs-delete race by construction,
+        /// not by locking: because the Programs row is never physically removed, the
+        /// database's ON DELETE CASCADE from Sessions→Programs (and
+        /// Sessions→ProgramWorkouts) can never fire for this program, no matter when a
+        /// concurrent request creates and links a new Session to it relative to this
+        /// request's detach step. The only residual effect of a Session being linked in
+        /// that narrow window is that it may keep pointing at this (now soft-deleted)
+        /// program row instead of being detached — a cosmetic staleness, never data
+        /// loss — because the detach query and the soft-delete write are not one atomic
+        /// statement. See GoalProgramHistoryPreservationPostgresTests for a
+        /// live-concurrency test that this can never destroy the concurrently-created
+        /// Session.
+        ///
+        /// This makes the DELETE endpoint itself safe for old clients: the URL, verb,
+        /// and 204 response are unchanged, but the destructive cascade an old client
+        /// could accidentally trigger no longer exists.
         /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProgram(int id)
@@ -264,12 +295,96 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var program = await _context.Programs.FindAsync(id);
-            if (program == null || program.UserId != userId)
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
 
-            _context.Programs.Remove(program);
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var linkedSessions = await _context.Sessions
+                    .Where(s => s.ProgramId == id && s.UserId == userId)
+                    .ToListAsync();
+
+                if (linkedSessions.Count > 0)
+                {
+                    foreach (var session in linkedSessions)
+                    {
+                        session.ProgramId = null;
+                        session.ProgramWorkoutId = null;
+                    }
+                    await _context.SaveChangesAsync();
+                }
+
+                program.Status = ProgramStatus.Deleted.ToApiString();
+                program.IsActive = false;
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Archive (stop) a program: remove it from active use WITHOUT completing it.
+        /// Archiving is not completion — it never sets IsCompleted/CompletedAt, never
+        /// marks any ProgramWorkout complete, and never creates or modifies any Session
+        /// (no fabricated history). Today's workout suggestions already filter by
+        /// IsActive, so an archived program's future suggestions stop appearing there
+        /// immediately; any Session the user already started keeps its own status and
+        /// logged data untouched. Archived programs remain discoverable via GET /Programs
+        /// (its default filter only excludes Draft).
+        /// </summary>
+        [HttpPut("{id}/archive")]
+        public async Task<IActionResult> ArchiveProgram(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var program = await _context.Programs.FindAsync(id);
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
+            {
+                return NotFound();
+            }
+
+            program.Status = ProgramStatus.Archived.ToApiString();
+            program.IsActive = false;
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Restore an archived program to active use.
+        /// </summary>
+        [HttpPut("{id}/unarchive")]
+        public async Task<IActionResult> UnarchiveProgram(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var program = await _context.Programs.FindAsync(id);
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
+            {
+                return NotFound();
+            }
+
+            if (program.Status != ProgramStatus.Archived.ToApiString())
+            {
+                return BadRequest(new { message = "Only archived programs can be unarchived" });
+            }
+
+            program.Status = ProgramStatus.Active.ToApiString();
+            program.IsActive = true;
+
             await _context.SaveChangesAsync();
 
             return NoContent();
@@ -286,7 +401,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var program = await _context.Programs.FindAsync(id);
-            if (program == null || program.UserId != userId)
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -330,7 +445,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var program = await _context.Programs.FindAsync(id);
-            if (program == null || program.UserId != userId)
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -356,7 +471,8 @@ namespace GoHardAPI.Controllers
 
             var program = await _context.Programs
                 .Include(p => p.Workouts)
-                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId
+                    && p.Status != ProgramStatus.Deleted.ToApiString());
 
             if (program == null)
             {
@@ -448,7 +564,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var program = await _context.Programs.FindAsync(id);
-            if (program == null || program.UserId != userId)
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -488,7 +604,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var program = await _context.Programs.FindAsync(id);
-            if (program == null || program.UserId != userId)
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -513,7 +629,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var program = await _context.Programs.FindAsync(id);
-            if (program == null || program.UserId != userId)
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -543,7 +659,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var program = await _context.Programs.FindAsync(id);
-            if (program == null || program.UserId != userId)
+            if (program == null || program.UserId != userId || program.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -580,7 +696,8 @@ namespace GoHardAPI.Controllers
                 .Include(w => w.Program)
                 .FirstOrDefaultAsync(w => w.Id == workoutId);
 
-            if (existingWorkout == null || existingWorkout.Program?.UserId != userId)
+            if (existingWorkout == null || existingWorkout.Program?.UserId != userId
+                || existingWorkout.Program?.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -639,7 +756,8 @@ namespace GoHardAPI.Controllers
                 .Include(w => w.Program)
                 .FirstOrDefaultAsync(w => w.Id == workoutId);
 
-            if (workout == null || workout.Program?.UserId != userId)
+            if (workout == null || workout.Program?.UserId != userId
+                || workout.Program?.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }
@@ -677,12 +795,14 @@ namespace GoHardAPI.Controllers
                     .FirstOrDefaultAsync(w => w.Id == request.Workout2Id);
 
                 // Validate both workouts exist and belong to user
-                if (workout1 == null || workout1.Program?.UserId != userId)
+                if (workout1 == null || workout1.Program?.UserId != userId
+                    || workout1.Program?.Status == ProgramStatus.Deleted.ToApiString())
                 {
                     return NotFound("Workout 1 not found or access denied");
                 }
 
-                if (workout2 == null || workout2.Program?.UserId != userId)
+                if (workout2 == null || workout2.Program?.UserId != userId
+                    || workout2.Program?.Status == ProgramStatus.Deleted.ToApiString())
                 {
                     return NotFound("Workout 2 not found or access denied");
                 }
@@ -753,7 +873,8 @@ namespace GoHardAPI.Controllers
                 .Include(w => w.Program)
                 .FirstOrDefaultAsync(w => w.Id == workoutId);
 
-            if (workout == null || workout.Program?.UserId != userId)
+            if (workout == null || workout.Program?.UserId != userId
+                || workout.Program?.Status == ProgramStatus.Deleted.ToApiString())
             {
                 return NotFound();
             }

@@ -2470,13 +2470,18 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
         }
 
         // POST: api/chat/conversations/{id}/apply-meal-plan
-        // Now accepts optional 'day' query parameter (1-7)
+        // Accepts optional 'day' (1-7, which day of the plan to apply) and optional
+        // 'date' (which calendar date to apply it to; defaults to today) query parameters.
         [HttpPost("conversations/{id}/apply-meal-plan")]
-        public async Task<ActionResult<ApplyMealPlanResponse>> ApplyMealPlanToToday(int id, [FromQuery] int day = 1)
+        public async Task<ActionResult<ApplyMealPlanResponse>> ApplyMealPlanToToday(
+            int id,
+            [FromQuery] int day = 1,
+            [FromQuery] DateTime? date = null)
         {
             try
             {
                 var userId = GetCurrentUserId();
+                var targetDate = (date ?? DateTime.UtcNow).Date;
 
                 // Get the conversation
                 var conversation = await _context.ChatConversations
@@ -2632,215 +2637,239 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                 _logger.LogInformation("Meal plan totals - Calories: {cal}, Protein: {prot}g, Carbs: {carb}g, Fat: {fat}g",
                     totalCalories, totalProtein, totalCarbs, totalFat);
 
-                // 1. UPDATE OR CREATE NUTRITION GOALS TO MATCH MEAL PLAN DAY
-                // When user applies a meal plan day, update their goal to match
-                if (nutritionGoal == null)
-                {
-                    // Create new nutrition goal from meal plan
-                    nutritionGoal = new Models.NutritionGoal
-                    {
-                        UserId = userId,
-                        Name = "Meal Plan Goals",
-                        DailyCalories = totalCalories,
-                        DailyProtein = totalProtein,
-                        DailyCarbohydrates = totalCarbs,
-                        DailyFat = totalFat,
-                        DailyWater = 2000, // Default water goal
-                        IsActive = true,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    _context.NutritionGoals.Add(nutritionGoal);
-                    _logger.LogInformation("Created new nutrition goal from meal plan for user {userId}: {cal} kcal", userId, totalCalories);
-                }
-                else
-                {
-                    // UPDATE existing nutrition goal to match the meal plan day
-                    nutritionGoal.DailyCalories = totalCalories;
-                    nutritionGoal.DailyProtein = totalProtein;
-                    nutritionGoal.DailyCarbohydrates = totalCarbs;
-                    nutritionGoal.DailyFat = totalFat;
-                    nutritionGoal.Name = "Meal Plan Goals";
-                    nutritionGoal.UpdatedAt = DateTime.UtcNow;
-                    _logger.LogInformation("Updated nutrition goal for user {userId}: {cal} kcal, {prot}g protein, {carb}g carbs, {fat}g fat",
-                        userId, totalCalories, totalProtein, totalCarbs, totalFat);
-                }
-                await _context.SaveChangesAsync();
-
-                // 2. GET OR CREATE TODAY'S MEAL LOG
-                var today = DateTime.UtcNow.Date;
-                var mealLog = await _context.MealLogs
-                    .Include(ml => ml.MealEntries)
-                    .ThenInclude(me => me.FoodItems)
-                    .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == today);
-
-                if (mealLog == null)
-                {
-                    mealLog = new Models.MealLog
-                    {
-                        UserId = userId,
-                        Date = today,
-                        TotalCalories = 0,
-                        TotalProtein = 0,
-                        TotalCarbohydrates = 0,
-                        TotalFat = 0,
-                        WaterIntake = 0,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    _context.MealLogs.Add(mealLog);
-                    await _context.SaveChangesAsync();
-                }
-
-                // Ensure meal entries exist for each meal type
-                var mealTypes = new[] { "Breakfast", "Lunch", "Dinner", "Snack" };
-                foreach (var mealType in mealTypes)
-                {
-                    if (!mealLog.MealEntries.Any(me => me.MealType == mealType))
-                    {
-                        var mealEntry = new Models.MealEntry
-                        {
-                            MealLogId = mealLog.Id,
-                            MealType = mealType,
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        _context.MealEntries.Add(mealEntry);
-                        mealLog.MealEntries.Add(mealEntry);
-                    }
-                }
-                await _context.SaveChangesAsync();
-
-                // 3. CLEAR EXISTING FOOD ITEMS (to prevent accumulation on re-apply)
-                foreach (var entry in mealLog.MealEntries)
-                {
-                    if (entry.FoodItems.Any())
-                    {
-                        _context.FoodItems.RemoveRange(entry.FoodItems);
-                    }
-                }
-                await _context.SaveChangesAsync();
-
-                // Reload meal entries after clearing
-                mealLog = await _context.MealLogs
-                    .Include(ml => ml.MealEntries)
-                    .FirstOrDefaultAsync(ml => ml.Id == mealLog.Id);
-
-                // 4. ADD FOOD ITEMS FROM MEAL PLAN
                 var addedFoods = new List<object>();
+                var skippedMealTypes = new List<string>();
+                var replacedMealTypes = new List<string>();
                 decimal totalCaloriesAdded = 0;
                 decimal totalProteinAdded = 0;
                 decimal totalCarbsAdded = 0;
                 decimal totalFatAdded = 0;
 
-                foreach (var mealData in mealPlanData.Meals)
+                // Everything below reads and writes real food-log data, so it runs as one
+                // transaction: either the whole apply succeeds, or nothing changes.
+                // Serializable (not merely RepeatableRead) on PostgreSQL: a concurrent
+                // MarkAsConsumed (or any other ordinary edit) on the same row that commits
+                // while we're mid-flight causes our own write to that row to fail — we roll
+                // back and the user can retry, rather than silently overwriting what they
+                // just logged as eaten. RepeatableRead alone is NOT enough here: this method
+                // does a read-then-conditionally-insert-a-new-MealEntry for each meal type
+                // ("does a Lunch entry already exist? no -> create one") — a classic
+                // phantom-read/write-skew shape that RepeatableRead's snapshot isolation does
+                // NOT detect (two concurrent transactions can both see "no Lunch entry" and
+                // both insert one, silently duplicating it — Postgres only starts rejecting
+                // one side of that with Serializable's predicate-locking SSI). Uses the same
+                // SQLSTATE 40001 as RepeatableRead's conflicts, so the existing catch/rollback
+                // below needs no change for this.
+                using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+                try
                 {
-                    var mealEntry = mealLog!.MealEntries.FirstOrDefault(me =>
-                        me.MealType.Equals(mealData.MealType, StringComparison.OrdinalIgnoreCase));
-
-                    if (mealEntry == null) continue;
-
-                    // Add all foods from the meal plan (no limit to ensure consistency with preview)
-                    var foods = mealData.Foods ?? new List<ChatMealPlanFoodData>();
-
-                    foreach (var foodData in foods)
+                    // 1. UPDATE OR CREATE NUTRITION GOALS TO MATCH MEAL PLAN DAY
+                    // When user applies a meal plan day, update their goal to match
+                    if (nutritionGoal == null)
                     {
-                        var foodItem = new Models.FoodItem
+                        // Create new nutrition goal from meal plan
+                        nutritionGoal = new Models.NutritionGoal
                         {
-                            MealEntryId = mealEntry.Id,
-                            Name = foodData.Name ?? "Unknown",
-                            Quantity = 1,
-                            ServingSize = foodData.ServingSize ?? 1,
-                            ServingUnit = foodData.ServingUnit ?? "serving",
-                            Calories = foodData.Calories ?? 0,
-                            Protein = foodData.Protein ?? 0,
-                            Carbohydrates = foodData.Carbohydrates ?? 0,
-                            Fat = foodData.Fat ?? 0,
+                            UserId = userId,
+                            Name = "Meal Plan Goals",
+                            DailyCalories = totalCalories,
+                            DailyProtein = totalProtein,
+                            DailyCarbohydrates = totalCarbs,
+                            DailyFat = totalFat,
+                            DailyWater = 2000, // Default water goal
+                            IsActive = true,
                             CreatedAt = DateTime.UtcNow
                         };
+                        _context.NutritionGoals.Add(nutritionGoal);
+                        _logger.LogInformation("Created new nutrition goal from meal plan for user {userId}: {cal} kcal", userId, totalCalories);
+                    }
+                    else
+                    {
+                        // UPDATE existing nutrition goal to match the meal plan day
+                        nutritionGoal.DailyCalories = totalCalories;
+                        nutritionGoal.DailyProtein = totalProtein;
+                        nutritionGoal.DailyCarbohydrates = totalCarbs;
+                        nutritionGoal.DailyFat = totalFat;
+                        nutritionGoal.Name = "Meal Plan Goals";
+                        nutritionGoal.UpdatedAt = DateTime.UtcNow;
+                        _logger.LogInformation("Updated nutrition goal for user {userId}: {cal} kcal, {prot}g protein, {carb}g carbs, {fat}g fat",
+                            userId, totalCalories, totalProtein, totalCarbs, totalFat);
+                    }
+                    await _context.SaveChangesAsync();
 
-                        _context.FoodItems.Add(foodItem);
+                    // 2. GET OR CREATE THE TARGET DATE'S MEAL LOG
+                    var mealLog = await _context.MealLogs
+                        .Include(ml => ml.MealEntries)
+                        .ThenInclude(me => me.FoodItems)
+                        .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == targetDate);
 
-                        totalCaloriesAdded += foodItem.Calories;
-                        totalProteinAdded += foodItem.Protein;
-                        totalCarbsAdded += foodItem.Carbohydrates;
-                        totalFatAdded += foodItem.Fat;
-
-                        addedFoods.Add(new
+                    if (mealLog == null)
+                    {
+                        mealLog = new Models.MealLog
                         {
-                            mealType = mealData.MealType,
-                            name = foodItem.Name,
-                            calories = foodItem.Calories
-                        });
-                    }
-                }
-
-                // 5. UPDATE MEAL ENTRY TOTALS (but keep IsConsumed = false, so they're "Planned")
-                // Reload meal entries to update their totals
-                var updatedMealLog = await _context.MealLogs
-                    .Include(ml => ml.MealEntries)
-                    .ThenInclude(me => me.FoodItems)
-                    .FirstOrDefaultAsync(ml => ml.Id == mealLog!.Id);
-
-                if (updatedMealLog != null)
-                {
-                    foreach (var entry in updatedMealLog.MealEntries)
-                    {
-                        // Update entry totals from food items
-                        entry.TotalCalories = entry.FoodItems.Sum(f => f.Calories);
-                        entry.TotalProtein = entry.FoodItems.Sum(f => f.Protein);
-                        entry.TotalCarbohydrates = entry.FoodItems.Sum(f => f.Carbohydrates);
-                        entry.TotalFat = entry.FoodItems.Sum(f => f.Fat);
-                        // Keep IsConsumed = false (Planned status)
-                        entry.IsConsumed = false;
-                        entry.ConsumedAt = null;
+                            UserId = userId,
+                            Date = targetDate,
+                            TotalCalories = 0,
+                            TotalProtein = 0,
+                            TotalCarbohydrates = 0,
+                            TotalFat = 0,
+                            WaterIntake = 0,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.MealLogs.Add(mealLog);
+                        await _context.SaveChangesAsync();
                     }
 
-                    // MealLog totals should only count CONSUMED meals, so keep at 0
-                    // (or recalculate from only consumed entries)
-                    updatedMealLog.TotalCalories = updatedMealLog.MealEntries
-                        .Where(e => e.IsConsumed)
-                        .Sum(e => e.TotalCalories);
-                    updatedMealLog.TotalProtein = updatedMealLog.MealEntries
-                        .Where(e => e.IsConsumed)
-                        .Sum(e => e.TotalProtein);
-                    updatedMealLog.TotalCarbohydrates = updatedMealLog.MealEntries
-                        .Where(e => e.IsConsumed)
-                        .Sum(e => e.TotalCarbohydrates);
-                    updatedMealLog.TotalFat = updatedMealLog.MealEntries
-                        .Where(e => e.IsConsumed)
-                        .Sum(e => e.TotalFat);
-                    updatedMealLog.UpdatedAt = DateTime.UtcNow;
-                }
-
-                await _context.SaveChangesAsync();
-
-                // 6. UPDATE NUTRITION PROGRESS (planned values)
-                var progressDate = DateTime.UtcNow.Date;
-                var nutritionProgress = await _context.NutritionProgresses
-                    .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == progressDate);
-
-                if (nutritionProgress == null)
-                {
-                    // Get active nutrition goal for reference
-                    var activeGoal = await _context.NutritionGoals
-                        .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
-
-                    nutritionProgress = new Models.NutritionProgress
+                    // Ensure meal entries exist only for the meal types this plan actually targets
+                    var mealTypesInPlan = mealPlanData.Meals
+                        .Select(m => m.MealType)
+                        .Where(t => !string.IsNullOrWhiteSpace(t))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    foreach (var mealType in mealTypesInPlan)
                     {
-                        UserId = userId,
-                        Date = progressDate,
-                        NutritionGoalId = activeGoal?.Id,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    _context.NutritionProgresses.Add(nutritionProgress);
+                        if (!mealLog.MealEntries.Any(me => me.MealType.Equals(mealType, StringComparison.OrdinalIgnoreCase)))
+                        {
+                            var mealEntry = new Models.MealEntry
+                            {
+                                MealLogId = mealLog.Id,
+                                MealType = mealType,
+                                CreatedAt = DateTime.UtcNow
+                            };
+                            _context.MealEntries.Add(mealEntry);
+                            mealLog.MealEntries.Add(mealEntry);
+                        }
+                    }
+                    await _context.SaveChangesAsync();
+
+                    // 3-4. FOR EACH TARGETED, NOT-YET-CONSUMED MEAL: replace only this exact
+                    // suggestion's own prior output (idempotent reapply), then add the new
+                    // items. A meal entry the user has already marked consumed is skipped
+                    // entirely — never cleared, never touched — and food items belonging to
+                    // any other source (manual entries, a different AI plan) are left alone.
+                    foreach (var mealData in mealPlanData.Meals)
+                    {
+                        var mealEntry = mealLog.MealEntries.FirstOrDefault(me =>
+                            me.MealType.Equals(mealData.MealType, StringComparison.OrdinalIgnoreCase));
+
+                        if (mealEntry == null) continue;
+
+                        if (mealEntry.IsConsumed)
+                        {
+                            skippedMealTypes.Add(mealEntry.MealType);
+                            continue;
+                        }
+
+                        var ownPriorItems = mealEntry.FoodItems
+                            .Where(fi => fi.SourcePlanConversationId == conversation.Id && fi.SourcePlanDay == selectedDay.Day)
+                            .ToList();
+                        if (ownPriorItems.Count > 0)
+                        {
+                            _context.FoodItems.RemoveRange(ownPriorItems);
+                            replacedMealTypes.Add(mealEntry.MealType);
+                        }
+
+                        var foods = mealData.Foods ?? new List<ChatMealPlanFoodData>();
+                        foreach (var foodData in foods)
+                        {
+                            var foodItem = new Models.FoodItem
+                            {
+                                MealEntryId = mealEntry.Id,
+                                Name = foodData.Name ?? "Unknown",
+                                Quantity = 1,
+                                ServingSize = foodData.ServingSize ?? 1,
+                                ServingUnit = foodData.ServingUnit ?? "serving",
+                                Calories = foodData.Calories ?? 0,
+                                Protein = foodData.Protein ?? 0,
+                                Carbohydrates = foodData.Carbohydrates ?? 0,
+                                Fat = foodData.Fat ?? 0,
+                                SourcePlanConversationId = conversation.Id,
+                                SourcePlanDay = selectedDay.Day,
+                                CreatedAt = DateTime.UtcNow
+                            };
+
+                            _context.FoodItems.Add(foodItem);
+
+                            totalCaloriesAdded += foodItem.Calories;
+                            totalProteinAdded += foodItem.Protein;
+                            totalCarbsAdded += foodItem.Carbohydrates;
+                            totalFatAdded += foodItem.Fat;
+
+                            addedFoods.Add(new
+                            {
+                                mealType = mealData.MealType,
+                                name = foodItem.Name,
+                                calories = foodItem.Calories
+                            });
+                        }
+                    }
+                    await _context.SaveChangesAsync();
+
+                    // 5. UPDATE TOTALS for the entries we actually touched. Consumed entries
+                    // are never re-touched here (their totals reflect what was actually eaten).
+                    var updatedMealLog = await _context.MealLogs
+                        .Include(ml => ml.MealEntries)
+                        .ThenInclude(me => me.FoodItems)
+                        .FirstOrDefaultAsync(ml => ml.Id == mealLog.Id);
+
+                    if (updatedMealLog != null)
+                    {
+                        foreach (var entry in updatedMealLog.MealEntries)
+                        {
+                            if (entry.IsConsumed) continue;
+
+                            entry.TotalCalories = entry.FoodItems.Sum(f => f.Calories);
+                            entry.TotalProtein = entry.FoodItems.Sum(f => f.Protein);
+                            entry.TotalCarbohydrates = entry.FoodItems.Sum(f => f.Carbohydrates);
+                            entry.TotalFat = entry.FoodItems.Sum(f => f.Fat);
+                            // Planned entries stay planned — IsConsumed/ConsumedAt untouched (already false).
+                        }
+
+                        // MealLog totals only ever count CONSUMED meals; recomputing here is a
+                        // no-op for entries we didn't touch and correct for any we did.
+                        updatedMealLog.TotalCalories = updatedMealLog.MealEntries.Where(e => e.IsConsumed).Sum(e => e.TotalCalories);
+                        updatedMealLog.TotalProtein = updatedMealLog.MealEntries.Where(e => e.IsConsumed).Sum(e => e.TotalProtein);
+                        updatedMealLog.TotalCarbohydrates = updatedMealLog.MealEntries.Where(e => e.IsConsumed).Sum(e => e.TotalCarbohydrates);
+                        updatedMealLog.TotalFat = updatedMealLog.MealEntries.Where(e => e.IsConsumed).Sum(e => e.TotalFat);
+                        updatedMealLog.UpdatedAt = DateTime.UtcNow;
+                    }
+
+                    await _context.SaveChangesAsync();
+
+                    // 6. UPDATE NUTRITION PROGRESS (planned values) for the target date
+                    var nutritionProgress = await _context.NutritionProgresses
+                        .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate);
+
+                    if (nutritionProgress == null)
+                    {
+                        var activeGoal = await _context.NutritionGoals
+                            .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+
+                        nutritionProgress = new Models.NutritionProgress
+                        {
+                            UserId = userId,
+                            Date = targetDate,
+                            NutritionGoalId = activeGoal?.Id,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.NutritionProgresses.Add(nutritionProgress);
+                    }
+
+                    // Add planned values from the applied meal
+                    nutritionProgress.PlannedCalories += totalCaloriesAdded;
+                    nutritionProgress.PlannedProtein += totalProteinAdded;
+                    nutritionProgress.PlannedCarbohydrates += totalCarbsAdded;
+                    nutritionProgress.PlannedFat += totalFatAdded;
+                    nutritionProgress.UpdatedAt = DateTime.UtcNow;
+
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
                 }
-
-                // Add planned values from the applied meal
-                nutritionProgress.PlannedCalories += totalCaloriesAdded;
-                nutritionProgress.PlannedProtein += totalProteinAdded;
-                nutritionProgress.PlannedCarbohydrates += totalCarbsAdded;
-                nutritionProgress.PlannedFat += totalFatAdded;
-                nutritionProgress.UpdatedAt = DateTime.UtcNow;
-
-                await _context.SaveChangesAsync();
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
+                }
 
                 _logger.LogInformation(
                     "Updated NutritionProgress for user {UserId}: +{Calories} planned calories",
@@ -2849,7 +2878,7 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                 return Ok(new ApplyMealPlanResponse
                 {
                     Success = true,
-                    Message = $"Nutrition goal updated to {totalCalories:F0} kcal and {addedFoods.Count} foods added to today's log",
+                    Message = $"Nutrition goal updated to {totalCalories:F0} kcal and {addedFoods.Count} foods added to your log",
                     FoodsAdded = addedFoods.Count,
                     TotalCaloriesAdded = totalCaloriesAdded,
                     TotalProteinAdded = totalProteinAdded,
@@ -2860,7 +2889,9 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                     NewDailyCalorieGoal = totalCalories,
                     NewDailyProteinGoal = totalProtein,
                     NewDailyCarbsGoal = totalCarbs,
-                    NewDailyFatGoal = totalFat
+                    NewDailyFatGoal = totalFat,
+                    SkippedMealTypes = skippedMealTypes,
+                    ReplacedMealTypes = replacedMealTypes
                 });
             }
             catch (Exception ex)
@@ -2937,167 +2968,202 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                 decimal grandTotalCarbs = 0;
                 decimal grandTotalFat = 0;
 
-                foreach (var dayData in daysToApply)
+                // The whole batch is one transaction: either every selected day applies, or
+                // none of them do — a failure partway through never leaves some days applied
+                // and others half-done. Serializable (see ApplyMealPlanToToday's doc comment
+                // for the full rationale) means a concurrent MarkAsConsumed on any touched
+                // entry aborts our write to that row instead of silently overwriting it, AND
+                // a concurrent create of the same not-yet-existing MealEntry (this method also
+                // does read-then-conditionally-insert per meal type, per day) can no longer
+                // silently duplicate that row the way RepeatableRead alone would allow.
+                using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+                try
                 {
-                    var targetDate = startDate.AddDays(daysToApply.IndexOf(dayData));
-
-                    // Get or create meal log for this date
-                    var mealLog = await _context.MealLogs
-                        .Include(ml => ml.MealEntries)
-                        .ThenInclude(me => me.FoodItems)
-                        .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == targetDate);
-
-                    if (mealLog == null)
+                    foreach (var dayData in daysToApply)
                     {
-                        mealLog = new Models.MealLog
-                        {
-                            UserId = userId,
-                            Date = targetDate,
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        _context.MealLogs.Add(mealLog);
-                        await _context.SaveChangesAsync();
-                    }
+                        var targetDate = startDate.AddDays(daysToApply.IndexOf(dayData));
 
-                    // Ensure meal entries exist
-                    var mealTypes = new[] { "Breakfast", "Lunch", "Dinner", "Snack" };
-                    foreach (var mealType in mealTypes)
-                    {
-                        if (!mealLog.MealEntries.Any(me => me.MealType == mealType))
+                        // Get or create meal log for this date
+                        var mealLog = await _context.MealLogs
+                            .Include(ml => ml.MealEntries)
+                            .ThenInclude(me => me.FoodItems)
+                            .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == targetDate);
+
+                        if (mealLog == null)
                         {
-                            var mealEntry = new Models.MealEntry
+                            mealLog = new Models.MealLog
                             {
-                                MealLogId = mealLog.Id,
-                                MealType = mealType,
+                                UserId = userId,
+                                Date = targetDate,
                                 CreatedAt = DateTime.UtcNow
                             };
-                            _context.MealEntries.Add(mealEntry);
-                            mealLog.MealEntries.Add(mealEntry);
+                            _context.MealLogs.Add(mealLog);
+                            await _context.SaveChangesAsync();
                         }
-                    }
-                    await _context.SaveChangesAsync();
 
-                    // Clear existing food items if overwrite is enabled
-                    if (request.OverwriteExisting)
-                    {
-                        foreach (var entry in mealLog.MealEntries)
+                        // Ensure meal entries exist only for the meal types this day's plan targets
+                        var mealTypesInDay = dayData.Meals
+                            .Select(m => m.MealType)
+                            .Where(t => !string.IsNullOrWhiteSpace(t))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        foreach (var mealType in mealTypesInDay)
                         {
-                            if (entry.FoodItems.Any())
+                            if (!mealLog.MealEntries.Any(me => me.MealType.Equals(mealType, StringComparison.OrdinalIgnoreCase)))
                             {
-                                _context.FoodItems.RemoveRange(entry.FoodItems);
+                                var mealEntry = new Models.MealEntry
+                                {
+                                    MealLogId = mealLog.Id,
+                                    MealType = mealType,
+                                    CreatedAt = DateTime.UtcNow
+                                };
+                                _context.MealEntries.Add(mealEntry);
+                                mealLog.MealEntries.Add(mealEntry);
                             }
                         }
                         await _context.SaveChangesAsync();
 
-                        // Reload meal entries
-                        mealLog = await _context.MealLogs
-                            .Include(ml => ml.MealEntries)
-                            .FirstOrDefaultAsync(ml => ml.Id == mealLog.Id);
-                    }
+                        // Add food items for each targeted, not-yet-consumed entry. A consumed
+                        // entry is skipped entirely. Within a non-consumed entry, this exact
+                        // suggestion's own prior output (same conversation + day) is replaced
+                        // (idempotent reapply); when OverwriteExisting is set, other-sourced
+                        // planned items are also replaced (the old client's "full day" intent,
+                        // now safe) — but a consumed entry is excluded either way.
+                        decimal dayCalories = 0;
+                        decimal dayProtein = 0;
+                        decimal dayCarbs = 0;
+                        decimal dayFat = 0;
+                        int dayFoodsAdded = 0;
+                        var daySkipped = new List<string>();
+                        var dayReplaced = new List<string>();
 
-                    // Add food items
-                    decimal dayCalories = 0;
-                    decimal dayProtein = 0;
-                    decimal dayCarbs = 0;
-                    decimal dayFat = 0;
-                    int dayFoodsAdded = 0;
-
-                    foreach (var mealData in dayData.Meals)
-                    {
-                        var mealEntry = mealLog!.MealEntries.FirstOrDefault(me =>
-                            me.MealType.Equals(mealData.MealType, StringComparison.OrdinalIgnoreCase));
-
-                        if (mealEntry == null) continue;
-
-                        foreach (var foodData in mealData.Foods ?? new List<ChatMealPlanFoodData>())
+                        foreach (var mealData in dayData.Meals)
                         {
-                            var foodItem = new Models.FoodItem
+                            var mealEntry = mealLog.MealEntries.FirstOrDefault(me =>
+                                me.MealType.Equals(mealData.MealType, StringComparison.OrdinalIgnoreCase));
+
+                            if (mealEntry == null) continue;
+
+                            if (mealEntry.IsConsumed)
                             {
-                                MealEntryId = mealEntry.Id,
-                                Name = foodData.Name ?? "Unknown",
-                                Quantity = 1,
-                                ServingSize = foodData.ServingSize ?? 1,
-                                ServingUnit = foodData.ServingUnit ?? "serving",
-                                Calories = foodData.Calories ?? 0,
-                                Protein = foodData.Protein ?? 0,
-                                Carbohydrates = foodData.Carbohydrates ?? 0,
-                                Fat = foodData.Fat ?? 0,
+                                daySkipped.Add(mealEntry.MealType);
+                                continue;
+                            }
+
+                            var itemsToRemove = request.OverwriteExisting
+                                ? mealEntry.FoodItems.ToList()
+                                : mealEntry.FoodItems
+                                    .Where(fi => fi.SourcePlanConversationId == conversation.Id && fi.SourcePlanDay == dayData.Day)
+                                    .ToList();
+                            if (itemsToRemove.Count > 0)
+                            {
+                                _context.FoodItems.RemoveRange(itemsToRemove);
+                                dayReplaced.Add(mealEntry.MealType);
+                            }
+
+                            foreach (var foodData in mealData.Foods ?? new List<ChatMealPlanFoodData>())
+                            {
+                                var foodItem = new Models.FoodItem
+                                {
+                                    MealEntryId = mealEntry.Id,
+                                    Name = foodData.Name ?? "Unknown",
+                                    Quantity = 1,
+                                    ServingSize = foodData.ServingSize ?? 1,
+                                    ServingUnit = foodData.ServingUnit ?? "serving",
+                                    Calories = foodData.Calories ?? 0,
+                                    Protein = foodData.Protein ?? 0,
+                                    Carbohydrates = foodData.Carbohydrates ?? 0,
+                                    Fat = foodData.Fat ?? 0,
+                                    SourcePlanConversationId = conversation.Id,
+                                    SourcePlanDay = dayData.Day,
+                                    CreatedAt = DateTime.UtcNow
+                                };
+
+                                _context.FoodItems.Add(foodItem);
+                                dayCalories += foodItem.Calories;
+                                dayProtein += foodItem.Protein;
+                                dayCarbs += foodItem.Carbohydrates;
+                                dayFat += foodItem.Fat;
+                                dayFoodsAdded++;
+                            }
+                        }
+                        await _context.SaveChangesAsync();
+
+                        // Update totals only for entries we actually touched (never for consumed ones)
+                        var updatedMealLog = await _context.MealLogs
+                            .Include(ml => ml.MealEntries)
+                            .ThenInclude(me => me.FoodItems)
+                            .FirstOrDefaultAsync(ml => ml.Id == mealLog.Id);
+
+                        if (updatedMealLog != null)
+                        {
+                            foreach (var entry in updatedMealLog.MealEntries)
+                            {
+                                if (entry.IsConsumed) continue;
+
+                                entry.TotalCalories = entry.FoodItems.Sum(f => f.Calories);
+                                entry.TotalProtein = entry.FoodItems.Sum(f => f.Protein);
+                                entry.TotalCarbohydrates = entry.FoodItems.Sum(f => f.Carbohydrates);
+                                entry.TotalFat = entry.FoodItems.Sum(f => f.Fat);
+                            }
+                            updatedMealLog.UpdatedAt = DateTime.UtcNow;
+                        }
+
+                        await _context.SaveChangesAsync();
+
+                        // Update NutritionProgress for this day
+                        var nutritionProgress = await _context.NutritionProgresses
+                            .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate.Date);
+
+                        if (nutritionProgress == null)
+                        {
+                            var activeGoal = await _context.NutritionGoals
+                                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+
+                            nutritionProgress = new Models.NutritionProgress
+                            {
+                                UserId = userId,
+                                Date = targetDate.Date,
+                                NutritionGoalId = activeGoal?.Id,
                                 CreatedAt = DateTime.UtcNow
                             };
-
-                            _context.FoodItems.Add(foodItem);
-                            dayCalories += foodItem.Calories;
-                            dayProtein += foodItem.Protein;
-                            dayCarbs += foodItem.Carbohydrates;
-                            dayFat += foodItem.Fat;
-                            dayFoodsAdded++;
+                            _context.NutritionProgresses.Add(nutritionProgress);
                         }
-                    }
 
-                    // Update meal entry totals
-                    var updatedMealLog = await _context.MealLogs
-                        .Include(ml => ml.MealEntries)
-                        .ThenInclude(me => me.FoodItems)
-                        .FirstOrDefaultAsync(ml => ml.Id == mealLog!.Id);
+                        nutritionProgress.PlannedCalories += dayCalories;
+                        nutritionProgress.PlannedProtein += dayProtein;
+                        nutritionProgress.PlannedCarbohydrates += dayCarbs;
+                        nutritionProgress.PlannedFat += dayFat;
+                        nutritionProgress.UpdatedAt = DateTime.UtcNow;
 
-                    if (updatedMealLog != null)
-                    {
-                        foreach (var entry in updatedMealLog.MealEntries)
+                        await _context.SaveChangesAsync();
+
+                        results.Add(new DayApplyResult
                         {
-                            entry.TotalCalories = entry.FoodItems.Sum(f => f.Calories);
-                            entry.TotalProtein = entry.FoodItems.Sum(f => f.Protein);
-                            entry.TotalCarbohydrates = entry.FoodItems.Sum(f => f.Carbohydrates);
-                            entry.TotalFat = entry.FoodItems.Sum(f => f.Fat);
-                            entry.IsConsumed = false;
-                        }
-                        updatedMealLog.UpdatedAt = DateTime.UtcNow;
+                            Day = dayData.Day,
+                            Date = targetDate,
+                            FoodsAdded = dayFoodsAdded,
+                            Calories = dayCalories,
+                            Protein = dayProtein,
+                            Carbs = dayCarbs,
+                            Fat = dayFat,
+                            SkippedMealTypes = daySkipped,
+                            ReplacedMealTypes = dayReplaced
+                        });
+
+                        totalFoodsAdded += dayFoodsAdded;
+                        grandTotalCalories += dayCalories;
+                        grandTotalProtein += dayProtein;
+                        grandTotalCarbs += dayCarbs;
+                        grandTotalFat += dayFat;
                     }
 
-                    await _context.SaveChangesAsync();
-
-                    // Update NutritionProgress for this day
-                    var nutritionProgress = await _context.NutritionProgresses
-                        .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate.Date);
-
-                    if (nutritionProgress == null)
-                    {
-                        var activeGoal = await _context.NutritionGoals
-                            .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
-
-                        nutritionProgress = new Models.NutritionProgress
-                        {
-                            UserId = userId,
-                            Date = targetDate.Date,
-                            NutritionGoalId = activeGoal?.Id,
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        _context.NutritionProgresses.Add(nutritionProgress);
-                    }
-
-                    nutritionProgress.PlannedCalories += dayCalories;
-                    nutritionProgress.PlannedProtein += dayProtein;
-                    nutritionProgress.PlannedCarbohydrates += dayCarbs;
-                    nutritionProgress.PlannedFat += dayFat;
-                    nutritionProgress.UpdatedAt = DateTime.UtcNow;
-
-                    await _context.SaveChangesAsync();
-
-                    results.Add(new DayApplyResult
-                    {
-                        Day = dayData.Day,
-                        Date = targetDate,
-                        FoodsAdded = dayFoodsAdded,
-                        Calories = dayCalories,
-                        Protein = dayProtein,
-                        Carbs = dayCarbs,
-                        Fat = dayFat
-                    });
-
-                    totalFoodsAdded += dayFoodsAdded;
-                    grandTotalCalories += dayCalories;
-                    grandTotalProtein += dayProtein;
-                    grandTotalCarbs += dayCarbs;
-                    grandTotalFat += dayFat;
+                    await transaction.CommitAsync();
+                }
+                catch
+                {
+                    await transaction.RollbackAsync();
+                    throw;
                 }
 
                 _logger.LogInformation("Applied {dayCount} days of meal plan for user {userId}, {foodCount} total foods",
@@ -3375,6 +3441,14 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
         /// The new daily fat goal (after update)
         /// </summary>
         public decimal? NewDailyFatGoal { get; set; }
+        /// <summary>
+        /// Meal types left untouched because they were already marked consumed (actually eaten).
+        /// </summary>
+        public List<string> SkippedMealTypes { get; set; } = new();
+        /// <summary>
+        /// Meal types where a previously-applied planned suggestion was replaced by this apply.
+        /// </summary>
+        public List<string> ReplacedMealTypes { get; set; } = new();
     }
 
     // Request for applying multiple days of meal plan
@@ -3396,7 +3470,12 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
         public DateTime? StartDate { get; set; }
 
         /// <summary>
-        /// If true, replaces existing meal entries. If false, adds to existing.
+        /// If true, replaces previously-applied PLANNED suggestions in the targeted meal
+        /// entries (any source, not just this conversation) before adding the new ones.
+        /// If false, only this exact suggestion's own previously-applied items (same
+        /// conversation + day) are replaced, and other planned items are left alone.
+        /// Either way, a meal entry the user has already marked consumed (actually eaten)
+        /// is never touched, regardless of this flag.
         /// </summary>
         public bool OverwriteExisting { get; set; } = true;
     }
@@ -3425,5 +3504,13 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
         public decimal Protein { get; set; }
         public decimal Carbs { get; set; }
         public decimal Fat { get; set; }
+        /// <summary>
+        /// Meal types left untouched for this day because they were already consumed.
+        /// </summary>
+        public List<string> SkippedMealTypes { get; set; } = new();
+        /// <summary>
+        /// Meal types where a previously-applied planned suggestion was replaced for this day.
+        /// </summary>
+        public List<string> ReplacedMealTypes { get; set; } = new();
     }
 }

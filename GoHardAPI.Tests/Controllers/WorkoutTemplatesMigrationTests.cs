@@ -264,6 +264,15 @@ namespace GoHardAPI.Tests.Controllers
                 Exec(conn, @"INSERT INTO ""WorkoutTemplates"" (""Id"",""Name"",""ExercisesJson"",""RecurrencePattern"",""IsActive"",""UsageCount"",""CreatedAt"",""CreatedByUserId"",""IsCustom"",""RatingCount"",""IsPublic"") VALUES (40,'Survivor','[]','daily',1,0,'2026-01-01',1,1,0,1);");
                 Exec(conn, @"INSERT INTO ""WorkoutTemplateRatings"" (""WorkoutTemplateId"",""UserId"",""Rating"",""RatedAt"") VALUES (40,2,5,'2026-01-01');");
 
+                // PrepareHistory seeds every OTHER migration — including any added after
+                // this one — as already-applied so ctx.Database.Migrate() above only ever
+                // runs MineId's real Up(). Those later entries were never actually applied
+                // here though, so before asking the migrator to walk back down to PrevId
+                // (which would otherwise try to Down() them first and fail against a
+                // schema their Up() never touched), drop them from the history: the only
+                // migration genuinely applied in this test is MineId itself.
+                Exec(conn, $@"DELETE FROM ""__EFMigrationsHistory"" WHERE ""MigrationId"" > '{MineId}';");
+
                 ctx.GetService<IMigrator>().Migrate(PrevId);
 
                 Assert.DoesNotContain(MineId, ctx.Database.GetAppliedMigrations());

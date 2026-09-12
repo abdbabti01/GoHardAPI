@@ -37,7 +37,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var query = _context.Goals
-                .Where(g => g.UserId == userId);
+                .Where(g => g.UserId == userId && !g.IsDeleted);
 
             if (isActive.HasValue)
             {
@@ -64,7 +64,7 @@ namespace GoHardAPI.Controllers
 
             var goal = await _context.Goals
                 .Include(g => g.ProgressHistory.OrderBy(p => p.RecordedAt))
-                .FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId);
+                .FirstOrDefaultAsync(g => g.Id == id && g.UserId == userId && !g.IsDeleted);
 
             if (goal == null)
             {
@@ -110,7 +110,7 @@ namespace GoHardAPI.Controllers
             }
 
             var existingGoal = await _context.Goals.FindAsync(id);
-            if (existingGoal == null || existingGoal.UserId != userId)
+            if (existingGoal == null || existingGoal.UserId != userId || existingGoal.IsDeleted)
             {
                 return NotFound();
             }
@@ -141,7 +141,9 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Get deletion impact for a goal (how many programs and sessions will be deleted)
+        /// Get deletion impact for a goal: what will be detached and preserved.
+        /// Deleting a goal no longer destroys linked Program/Session history — it only
+        /// unlinks (detaches) that history from the goal being removed.
         /// </summary>
         [HttpGet("{id}/deletion-impact")]
         public async Task<ActionResult<object>> GetDeletionImpact(int id)
@@ -150,7 +152,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var goal = await _context.Goals.FindAsync(id);
-            if (goal == null || goal.UserId != userId)
+            if (goal == null || goal.UserId != userId || goal.IsDeleted)
             {
                 return NotFound();
             }
@@ -169,12 +171,36 @@ namespace GoHardAPI.Controllers
             return Ok(new
             {
                 programsCount,
-                sessionsCount
+                sessionsCount,
+                message = programsCount > 0
+                    ? $"This will unlink {programsCount} program(s) from this goal. They (and their {sessionsCount} session(s)) will be preserved and remain in your workout history — only the link to this goal is removed."
+                    : null
             });
         }
 
         /// <summary>
-        /// Delete a goal
+        /// Delete a goal. This never issues a physical DELETE against the Goals table —
+        /// it detaches linked Programs (GoalId set to null, for display cleanliness) and
+        /// then soft-deletes the goal itself (<see cref="Goal.IsDeleted"/>/<see
+        /// cref="Goal.DeletedAt"/>). Every other endpoint on this controller treats a
+        /// soft-deleted goal as not found, so from the user's perspective the goal is
+        /// gone exactly as a hard delete would have made it appear.
+        ///
+        /// This is what closes the concurrent-creation-vs-delete race by construction,
+        /// not by locking: because the Goals row is never physically removed, the
+        /// database's ON DELETE CASCADE from Programs→Goals can never fire for this
+        /// goal, no matter when a concurrent request creates and links a new Program to
+        /// it relative to this request's detach step. The only residual effect of a
+        /// Program being linked in that narrow window is that it may keep pointing at
+        /// this (now soft-deleted, still fetchable-by-id-internally) goal row instead of
+        /// being detached — a cosmetic staleness, never data loss — because the detach
+        /// query and the soft-delete write are not one atomic statement. See
+        /// GoalProgramHistoryPreservationPostgresTests for a live-concurrency test that
+        /// this can never destroy the concurrently-created Program.
+        ///
+        /// This makes the DELETE endpoint itself safe for old clients: the URL, verb,
+        /// and 204 response are unchanged, but the destructive cascade an old client
+        /// could accidentally trigger no longer exists.
         /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteGoal(int id)
@@ -183,13 +209,39 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var goal = await _context.Goals.FindAsync(id);
-            if (goal == null || goal.UserId != userId)
+            if (goal == null || goal.UserId != userId || goal.IsDeleted)
             {
                 return NotFound();
             }
 
-            _context.Goals.Remove(goal);
-            await _context.SaveChangesAsync();
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                var linkedPrograms = await _context.Programs
+                    .Where(p => p.GoalId == id && p.UserId == userId)
+                    .ToListAsync();
+
+                if (linkedPrograms.Count > 0)
+                {
+                    foreach (var program in linkedPrograms)
+                    {
+                        program.GoalId = null;
+                    }
+                    await _context.SaveChangesAsync();
+                }
+
+                goal.IsDeleted = true;
+                goal.DeletedAt = DateTime.UtcNow;
+                goal.IsActive = false;
+                await _context.SaveChangesAsync();
+
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
 
             return NoContent();
         }
@@ -204,7 +256,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var goal = await _context.Goals.FindAsync(id);
-            if (goal == null || goal.UserId != userId)
+            if (goal == null || goal.UserId != userId || goal.IsDeleted)
             {
                 return NotFound();
             }
@@ -212,6 +264,61 @@ namespace GoHardAPI.Controllers
             goal.IsCompleted = true;
             goal.CompletedAt = DateTime.UtcNow;
             goal.IsActive = false;
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Archive a goal: remove it from active use WITHOUT completing it. Archiving is
+        /// not completion — it never sets IsCompleted/CompletedAt and never awards
+        /// progress. It also never cascades to linked Programs or nutrition targets;
+        /// any further action on those must be explicit. Archived goals remain
+        /// discoverable via GET /goals.
+        /// </summary>
+        [HttpPut("{id}/archive")]
+        public async Task<IActionResult> ArchiveGoal(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var goal = await _context.Goals.FindAsync(id);
+            if (goal == null || goal.UserId != userId || goal.IsDeleted)
+            {
+                return NotFound();
+            }
+
+            goal.IsArchived = true;
+            goal.ArchivedAt = DateTime.UtcNow;
+            goal.IsActive = false;
+
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Restore an archived goal to active use.
+        /// </summary>
+        [HttpPut("{id}/unarchive")]
+        public async Task<IActionResult> UnarchiveGoal(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            var goal = await _context.Goals.FindAsync(id);
+            if (goal == null || goal.UserId != userId || goal.IsDeleted)
+            {
+                return NotFound();
+            }
+
+            goal.IsArchived = false;
+            goal.ArchivedAt = null;
+            if (!goal.IsCompleted)
+            {
+                goal.IsActive = true;
+            }
 
             await _context.SaveChangesAsync();
 
@@ -228,7 +335,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var goal = await _context.Goals.FindAsync(id);
-            if (goal == null || goal.UserId != userId)
+            if (goal == null || goal.UserId != userId || goal.IsDeleted)
             {
                 return NotFound();
             }
@@ -262,7 +369,7 @@ namespace GoHardAPI.Controllers
             if (userId == 0) return Unauthorized();
 
             var goal = await _context.Goals.FindAsync(id);
-            if (goal == null || goal.UserId != userId)
+            if (goal == null || goal.UserId != userId || goal.IsDeleted)
             {
                 return NotFound();
             }

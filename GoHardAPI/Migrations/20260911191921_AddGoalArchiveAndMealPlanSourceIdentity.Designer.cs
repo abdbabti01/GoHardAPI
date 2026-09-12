@@ -4,6 +4,7 @@ using GoHardAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GoHardAPI.Migrations
 {
     [DbContext(typeof(TrainingContext))]
-    partial class TrainingContextModelSnapshot : ModelSnapshot
+    [Migration("20260911191921_AddGoalArchiveAndMealPlanSourceIdentity")]
+    partial class AddGoalArchiveAndMealPlanSourceIdentity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -636,9 +639,6 @@ namespace GoHardAPI.Migrations
                     b.Property<decimal>("CurrentValue")
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("datetime2");
-
                     b.Property<string>("GoalType")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -651,9 +651,6 @@ namespace GoHardAPI.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsCompleted")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<DateTime>("StartDate")
@@ -679,8 +676,6 @@ namespace GoHardAPI.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UserId", "IsArchived");
-
-                    b.HasIndex("UserId", "IsDeleted");
 
                     b.HasIndex("UserId", "IsActive", "IsCompleted");
 
