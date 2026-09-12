@@ -289,6 +289,12 @@ namespace GoHardAPI.Data
             modelBuilder.Entity<Goal>()
                 .HasIndex(g => new { g.UserId, g.IsActive, g.IsCompleted });
 
+            modelBuilder.Entity<Goal>()
+                .HasIndex(g => new { g.UserId, g.IsArchived });
+
+            modelBuilder.Entity<Goal>()
+                .HasIndex(g => new { g.UserId, g.IsDeleted });
+
             modelBuilder.Entity<GoalProgress>()
                 .HasIndex(gp => new { gp.GoalId, gp.RecordedAt });
 
@@ -403,6 +409,20 @@ namespace GoHardAPI.Data
                 .WithMany()
                 .HasForeignKey(fi => fi.FoodTemplateId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // Configure FoodItem-SourcePlanConversation relationship (meal-plan apply
+            // source identity). SetNull: deleting the source conversation must never
+            // delete real food-log data, only detach its provenance.
+            modelBuilder.Entity<FoodItem>()
+                .HasOne(fi => fi.SourcePlanConversation)
+                .WithMany()
+                .HasForeignKey(fi => fi.SourcePlanConversationId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Add index to look up "this suggestion's own prior output" efficiently
+            // during meal-plan re-apply.
+            modelBuilder.Entity<FoodItem>()
+                .HasIndex(fi => new { fi.MealEntryId, fi.SourcePlanConversationId, fi.SourcePlanDay });
 
             // Configure NutritionGoal-User relationship
             modelBuilder.Entity<NutritionGoal>()

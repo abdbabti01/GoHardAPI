@@ -55,9 +55,26 @@ namespace GoHardAPI.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
 
+        /// <summary>
+        /// If this item was written by applying an AI-generated meal plan suggestion,
+        /// the conversation it came from. Null for manually logged/quick-added food.
+        /// Used together with <see cref="SourcePlanDay"/> to identify "this exact
+        /// suggestion's own output" so re-applying it is idempotent (replaces only its
+        /// own prior items) instead of duplicating or clobbering unrelated food.
+        /// </summary>
+        public int? SourcePlanConversationId { get; set; }
+
+        /// <summary>
+        /// The meal-plan day (1-7) this item represents, when <see cref="SourcePlanConversationId"/>
+        /// is set. Combined with the conversation id, this is the durable identity of
+        /// "this suggestion" for safe reapplication.
+        /// </summary>
+        public int? SourcePlanDay { get; set; }
+
         // Navigation properties
         public MealEntry? MealEntry { get; set; }
         public FoodTemplate? FoodTemplate { get; set; }
+        public ChatConversation? SourcePlanConversation { get; set; }
 
         /// <summary>
         /// Calculate nutritional values from a food template and quantity

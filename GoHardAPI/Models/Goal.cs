@@ -73,6 +73,37 @@ namespace GoHardAPI.Models
         public DateTime? CompletedAt { get; set; }
 
         /// <summary>
+        /// Whether the goal has been archived (removed from active use without being
+        /// completed). Distinct from <see cref="IsCompleted"/>: archiving never awards
+        /// completion/progress and never cascades to linked Programs or nutrition
+        /// targets. Archived goals remain fetchable via GET /goals.
+        /// </summary>
+        public bool IsArchived { get; set; }
+
+        /// <summary>
+        /// When the goal was archived
+        /// </summary>
+        public DateTime? ArchivedAt { get; set; }
+
+        /// <summary>
+        /// Soft-delete flag. DELETE /goals/{id} never issues a physical DELETE
+        /// statement against this row — it only sets this flag (plus
+        /// <see cref="DeletedAt"/>). This is what actually closes the
+        /// concurrent-creation-vs-delete race: a Program linked to this goal (whether
+        /// linked before or concurrently with the delete request) can never be
+        /// cascade-removed by the database, because the parent row is never removed.
+        /// Every read endpoint on this controller excludes soft-deleted goals
+        /// unconditionally, so a deleted goal disappears from the user's perspective
+        /// exactly as a hard delete would have.
+        /// </summary>
+        public bool IsDeleted { get; set; }
+
+        /// <summary>
+        /// When the goal was soft-deleted.
+        /// </summary>
+        public DateTime? DeletedAt { get; set; }
+
+        /// <summary>
         /// When the goal was created
         /// </summary>
         [Required]

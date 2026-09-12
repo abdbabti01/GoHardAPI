@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -128,7 +129,11 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Mark a meal entry as consumed
+        /// Mark a meal entry as consumed. The flag flip, the resulting meal entry/meal
+        /// log totals recompute, and the NutritionProgress consumed-value delta all
+        /// commit as ONE atomic, retried transaction - see
+        /// <see cref="MealLogTotalsRecalculator"/> for why committing the totals
+        /// separately is unsafe.
         /// </summary>
         [HttpPut("{id}/consume")]
         public async Task<IActionResult> MarkAsConsumed(int id, [FromBody] MarkConsumedRequest? request = null)
@@ -136,83 +141,86 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var entry = await _context.MealEntries
-                .Include(me => me.MealLog)
-                .Include(me => me.FoodItems)
-                .FirstOrDefaultAsync(me => me.Id == id);
-
-            if (entry == null || entry.MealLog?.UserId != userId)
+            MealMutationOutcome<bool> outcome;
+            try
             {
-                return NotFound();
-            }
-
-            var wasConsumed = entry.IsConsumed;
-            entry.IsConsumed = request?.IsConsumed ?? true;
-            entry.ConsumedAt = entry.IsConsumed ? (request?.ConsumedAt ?? DateTime.UtcNow) : null;
-            entry.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
-
-            // Recalculate MealLog totals (only count consumed meals)
-            var mealLog = await _context.MealLogs
-                .Include(ml => ml.MealEntries)
-                .ThenInclude(me => me.FoodItems)
-                .FirstOrDefaultAsync(ml => ml.Id == entry.MealLogId);
-
-            if (mealLog != null)
-            {
-                // Recalculate each entry's totals first
-                foreach (var mealEntry in mealLog.MealEntries)
+                outcome = await MealLogTotalsRecalculator.ExecuteAtomicallyAsync(_context, async ct =>
                 {
-                    mealEntry.RecalculateTotals();
-                }
-                // Then recalculate meal log totals (consumed only)
-                mealLog.RecalculateTotals(consumedOnly: true);
-                await _context.SaveChangesAsync();
+                    var entry = await _context.MealEntries
+                        .Include(me => me.MealLog)
+                        .Include(me => me.FoodItems)
+                        .FirstOrDefaultAsync(me => me.Id == id, ct);
+
+                    if (entry == null || entry.MealLog?.UserId != userId)
+                    {
+                        return MealMutationOutcome<bool>.NotFound();
+                    }
+
+                    var wasConsumed = entry.IsConsumed;
+                    var isConsumedNow = request?.IsConsumed ?? true;
+                    var mealLogId = entry.MealLogId;
+                    var entryDate = entry.MealLog!.Date.Date;
+
+                    entry.IsConsumed = isConsumedNow;
+                    entry.ConsumedAt = isConsumedNow ? (request?.ConsumedAt ?? DateTime.UtcNow) : null;
+                    entry.UpdatedAt = DateTime.UtcNow;
+
+                    await _context.SaveChangesAsync(ct);
+
+                    // Recomputes this meal log's totals within the SAME transaction/attempt -
+                    // `entry` is the identical tracked instance returned by this query (EF
+                    // Core identity resolution), so its TotalCalories/etc. below already
+                    // reflect the fresh recompute; no separate re-read needed.
+                    await MealLogTotalsRecalculator.StageRecalculationAsync(_context, mealLogId, ct);
+
+                    // Update NutritionProgress consumed values
+                    var nutritionProgress = await _context.NutritionProgresses
+                        .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == entryDate, ct);
+
+                    if (nutritionProgress == null)
+                    {
+                        var activeGoal = await _context.NutritionGoals
+                            .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive, ct);
+
+                        nutritionProgress = new Models.NutritionProgress
+                        {
+                            UserId = userId,
+                            Date = entryDate,
+                            NutritionGoalId = activeGoal?.Id,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.NutritionProgresses.Add(nutritionProgress);
+                    }
+
+                    // Calculate the delta: add if marking as consumed, subtract if unmarking
+                    if (isConsumedNow && !wasConsumed)
+                    {
+                        // Marking as consumed: add to consumed values
+                        nutritionProgress.ConsumedCalories += entry.TotalCalories;
+                        nutritionProgress.ConsumedProtein += entry.TotalProtein;
+                        nutritionProgress.ConsumedCarbohydrates += entry.TotalCarbohydrates;
+                        nutritionProgress.ConsumedFat += entry.TotalFat;
+                    }
+                    else if (!isConsumedNow && wasConsumed)
+                    {
+                        // Unmarking as consumed: subtract from consumed values
+                        nutritionProgress.ConsumedCalories = Math.Max(0, nutritionProgress.ConsumedCalories - entry.TotalCalories);
+                        nutritionProgress.ConsumedProtein = Math.Max(0, nutritionProgress.ConsumedProtein - entry.TotalProtein);
+                        nutritionProgress.ConsumedCarbohydrates = Math.Max(0, nutritionProgress.ConsumedCarbohydrates - entry.TotalCarbohydrates);
+                        nutritionProgress.ConsumedFat = Math.Max(0, nutritionProgress.ConsumedFat - entry.TotalFat);
+                    }
+
+                    nutritionProgress.UpdatedAt = DateTime.UtcNow;
+
+                    return MealMutationOutcome<bool>.Success(true);
+                });
             }
-
-            // Update NutritionProgress consumed values
-            var entryDate = mealLog?.Date.Date ?? DateTime.UtcNow.Date;
-            var nutritionProgress = await _context.NutritionProgresses
-                .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == entryDate);
-
-            if (nutritionProgress == null)
+            catch (MealLogTotalsRecalculator.ConcurrencyRetriesExhaustedException)
             {
-                var activeGoal = await _context.NutritionGoals
-                    .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
-
-                nutritionProgress = new Models.NutritionProgress
-                {
-                    UserId = userId,
-                    Date = entryDate,
-                    NutritionGoalId = activeGoal?.Id,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.NutritionProgresses.Add(nutritionProgress);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Could not save this change due to a conflicting update. Please try again." });
             }
 
-            // Calculate the delta: add if marking as consumed, subtract if unmarking
-            if (entry.IsConsumed && !wasConsumed)
-            {
-                // Marking as consumed: add to consumed values
-                nutritionProgress.ConsumedCalories += entry.TotalCalories;
-                nutritionProgress.ConsumedProtein += entry.TotalProtein;
-                nutritionProgress.ConsumedCarbohydrates += entry.TotalCarbohydrates;
-                nutritionProgress.ConsumedFat += entry.TotalFat;
-            }
-            else if (!entry.IsConsumed && wasConsumed)
-            {
-                // Unmarking as consumed: subtract from consumed values
-                nutritionProgress.ConsumedCalories = Math.Max(0, nutritionProgress.ConsumedCalories - entry.TotalCalories);
-                nutritionProgress.ConsumedProtein = Math.Max(0, nutritionProgress.ConsumedProtein - entry.TotalProtein);
-                nutritionProgress.ConsumedCarbohydrates = Math.Max(0, nutritionProgress.ConsumedCarbohydrates - entry.TotalCarbohydrates);
-                nutritionProgress.ConsumedFat = Math.Max(0, nutritionProgress.ConsumedFat - entry.TotalFat);
-            }
-
-            nutritionProgress.UpdatedAt = DateTime.UtcNow;
-            await _context.SaveChangesAsync();
-
-            return NoContent();
+            return outcome.Found ? NoContent() : NotFound();
         }
 
         /// <summary>
@@ -336,7 +344,8 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Delete a meal entry
+        /// Delete a meal entry. Atomic with its totals recompute - see
+        /// <see cref="MarkAsConsumed"/>'s doc comment.
         /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteMealEntry(int id)
@@ -344,36 +353,35 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var entry = await _context.MealEntries
-                .Include(me => me.MealLog)
-                .FirstOrDefaultAsync(me => me.Id == id);
-
-            if (entry == null || entry.MealLog?.UserId != userId)
+            MealMutationOutcome<bool> outcome;
+            try
             {
-                return NotFound();
-            }
-
-            var mealLogId = entry.MealLogId;
-            _context.MealEntries.Remove(entry);
-            await _context.SaveChangesAsync();
-
-            // Recalculate meal log totals (consumed meals only)
-            var mealLog = await _context.MealLogs
-                .Include(ml => ml.MealEntries)
-                    .ThenInclude(me => me.FoodItems)
-                .FirstOrDefaultAsync(ml => ml.Id == mealLogId);
-
-            if (mealLog != null)
-            {
-                foreach (var mealEntry in mealLog.MealEntries)
+                outcome = await MealLogTotalsRecalculator.ExecuteAtomicallyAsync(_context, async ct =>
                 {
-                    mealEntry.RecalculateTotals();
-                }
-                mealLog.RecalculateTotals(consumedOnly: true);
-                await _context.SaveChangesAsync();
+                    var entry = await _context.MealEntries
+                        .Include(me => me.MealLog)
+                        .FirstOrDefaultAsync(me => me.Id == id, ct);
+
+                    if (entry == null || entry.MealLog?.UserId != userId)
+                    {
+                        return MealMutationOutcome<bool>.NotFound();
+                    }
+
+                    var mealLogId = entry.MealLogId;
+                    _context.MealEntries.Remove(entry);
+                    await _context.SaveChangesAsync(ct);
+
+                    await MealLogTotalsRecalculator.StageRecalculationAsync(_context, mealLogId, ct);
+
+                    return MealMutationOutcome<bool>.Success(true);
+                });
+            }
+            catch (MealLogTotalsRecalculator.ConcurrencyRetriesExhaustedException)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Could not delete this meal entry due to a conflicting update. Please try again." });
             }
 
-            return NoContent();
+            return outcome.Found ? NoContent() : NotFound();
         }
     }
 

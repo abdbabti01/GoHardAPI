@@ -88,6 +88,15 @@ namespace GoHardAPI.Tests.Controllers
                 PrepareLegacy(conn, ctx);
                 ctx.Database.Migrate();
 
+                // PrepareLegacy seeds every OTHER migration — including any added after
+                // this one — as already-applied so ctx.Database.Migrate() above only ever
+                // runs MineId's real Up(). Those later entries were never actually applied
+                // here though, so before asking the migrator to walk back down (which would
+                // otherwise try to Down() them first and fail against a schema their Up()
+                // never touched), drop them from the history: the only migration genuinely
+                // applied in this test is MineId itself.
+                Exec(conn, $@"DELETE FROM ""__EFMigrationsHistory"" WHERE ""MigrationId"" > '{MineId}';");
+
                 ctx.GetService<IMigrator>()
                     .Migrate("20260830215026_AddWorkoutTemplateVisibilityAndConvergeSchema");
 
