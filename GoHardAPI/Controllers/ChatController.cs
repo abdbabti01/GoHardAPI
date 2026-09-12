@@ -2637,38 +2637,50 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                 _logger.LogInformation("Meal plan totals - Calories: {cal}, Protein: {prot}g, Carbs: {carb}g, Fat: {fat}g",
                     totalCalories, totalProtein, totalCarbs, totalFat);
 
-                var addedFoods = new List<object>();
-                var skippedMealTypes = new List<string>();
-                var replacedMealTypes = new List<string>();
-                decimal totalCaloriesAdded = 0;
-                decimal totalProteinAdded = 0;
-                decimal totalCarbsAdded = 0;
-                decimal totalFatAdded = 0;
-
-                // Everything below reads and writes real food-log data, so it runs as one
-                // transaction: either the whole apply succeeds, or nothing changes.
-                // Serializable (not merely RepeatableRead) on PostgreSQL: a concurrent
-                // MarkAsConsumed (or any other ordinary edit) on the same row that commits
-                // while we're mid-flight causes our own write to that row to fail — we roll
-                // back and the user can retry, rather than silently overwriting what they
-                // just logged as eaten. RepeatableRead alone is NOT enough here: this method
-                // does a read-then-conditionally-insert-a-new-MealEntry for each meal type
-                // ("does a Lunch entry already exist? no -> create one") — a classic
-                // phantom-read/write-skew shape that RepeatableRead's snapshot isolation does
-                // NOT detect (two concurrent transactions can both see "no Lunch entry" and
-                // both insert one, silently duplicating it — Postgres only starts rejecting
-                // one side of that with Serializable's predicate-locking SSI). Uses the same
-                // SQLSTATE 40001 as RepeatableRead's conflicts, so the existing catch/rollback
-                // below needs no change for this.
-                using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-                try
+                // Everything below reads and writes real food-log CONTENT and the cached
+                // totals derived from it as ONE atomic, retried unit - see
+                // MealLogTotalsRecalculator.ExecuteAtomicallyAsync for the full rationale.
+                // Committing the content change and its totals recompute SEPARATELY (an
+                // earlier version of this endpoint did exactly that) left a real gap: a
+                // crash or an exhausted retry between the two steps left committed food
+                // rows with a stale, never-corrected total. Retrying the WHOLE attempt
+                // (not just the totals tail) on a confirmed PostgreSQL conflict is safe
+                // specifically because a rolled-back transaction leaves zero trace - see
+                // that method's doc comment for why. Serializable (not merely
+                // RepeatableRead): a concurrent MarkAsConsumed or ordinary food edit on the
+                // same row that commits while we're mid-flight causes our own write to that
+                // row to fail — we roll back and retry from a fresh read, rather than
+                // silently overwriting what they just logged as eaten. RepeatableRead alone
+                // is NOT enough here: this method does a read-then-conditionally-insert-a-
+                // new-MealEntry for each meal type ("does a Lunch entry already exist? no ->
+                // create one") — a classic phantom-read/write-skew shape that RepeatableRead's
+                // snapshot isolation does NOT detect (two concurrent transactions can both
+                // see "no Lunch entry" and both insert one, silently duplicating it —
+                // Postgres only starts rejecting one side of that with Serializable's
+                // predicate-locking SSI).
+                var attemptResult = await MealLogTotalsRecalculator.ExecuteAtomicallyAsync(_context, async ct =>
                 {
+                    var addedFoods = new List<object>();
+                    var skippedMealTypes = new List<string>();
+                    var replacedMealTypes = new List<string>();
+                    decimal totalCaloriesAdded = 0;
+                    decimal totalProteinAdded = 0;
+                    decimal totalCarbsAdded = 0;
+                    decimal totalFatAdded = 0;
+
                     // 1. UPDATE OR CREATE NUTRITION GOALS TO MATCH MEAL PLAN DAY
-                    // When user applies a meal plan day, update their goal to match
-                    if (nutritionGoal == null)
+                    // Re-read fresh within this attempt - the outer `nutritionGoal` read
+                    // (used above only to compute targetCalories for AI-output scaling) may
+                    // be a detached, stale instance from an earlier attempt by the time a
+                    // retry runs here.
+                    var goalToUpdate = await _context.NutritionGoals
+                        .Where(ng => ng.UserId == userId && ng.IsActive)
+                        .FirstOrDefaultAsync(ct);
+
+                    if (goalToUpdate == null)
                     {
                         // Create new nutrition goal from meal plan
-                        nutritionGoal = new Models.NutritionGoal
+                        goalToUpdate = new Models.NutritionGoal
                         {
                             UserId = userId,
                             Name = "Meal Plan Goals",
@@ -2680,28 +2692,28 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                             IsActive = true,
                             CreatedAt = DateTime.UtcNow
                         };
-                        _context.NutritionGoals.Add(nutritionGoal);
+                        _context.NutritionGoals.Add(goalToUpdate);
                         _logger.LogInformation("Created new nutrition goal from meal plan for user {userId}: {cal} kcal", userId, totalCalories);
                     }
                     else
                     {
                         // UPDATE existing nutrition goal to match the meal plan day
-                        nutritionGoal.DailyCalories = totalCalories;
-                        nutritionGoal.DailyProtein = totalProtein;
-                        nutritionGoal.DailyCarbohydrates = totalCarbs;
-                        nutritionGoal.DailyFat = totalFat;
-                        nutritionGoal.Name = "Meal Plan Goals";
-                        nutritionGoal.UpdatedAt = DateTime.UtcNow;
+                        goalToUpdate.DailyCalories = totalCalories;
+                        goalToUpdate.DailyProtein = totalProtein;
+                        goalToUpdate.DailyCarbohydrates = totalCarbs;
+                        goalToUpdate.DailyFat = totalFat;
+                        goalToUpdate.Name = "Meal Plan Goals";
+                        goalToUpdate.UpdatedAt = DateTime.UtcNow;
                         _logger.LogInformation("Updated nutrition goal for user {userId}: {cal} kcal, {prot}g protein, {carb}g carbs, {fat}g fat",
                             userId, totalCalories, totalProtein, totalCarbs, totalFat);
                     }
-                    await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync(ct);
 
                     // 2. GET OR CREATE THE TARGET DATE'S MEAL LOG
                     var mealLog = await _context.MealLogs
                         .Include(ml => ml.MealEntries)
                         .ThenInclude(me => me.FoodItems)
-                        .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == targetDate);
+                        .FirstOrDefaultAsync(ml => ml.UserId == userId && ml.Date.Date == targetDate, ct);
 
                     if (mealLog == null)
                     {
@@ -2717,7 +2729,7 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                             CreatedAt = DateTime.UtcNow
                         };
                         _context.MealLogs.Add(mealLog);
-                        await _context.SaveChangesAsync();
+                        await _context.SaveChangesAsync(ct);
                     }
 
                     // Ensure meal entries exist only for the meal types this plan actually targets
@@ -2740,7 +2752,7 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                             mealLog.MealEntries.Add(mealEntry);
                         }
                     }
-                    await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync(ct);
 
                     // 3-4. FOR EACH TARGETED, NOT-YET-CONSUMED MEAL: replace only this exact
                     // suggestion's own prior output (idempotent reapply), then add the new
@@ -2803,47 +2815,16 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                             });
                         }
                     }
-                    await _context.SaveChangesAsync();
+                    await _context.SaveChangesAsync(ct);
 
-                    // 5. UPDATE TOTALS for the entries we actually touched. Consumed entries
-                    // are never re-touched here (their totals reflect what was actually eaten).
-                    var updatedMealLog = await _context.MealLogs
-                        .Include(ml => ml.MealEntries)
-                        .ThenInclude(me => me.FoodItems)
-                        .FirstOrDefaultAsync(ml => ml.Id == mealLog.Id);
-
-                    if (updatedMealLog != null)
-                    {
-                        foreach (var entry in updatedMealLog.MealEntries)
-                        {
-                            if (entry.IsConsumed) continue;
-
-                            entry.TotalCalories = entry.FoodItems.Sum(f => f.Calories);
-                            entry.TotalProtein = entry.FoodItems.Sum(f => f.Protein);
-                            entry.TotalCarbohydrates = entry.FoodItems.Sum(f => f.Carbohydrates);
-                            entry.TotalFat = entry.FoodItems.Sum(f => f.Fat);
-                            // Planned entries stay planned — IsConsumed/ConsumedAt untouched (already false).
-                        }
-
-                        // MealLog totals only ever count CONSUMED meals; recomputing here is a
-                        // no-op for entries we didn't touch and correct for any we did.
-                        updatedMealLog.TotalCalories = updatedMealLog.MealEntries.Where(e => e.IsConsumed).Sum(e => e.TotalCalories);
-                        updatedMealLog.TotalProtein = updatedMealLog.MealEntries.Where(e => e.IsConsumed).Sum(e => e.TotalProtein);
-                        updatedMealLog.TotalCarbohydrates = updatedMealLog.MealEntries.Where(e => e.IsConsumed).Sum(e => e.TotalCarbohydrates);
-                        updatedMealLog.TotalFat = updatedMealLog.MealEntries.Where(e => e.IsConsumed).Sum(e => e.TotalFat);
-                        updatedMealLog.UpdatedAt = DateTime.UtcNow;
-                    }
-
-                    await _context.SaveChangesAsync();
-
-                    // 6. UPDATE NUTRITION PROGRESS (planned values) for the target date
+                    // 5. UPDATE NUTRITION PROGRESS (planned values) for the target date
                     var nutritionProgress = await _context.NutritionProgresses
-                        .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate);
+                        .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate, ct);
 
                     if (nutritionProgress == null)
                     {
                         var activeGoal = await _context.NutritionGoals
-                            .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+                            .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive, ct);
 
                         nutritionProgress = new Models.NutritionProgress
                         {
@@ -2862,14 +2843,17 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                     nutritionProgress.PlannedFat += totalFatAdded;
                     nutritionProgress.UpdatedAt = DateTime.UtcNow;
 
-                    await _context.SaveChangesAsync();
-                    await transaction.CommitAsync();
-                }
-                catch
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
+                    await _context.SaveChangesAsync(ct);
+
+                    // 6. Recompute this meal log's cached totals from the FoodItems just
+                    // written above, staged into the SAME transaction as everything else in
+                    // this attempt - see MealLogTotalsRecalculator.
+                    await MealLogTotalsRecalculator.StageRecalculationAsync(_context, mealLog.Id, ct);
+
+                    return (addedFoods, skippedMealTypes, replacedMealTypes, totalCaloriesAdded, totalProteinAdded, totalCarbsAdded, totalFatAdded);
+                });
+
+                var (addedFoods, skippedMealTypes, replacedMealTypes, totalCaloriesAdded, totalProteinAdded, totalCarbsAdded, totalFatAdded) = attemptResult;
 
                 _logger.LogInformation(
                     "Updated NutritionProgress for user {UserId}: +{Calories} planned calories",
@@ -2961,24 +2945,31 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                 }
 
                 var startDate = request.StartDate?.Date ?? DateTime.UtcNow.Date;
-                var results = new List<DayApplyResult>();
-                var totalFoodsAdded = 0;
-                decimal grandTotalCalories = 0;
-                decimal grandTotalProtein = 0;
-                decimal grandTotalCarbs = 0;
-                decimal grandTotalFat = 0;
 
-                // The whole batch is one transaction: either every selected day applies, or
-                // none of them do — a failure partway through never leaves some days applied
-                // and others half-done. Serializable (see ApplyMealPlanToToday's doc comment
-                // for the full rationale) means a concurrent MarkAsConsumed on any touched
-                // entry aborts our write to that row instead of silently overwriting it, AND
-                // a concurrent create of the same not-yet-existing MealEntry (this method also
-                // does read-then-conditionally-insert per meal type, per day) can no longer
+                // The whole batch, INCLUDING the resulting cached totals, commits as ONE
+                // atomic, retried unit - see MealLogTotalsRecalculator.ExecuteAtomicallyAsync
+                // for the full rationale (committing content and totals separately left a
+                // real gap: a crash or exhausted retry between the two steps left committed
+                // food rows with a stale, never-corrected total). Either every selected day
+                // applies with its totals correctly recomputed, or nothing does — a failure
+                // partway through never leaves some days applied and others half-done, and
+                // never leaves a day's food committed without its corresponding totals.
+                // Serializable (see ApplyMealPlanToToday's doc comment for the full
+                // rationale) means a concurrent MarkAsConsumed on any touched entry aborts
+                // our write to that row instead of silently overwriting it, AND a concurrent
+                // create of the same not-yet-existing MealEntry (this method also does
+                // read-then-conditionally-insert per meal type, per day) can no longer
                 // silently duplicate that row the way RepeatableRead alone would allow.
-                using var transaction = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
-                try
+                var attemptResult = await MealLogTotalsRecalculator.ExecuteAtomicallyAsync(_context, async ct =>
                 {
+                    var touchedMealLogIds = new HashSet<int>();
+                    var results = new List<DayApplyResult>();
+                    var totalFoodsAdded = 0;
+                    decimal grandTotalCalories = 0;
+                    decimal grandTotalProtein = 0;
+                    decimal grandTotalCarbs = 0;
+                    decimal grandTotalFat = 0;
+
                     foreach (var dayData in daysToApply)
                     {
                         var targetDate = startDate.AddDays(daysToApply.IndexOf(dayData));
@@ -3000,6 +2991,7 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                             _context.MealLogs.Add(mealLog);
                             await _context.SaveChangesAsync();
                         }
+                        touchedMealLogIds.Add(mealLog.Id);
 
                         // Ensure meal entries exist only for the meal types this day's plan targets
                         var mealTypesInDay = dayData.Meals
@@ -3089,28 +3081,6 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                         }
                         await _context.SaveChangesAsync();
 
-                        // Update totals only for entries we actually touched (never for consumed ones)
-                        var updatedMealLog = await _context.MealLogs
-                            .Include(ml => ml.MealEntries)
-                            .ThenInclude(me => me.FoodItems)
-                            .FirstOrDefaultAsync(ml => ml.Id == mealLog.Id);
-
-                        if (updatedMealLog != null)
-                        {
-                            foreach (var entry in updatedMealLog.MealEntries)
-                            {
-                                if (entry.IsConsumed) continue;
-
-                                entry.TotalCalories = entry.FoodItems.Sum(f => f.Calories);
-                                entry.TotalProtein = entry.FoodItems.Sum(f => f.Protein);
-                                entry.TotalCarbohydrates = entry.FoodItems.Sum(f => f.Carbohydrates);
-                                entry.TotalFat = entry.FoodItems.Sum(f => f.Fat);
-                            }
-                            updatedMealLog.UpdatedAt = DateTime.UtcNow;
-                        }
-
-                        await _context.SaveChangesAsync();
-
                         // Update NutritionProgress for this day
                         var nutritionProgress = await _context.NutritionProgresses
                             .FirstOrDefaultAsync(np => np.UserId == userId && np.Date.Date == targetDate.Date);
@@ -3158,13 +3128,18 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                         grandTotalFat += dayFat;
                     }
 
-                    await transaction.CommitAsync();
-                }
-                catch
-                {
-                    await transaction.RollbackAsync();
-                    throw;
-                }
+                    // Recompute each touched meal log's cached totals from the FoodItems just
+                    // written above, staged into the SAME transaction/attempt as everything
+                    // else in this batch - see MealLogTotalsRecalculator.
+                    foreach (var touchedMealLogId in touchedMealLogIds)
+                    {
+                        await MealLogTotalsRecalculator.StageRecalculationAsync(_context, touchedMealLogId, ct);
+                    }
+
+                    return (results, totalFoodsAdded, grandTotalCalories, grandTotalProtein, grandTotalCarbs, grandTotalFat);
+                });
+
+                var (dayResults, totalFoodsAdded, grandTotalCalories, grandTotalProtein, grandTotalCarbs, grandTotalFat) = attemptResult;
 
                 _logger.LogInformation("Applied {dayCount} days of meal plan for user {userId}, {foodCount} total foods",
                     daysToApply.Count, totalFoodsAdded, userId);
@@ -3179,7 +3154,7 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                     TotalProtein = grandTotalProtein,
                     TotalCarbs = grandTotalCarbs,
                     TotalFat = grandTotalFat,
-                    DayResults = results
+                    DayResults = dayResults
                 });
             }
             catch (Exception ex)

@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.Models;
+using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -232,7 +233,8 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Recalculate totals for a meal log
+        /// Recalculate totals for a meal log. The recompute and its commit are a single
+        /// atomic, retried transaction - see <see cref="MealLogTotalsRecalculator"/>.
         /// </summary>
         [HttpPost("{id}/recalculate")]
         public async Task<ActionResult<MealLog>> RecalculateTotals(int id)
@@ -240,26 +242,37 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var mealLog = await _context.MealLogs
-                .Include(ml => ml.MealEntries)
-                    .ThenInclude(me => me.FoodItems)
-                .FirstOrDefaultAsync(ml => ml.Id == id && ml.UserId == userId);
+            MealMutationOutcome<bool> outcome;
+            try
+            {
+                outcome = await MealLogTotalsRecalculator.ExecuteAtomicallyAsync(_context, async ct =>
+                {
+                    var owned = await _context.MealLogs.AnyAsync(ml => ml.Id == id && ml.UserId == userId, ct);
+                    if (!owned)
+                    {
+                        return MealMutationOutcome<bool>.NotFound();
+                    }
 
-            if (mealLog == null)
+                    await MealLogTotalsRecalculator.StageRecalculationAsync(_context, id, ct);
+
+                    return MealMutationOutcome<bool>.Success(true);
+                });
+            }
+            catch (MealLogTotalsRecalculator.ConcurrencyRetriesExhaustedException)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "Could not recalculate this meal log due to a conflicting update. Please try again." });
+            }
+
+            if (!outcome.Found)
             {
                 return NotFound();
             }
 
-            // Recalculate each meal entry first
-            foreach (var entry in mealLog.MealEntries)
-            {
-                entry.RecalculateTotals();
-            }
-
-            // Then recalculate the meal log totals (consumed meals only)
-            mealLog.RecalculateTotals(consumedOnly: true);
-
-            await _context.SaveChangesAsync();
+            var mealLog = await _context.MealLogs
+                .AsNoTracking()
+                .Include(ml => ml.MealEntries)
+                    .ThenInclude(me => me.FoodItems)
+                .FirstOrDefaultAsync(ml => ml.Id == id);
 
             return Ok(mealLog);
         }

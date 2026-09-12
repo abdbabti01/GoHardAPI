@@ -75,6 +75,20 @@ namespace GoHardAPI.Tests.Controllers
             return controller;
         }
 
+        private static MealEntriesController MealEntries(TrainingContext ctx, int userId)
+        {
+            var controller = new MealEntriesController(ctx);
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                        new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) }, "TestAuth"))
+                }
+            };
+            return controller;
+        }
+
         private async Task<int> SeedUser()
         {
             await using var ctx = _pg.NewContext();
@@ -527,42 +541,360 @@ namespace GoHardAPI.Tests.Controllers
         }
 
         /// <summary>
-        /// Gap 3: a concurrent ORDINARY food edit through the REAL
-        /// <c>FoodItemsController.UpdateQuantity</c> endpoint (not a hypothetical write)
-        /// racing a REAL <c>ApplyMealPlanToToday</c> call must never destroy or duplicate
-        /// either side's own logged content - the ordinary edit's own row and the plan's
-        /// own inserted row must each independently survive intact, regardless of timing.
+        /// Deterministically reproduces the EXACT defect a prior recovery pass found and
+        /// then papered over with a weakened assertion instead of fixing: two concurrent
+        /// recomputations of the SAME meal entry's cached total - one holding a stale,
+        /// pre-edit view - can otherwise let the stale one blindly overwrite the other's
+        /// already-committed, correct total, with no error on either side.
+        ///
+        /// This uses held execution checkpoints against two separate, real PostgreSQL
+        /// contexts to FORCE the exact "stale read -> competing recompute commits first ->
+        /// stale write attempt" order, rather than hoping unforced concurrency happens to
+        /// land that way (as the now-corrected end-to-end test below does):
+        ///   1. ctxA opens a Serializable transaction and reads the Lunch entry's
+        ///      FoodItems, establishing its snapshot BEFORE Grilled Chicken exists. This
+        ///      is held open (not committed) past this point - exactly
+        ///      <see cref="MealLogTotalsRecalculator"/>'s own read, mid-attempt.
+        ///   2. A fully separate, already-committed sequence simulates a CONCURRENT
+        ///      recompute for the same entry that DID see Grilled Chicken: it inserts the
+        ///      item and writes the resulting (correct) total to the SAME MealEntry row -
+        ///      exactly what a real, concurrent meal-plan apply's own recalculation would
+        ///      have already durably committed by this point.
+        ///   3. ctxA, still unaware of either change, computes a total from its stale
+        ///      (Chicken-less) view and tries to persist it to that SAME row.
+        /// PostgreSQL must reject ctxA's write in step 3 with the recognized 40001
+        /// conflict shape - a genuine concurrent UPDATE to a row already changed since
+        /// ctxA's snapshot began - not silently allow the stale overwrite. This is the
+        /// same row-level mechanism already proven generically by
+        /// <see cref="concurrent_write_to_the_same_meal_entry_under_repeatable_read_is_detected_not_silently_lost"/>;
+        /// this test proves it specifically for two competing TOTAL RECOMPUTATIONS of the
+        /// same entry, which is the exact shape <see cref="MealLogTotalsRecalculator"/>
+        /// depends on to safely retry with a fresh read instead of ever completing a
+        /// stale write.
+        /// </summary>
+        [DockerRequiredFact]
+        public async Task a_stale_recompute_attempt_is_rejected_when_a_concurrent_recompute_already_committed_first()
+        {
+            Assert.True(_pg.Available, "PostgreSQL container must be available in CI");
+            var userId = await SeedUser();
+            var today = DateTime.UtcNow.Date;
+
+            int lunchEntryId;
+            await using (var seedCtx = _pg.NewContext())
+            {
+                var mealLog = new MealLog { UserId = userId, Date = today, CreatedAt = DateTime.UtcNow };
+                seedCtx.MealLogs.Add(mealLog);
+                await seedCtx.SaveChangesAsync();
+
+                var lunch = new MealEntry { MealLogId = mealLog.Id, MealType = "Lunch", IsConsumed = false, CreatedAt = DateTime.UtcNow };
+                seedCtx.MealEntries.Add(lunch);
+                await seedCtx.SaveChangesAsync();
+
+                seedCtx.FoodItems.Add(new FoodItem
+                {
+                    MealEntryId = lunch.Id,
+                    Name = "Rice",
+                    Quantity = 1,
+                    Calories = 150,
+                    Protein = 3,
+                    Carbohydrates = 33,
+                    Fat = 0,
+                    CreatedAt = DateTime.UtcNow,
+                });
+                await seedCtx.SaveChangesAsync();
+
+                lunchEntryId = lunch.Id;
+            }
+
+            // Checkpoint 1: ctxA opens Serializable and reads the entry - establishing its
+            // snapshot - before Grilled Chicken exists. A bare (non-Include) read, exactly
+            // matching concurrent_write_to_the_same_meal_entry_under_repeatable_read_is_detected_not_silently_lost's
+            // proven shape.
+            await using var ctxA = _pg.NewContext();
+            await using var txA = await ctxA.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var entryInA = await ctxA.MealEntries.FirstAsync(e => e.Id == lunchEntryId);
+
+            // Checkpoint 2: a fully separate, already-committed sequence simulates a
+            // concurrent recompute that DID see Grilled Chicken - inserting it and then
+            // writing the SAME MealEntry row's total to reflect it (700 -> here just
+            // Rice+Chicken = 550, matching this fixture) - exactly what a real concurrent
+            // apply's own MealLogTotalsRecalculator attempt would have already committed.
+            await using (var ctxB = _pg.NewContext())
+            {
+                ctxB.FoodItems.Add(new FoodItem
+                {
+                    MealEntryId = lunchEntryId,
+                    Name = "Grilled Chicken",
+                    Quantity = 1,
+                    Calories = 400,
+                    Protein = 35,
+                    Carbohydrates = 0,
+                    Fat = 10,
+                    CreatedAt = DateTime.UtcNow,
+                });
+                var entryInB = await ctxB.MealEntries.FirstAsync(e => e.Id == lunchEntryId);
+                entryInB.TotalCalories = 550; // correct as of this commit: Rice(150) + Chicken(400)
+                await ctxB.SaveChangesAsync();
+            }
+
+            // Checkpoint 3: ctxA, still unaware of either change, computes and tries to
+            // persist a total from its stale view to the SAME row ctxB already updated -
+            // exactly the shape that silently undercounted in the reproduced defect.
+            entryInA.TotalCalories = 150; // stale: what a recompute would get from Rice alone
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await ctxA.SaveChangesAsync());
+            var dbUpdateEx = Assert.IsType<DbUpdateException>(ex.InnerException);
+            var pgEx = Assert.IsType<Npgsql.PostgresException>(dbUpdateEx.InnerException);
+            Assert.Equal("40001", pgEx.SqlState); // serialization_failure
+
+            // ctxB's correct, already-committed total survives untouched - ctxA's stale,
+            // rejected write never reached the database.
+            await using var verify = _pg.NewContext();
+            var finalEntry = await verify.MealEntries
+                .Include(e => e.FoodItems)
+                .FirstAsync(e => e.Id == lunchEntryId);
+            Assert.Equal(2, finalEntry.FoodItems.Count);
+            Assert.Contains(finalEntry.FoodItems, f => f.Name == "Grilled Chicken");
+            Assert.Equal(550m, finalEntry.TotalCalories);
+        }
+
+        /// <summary>
+        /// Atomicity correction: an earlier version of this fix committed a food-item
+        /// content change in one transaction and recomputed its totals in a SEPARATE,
+        /// later transaction. That reintroduced the exact failure mode the whole feature
+        /// exists to close: if the second step ever failed - here, forced by a real
+        /// PostgreSQL conflict landing between the two steps - the food row stayed
+        /// committed with a stale total forever, since nothing repairs it and no later
+        /// unrelated request is relied on to. This test forces that exact ordering
+        /// deterministically (held execution checkpoints, real PostgreSQL, no race) and
+        /// proves the CURRENT design has no such gap: content and totals now commit as
+        /// ONE transaction (<see cref="MealLogTotalsRecalculator.ExecuteAtomicallyAsync{T}"/>),
+        /// so a conflict discovered ANYWHERE in the attempt - including specifically
+        /// between the content write and the totals recompute - rolls back the content
+        /// too. A fresh context afterward must see either the complete, correct result or
+        /// nothing at all from this attempt - never a food row committed without its
+        /// corresponding total.
+        ///
+        /// Sequence:
+        ///   1. ctxA opens Serializable, reads the (empty) Lunch entry - establishing its
+        ///      snapshot - then inserts "Chicken" and saves (CONTENT WRITTEN, still
+        ///      uncommitted - this transaction is held open).
+        ///   2. A fully separate, already-committed transaction writes a DIFFERENT total
+        ///      to that SAME MealEntry row - simulating a concurrent writer's recompute
+        ///      finishing first.
+        ///   3. ctxA now runs the real <see cref="MealLogTotalsRecalculator.StageRecalculationAsync"/>
+        ///      (production code, not a hypothetical) and tries to commit - its write
+        ///      conflicts with step 2's already-committed change to the same row.
+        /// </summary>
+        [DockerRequiredFact]
+        public async Task a_conflict_between_content_write_and_totals_recompute_rolls_back_the_content_too()
+        {
+            Assert.True(_pg.Available, "PostgreSQL container must be available in CI");
+            var userId = await SeedUser();
+            var today = DateTime.UtcNow.Date;
+
+            int lunchEntryId;
+            int mealLogId;
+            await using (var seedCtx = _pg.NewContext())
+            {
+                var mealLog = new MealLog { UserId = userId, Date = today, CreatedAt = DateTime.UtcNow };
+                seedCtx.MealLogs.Add(mealLog);
+                await seedCtx.SaveChangesAsync();
+
+                var lunch = new MealEntry { MealLogId = mealLog.Id, MealType = "Lunch", IsConsumed = false, CreatedAt = DateTime.UtcNow };
+                seedCtx.MealEntries.Add(lunch);
+                await seedCtx.SaveChangesAsync();
+
+                lunchEntryId = lunch.Id;
+                mealLogId = mealLog.Id;
+            }
+
+            // Checkpoint 1: content write, held open (not yet committed).
+            await using var ctxA = _pg.NewContext();
+            await using var txA = await ctxA.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            var entryInA = await ctxA.MealEntries
+                .Include(e => e.FoodItems)
+                .FirstAsync(e => e.Id == lunchEntryId);
+            entryInA.FoodItems.Add(new FoodItem
+            {
+                MealEntryId = lunchEntryId,
+                Name = "Chicken",
+                Quantity = 1,
+                Calories = 400,
+                Protein = 35,
+                Carbohydrates = 0,
+                Fat = 10,
+                CreatedAt = DateTime.UtcNow,
+            });
+            await ctxA.SaveChangesAsync(); // content written within ctxA's still-open transaction
+
+            // Checkpoint 2: a fully separate, already-committed writer changes the SAME
+            // MealEntry row's total, landing exactly between ctxA's content write and its
+            // (not-yet-attempted) totals recompute.
+            await using (var ctxB = _pg.NewContext())
+            {
+                var entryInB = await ctxB.MealEntries.FirstAsync(e => e.Id == lunchEntryId);
+                entryInB.TotalCalories = 999;
+                await ctxB.SaveChangesAsync();
+            }
+
+            // Checkpoint 3: ctxA now runs the REAL production recompute and tries to
+            // commit - it conflicts with checkpoint 2's already-committed write to the
+            // same row.
+            await MealLogTotalsRecalculator.StageRecalculationAsync(ctxA, mealLogId);
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await ctxA.SaveChangesAsync());
+            var dbUpdateEx = Assert.IsType<DbUpdateException>(ex.InnerException);
+            var pgEx = Assert.IsType<Npgsql.PostgresException>(dbUpdateEx.InnerException);
+            Assert.Equal("40001", pgEx.SqlState); // serialization_failure
+
+            // The acceptance bar: a fresh context sees FULL ROLLBACK, not a food row
+            // committed without its total. Chicken must NOT exist - ctxA never committed.
+            await using var verify = _pg.NewContext();
+            var finalEntry = await verify.MealEntries
+                .Include(e => e.FoodItems)
+                .FirstAsync(e => e.Id == lunchEntryId);
+            Assert.Empty(finalEntry.FoodItems);
+            Assert.Equal(999m, finalEntry.TotalCalories); // checkpoint 2's write stands, untouched
+        }
+
+        /// <summary>
+        /// Exhausts <see cref="MealLogTotalsRecalculator.ExecuteAtomicallyAsync{T}"/>'s
+        /// retry budget deterministically (a fresh, guaranteed-to-conflict competing
+        /// commit is issued from INSIDE the attempt delegate itself, so every single
+        /// attempt - not just the first - hits a confirmed PostgreSQL conflict) and
+        /// verifies the same invariant as above: when
+        /// <see cref="MealLogTotalsRecalculator.ConcurrencyRetriesExhaustedException"/> is
+        /// thrown, NOTHING from any attempt was left committed - never content without
+        /// its corresponding totals, and the exception itself does not conceal a
+        /// content-committed/totals-stale state because no such state exists to conceal.
+        /// </summary>
+        [DockerRequiredFact]
+        public async Task exhausting_the_retry_policy_leaves_no_content_committed_without_its_totals()
+        {
+            Assert.True(_pg.Available, "PostgreSQL container must be available in CI");
+            var userId = await SeedUser();
+            var today = DateTime.UtcNow.Date;
+
+            int lunchEntryId;
+            int mealLogId;
+            await using (var seedCtx = _pg.NewContext())
+            {
+                var mealLog = new MealLog { UserId = userId, Date = today, CreatedAt = DateTime.UtcNow };
+                seedCtx.MealLogs.Add(mealLog);
+                await seedCtx.SaveChangesAsync();
+
+                var lunch = new MealEntry { MealLogId = mealLog.Id, MealType = "Lunch", IsConsumed = false, CreatedAt = DateTime.UtcNow };
+                seedCtx.MealEntries.Add(lunch);
+                await seedCtx.SaveChangesAsync();
+
+                lunchEntryId = lunch.Id;
+                mealLogId = mealLog.Id;
+            }
+
+            await using var ctxA = _pg.NewContext();
+            var conflictingValue = 1;
+
+            var thrown = await Assert.ThrowsAsync<MealLogTotalsRecalculator.ConcurrencyRetriesExhaustedException>(() =>
+                MealLogTotalsRecalculator.ExecuteAtomicallyAsync<bool>(ctxA, async ct =>
+                {
+                    var entry = await ctxA.MealEntries
+                        .Include(e => e.FoodItems)
+                        .FirstAsync(e => e.Id == lunchEntryId, ct);
+
+                    entry.FoodItems.Add(new FoodItem
+                    {
+                        MealEntryId = lunchEntryId,
+                        Name = "Chicken",
+                        Quantity = 1,
+                        Calories = 400,
+                        Protein = 35,
+                        Carbohydrates = 0,
+                        Fat = 10,
+                        CreatedAt = DateTime.UtcNow,
+                    });
+                    await ctxA.SaveChangesAsync(ct);
+
+                    // Guaranteed fresh conflict EVERY attempt: a fully separate,
+                    // already-committed writer changes the same row before this attempt's
+                    // own recompute-and-write below runs.
+                    await using (var ctxB = _pg.NewContext())
+                    {
+                        var entryInB = await ctxB.MealEntries.FirstAsync(e => e.Id == lunchEntryId);
+                        entryInB.TotalCalories = conflictingValue++;
+                        await ctxB.SaveChangesAsync();
+                    }
+
+                    await MealLogTotalsRecalculator.StageRecalculationAsync(ctxA, mealLogId, ct);
+                    return true;
+                }));
+
+            Assert.NotNull(thrown.InnerException);
+
+            // The acceptance bar: every attempt rolled back in full - Chicken was never
+            // left committed on its own, regardless of which of the (exhausted) attempts
+            // is inspected. The row's total reflects only the last successful,
+            // unprotected competing writer's own commit - never a stale value paired with
+            // orphaned content.
+            await using var verify = _pg.NewContext();
+            var finalEntry = await verify.MealEntries
+                .Include(e => e.FoodItems)
+                .FirstAsync(e => e.Id == lunchEntryId);
+            Assert.Empty(finalEntry.FoodItems);
+        }
+
+        /// <summary>
+        /// Gap 3, corrected: a concurrent ORDINARY food edit through the REAL
+        /// <c>FoodItemsController.UpdateQuantity</c> endpoint racing a REAL
+        /// <c>ApplyMealPlanToToday</c> call must never converge on a WRONG total, and
+        /// must never silently lose either side's own edit - it must either (a) both
+        /// succeed with the exact, correctly merged total, or (b) apply detects a
+        /// genuine write-skew conflict against the concurrent edit's own recomputation
+        /// and cleanly refuses (rolls back, reports its own error, no partial content),
+        /// leaving the quantity edit's commit intact. This replaces a prior version of
+        /// this test that weakened its own assertion in a DIFFERENT, unacceptable way
+        /// (silently accepting a WRONG total under a reported SUCCESS) instead of fixing
+        /// the production defect that made that undercount possible; see
+        /// <see cref="a_stale_recompute_attempt_is_rejected_when_a_concurrent_recompute_already_committed_first"/>
+        /// above for the deterministic reproduction of that defect's exact mechanism, and
+        /// <see cref="MealLogTotalsRecalculator"/> for the fix: every writer of these
+        /// cached totals now recomputes from a genuinely fresh read (never a value an EF
+        /// Core identity map cached earlier in the same request) inside its own
+        /// Serializable-protected, retried attempt.
+        ///
+        /// Tolerating outcome (b) for <c>apply</c> specifically (not for the ordinary
+        /// edit) mirrors this file's own established tolerance in
+        /// <see cref="concurrent_applies_creating_the_same_new_meal_entry_never_duplicate_it"/>
+        /// ("at most one concurrent apply may lose the race"). NOTE: after the atomicity
+        /// correction, BOTH sides now run their entire operation - content mutation and
+        /// totals recompute together - through
+        /// <see cref="MealLogTotalsRecalculator.ExecuteAtomicallyAsync{T}"/>'s own
+        /// internal retry (up to <see cref="MealLogTotalsRecalculator.DefaultMaxAttempts"/>
+        /// attempts each), so a SINGLE conflicted attempt on either side is no longer
+        /// enough to surface a failure to its caller - the losing side's own retry, with a
+        /// fresh read via `ChangeTracker.Clear()`, resolves the vast majority of such
+        /// races silently. The residual reason apply can still, in principle, report its
+        /// own conflict is narrower than before: both sides read the same
+        /// entry+FoodItems predicate and write the same MealEntry row within their own
+        /// Serializable transaction, so a genuine two-transaction write-skew cycle can
+        /// still recur across MULTIPLE consecutive retries on both sides (PostgreSQL's
+        /// SSI may resolve any single occurrence of the cycle by aborting either side,
+        /// not always necessarily the same one) - requiring persistent, repeated bad luck
+        /// rather than a single unlucky attempt. This tolerance is kept as a safety net
+        /// against that now-much-rarer case, not because apply lacks retry protection.
+        /// The ordinary edit's own response is asserted to always succeed unconditionally:
+        /// empirically its own retry absorbs this conflict shape before ever returning to
+        /// its caller, and it is the structurally simpler, single-row-scoped side of the
+        /// two.
         ///
         /// The ordinary edit deliberately targets a manual food item ("Rice") INSIDE the
         /// SAME "Lunch" entry the plan itself applies to - not an unrelated meal type -
-        /// so the shared write target is the actual <c>MealEntry</c> row apply recomputes
-        /// its own cached total from (<c>entry.TotalCalories = entry.FoodItems.Sum(...)</c>).
-        ///
-        /// IMPORTANT, EMPIRICALLY-CONFIRMED LIMITATION (found by this exact test running
-        /// against real PostgreSQL, not assumed): <c>FoodItemsController</c>'s mutations
-        /// run with NO isolation/transaction protection of their own - only
-        /// <c>ApplyMealPlanToToday</c>'s side is Serializable. Serializable protects apply
-        /// FROM committing an inconsistent write over a change it already read past, but
-        /// it cannot stop an unrelated, unprotected transaction from later blindly
-        /// overwriting apply's own already-committed <c>MealEntry.TotalCalories</c> row
-        /// with a value computed from a view that predates apply's insert. When that
-        /// ordering occurs, the ROWS are never lost or duplicated (Rice's edited quantity
-        /// and Grilled Chicken's own row both persist correctly - verified below
-        /// unconditionally), but the cached aggregate <c>TotalCalories</c> can transiently
-        /// undercount until the next write to that entry recomputes it (it is a derived
-        /// value, not a second source of truth). This is a real, narrower residual gap
-        /// than full correctness under concurrency - it is NOT masked here; the assertions
-        /// below only check what is actually guaranteed (no destroyed/duplicated content),
-        /// not an unconditional merged total, which is not always achievable without also
-        /// isolating <c>FoodItemsController</c>'s own writes (a separate, larger change
-        /// outside this endpoint's scope).
+        /// so the shared write target is the actual row this mechanism protects.
         ///
         /// Real concurrency: two separate <see cref="TrainingContext"/> instances, with
         /// both controller calls STARTED before either is awaited, so the actual
         /// interleaving against the real PostgreSQL container is genuine and not forced.
         /// </summary>
         [DockerRequiredFact]
-        public async Task concurrent_ordinary_quantity_edit_via_the_real_endpoint_is_not_silently_lost_during_an_apply()
+        public async Task concurrent_ordinary_quantity_edit_via_the_real_endpoint_converges_to_the_correct_total_after_an_apply()
         {
             Assert.True(_pg.Available, "PostgreSQL container must be available in CI");
             var userId = await SeedUser();
@@ -610,30 +942,32 @@ namespace GoHardAPI.Tests.Controllers
             var quantityTask = Food(editCtx, userId).UpdateQuantity(riceId, 2m);
             var applyTask = Chat(applyCtx, userId).ApplyMealPlanToToday(convoId, day: 1, date: null);
 
-            Exception? quantityEx = null;
-            ActionResult<FoodItem>? quantityResult = null;
-            try { quantityResult = await quantityTask; }
-            catch (Exception ex) { quantityEx = ex; }
-
-            // ApplyMealPlanToToday has its own outer try/catch that converts ANY
-            // exception - including a conflict on commit - into `StatusCode(500, ...)`
-            // rather than letting it propagate, so the conflict outcome shows up as a
-            // 500 ObjectResult here, not a thrown exception.
+            var quantityResult = await quantityTask;
             var applyResult = await applyTask;
-            var applyLostTheRace = applyResult.Result is ObjectResult { StatusCode: 500 };
 
-            // The ordinary edit has no isolation of its own to conflict on - it always
-            // succeeds (it's the transaction that might be conflicted AGAINST, not the
-            // one detecting a conflict).
-            Assert.Null(quantityEx);
-            Assert.NotNull(quantityResult);
+            // The ordinary edit's own recomputation goes through
+            // MealLogTotalsRecalculator's internal retry, which must absorb this exact
+            // conflict shape transparently - it should never surface a conflict to its
+            // own caller for this race.
+            Assert.IsType<OkObjectResult>(quantityResult.Result);
+
+            // Apply DOES retry its whole operation now (see this test's doc comment) - a
+            // genuine write-skew conflict would usually be resolved silently by that
+            // retry. The residual, much rarer possibility of apply exhausting its own
+            // retries against a persistently-conflicting concurrent edit is still
+            // tolerated here as a safety net. That is an ACCEPTABLE outcome (a clean,
+            // detected refusal, not a silent wrong answer); reporting success with an
+            // incorrect total is NOT.
+            var applyLostTheRace = applyResult.Result is ObjectResult { StatusCode: 500 };
+            if (!applyLostTheRace)
+            {
+                Assert.IsType<OkObjectResult>(applyResult.Result);
+            }
 
             await using var verify = _pg.NewContext();
 
-            // The acceptance bar: the quantity edit's own commit is NEVER silently lost,
-            // regardless of which outcome above occurred. Rice's own FoodItem row is
-            // never written by apply (apply only ever deletes/inserts items carrying its
-            // own SourcePlanConversationId), so this must hold unconditionally.
+            // The quantity edit's own commit is never lost, regardless of which outcome
+            // above occurred - Rice's own FoodItem row is never written by apply.
             var rice = await verify.FoodItems.FirstAsync(f => f.Id == riceId);
             Assert.Equal(2m, rice.Quantity);
             Assert.Equal(300m, rice.Calories); // scaled 150 * (2/1)
@@ -642,27 +976,44 @@ namespace GoHardAPI.Tests.Controllers
                 .Include(e => e.FoodItems)
                 .FirstAsync(e => e.MealLogId == mealLogId && e.MealType == "Lunch");
 
+            await using var apiReadCtx = _pg.NewContext();
+
             if (!applyLostTheRace)
             {
-                // No conflict materialized - apply must have genuinely succeeded, and its
-                // own inserted content must be genuinely present (never a state where it
-                // reports success but silently touched nothing). The entry's cached
-                // TotalCalories is NOT asserted to an exact merged value here - see this
-                // test's doc comment for the empirically-confirmed reason a transient
-                // undercount is possible in this specific unprotected-writer-races-a-
-                // protected-writer ordering; it is bounded to the two values either
-                // ordering can actually produce, so a wrong/corrupted total (e.g.
-                // negative, zero, or reflecting neither edit) still fails this test.
-                Assert.IsType<OkObjectResult>(applyResult.Result);
+                // The fixture's exact final numbers: Rice scaled to quantity 2
+                // (150 * 2 = 300) plus Grilled Chicken (400) = 700 - exact, not bounded.
+                // Asserted via a genuinely fresh DbContext (never one either request
+                // touched) AND via the real GetMealEntry API action, so both the
+                // persisted row and what the API would actually return to a client are
+                // confirmed - with no further edit of any kind performed between
+                // settling and this assertion.
+                Assert.Equal(2, lunchEntry.FoodItems.Count);
                 Assert.Contains(lunchEntry.FoodItems, f => f.Name == "Grilled Chicken");
-                Assert.Contains(lunchEntry.TotalCalories, new[] { 300m, 700m });
+                Assert.Equal(700m, lunchEntry.TotalCalories);
+
+                var apiEntry = await Food(apiReadCtx, userId).GetFoodItems(lunchEntry.Id);
+                var apiOk = Assert.IsType<OkObjectResult>(apiEntry.Result);
+                var apiItems = Assert.IsAssignableFrom<IEnumerable<FoodItem>>(apiOk.Value);
+                Assert.Equal(300m, apiItems.Single(f => f.Name == "Rice").Calories);
+
+                var apiEntryRead = await MealEntries(apiReadCtx, userId).GetMealEntry(lunchEntry.Id);
+                var apiEntryOk = Assert.IsType<OkObjectResult>(apiEntryRead.Result);
+                var apiEntryValue = Assert.IsType<MealEntry>(apiEntryOk.Value);
+                Assert.Equal(700m, apiEntryValue.TotalCalories); // API-returned total matches the persisted rows
             }
             else
             {
-                // Apply rolled back cleanly - no partially-applied Grilled Chicken, and
-                // Rice's edited quantity is the ONLY content in the entry.
-                Assert.DoesNotContain(lunchEntry.FoodItems, f => f.Name == "Grilled Chicken");
+                // Apply rolled back cleanly - no partially-applied Grilled Chicken. The
+                // entry's total must still correctly reflect ONLY Rice's edit (300), via
+                // both a fresh context and the real API, never a wrong/corrupted value.
                 Assert.Single(lunchEntry.FoodItems);
+                Assert.DoesNotContain(lunchEntry.FoodItems, f => f.Name == "Grilled Chicken");
+                Assert.Equal(300m, lunchEntry.TotalCalories);
+
+                var apiEntryRead = await MealEntries(apiReadCtx, userId).GetMealEntry(lunchEntry.Id);
+                var apiEntryOk = Assert.IsType<OkObjectResult>(apiEntryRead.Result);
+                var apiEntryValue = Assert.IsType<MealEntry>(apiEntryOk.Value);
+                Assert.Equal(300m, apiEntryValue.TotalCalories);
             }
         }
 
