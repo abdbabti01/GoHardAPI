@@ -2,9 +2,11 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using GoHardAPI.Data;
 using GoHardAPI.Models;
 using GoHardAPI.Services;
+using System.Data.Common;
 using System.Security.Claims;
 
 namespace GoHardAPI.Controllers
@@ -479,77 +481,81 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
-            if (program.Status != ProgramStatus.Draft.ToApiString())
+            if (program.Status == ProgramStatus.Active.ToApiString())
             {
-                return BadRequest(new { message = "Only draft programs can be activated" });
-            }
-
-            // Validate program has workouts
-            if (program.Workouts == null || program.Workouts.Count == 0)
-            {
-                return BadRequest(new { message = "Cannot activate a program with no workouts" });
-            }
-
-            await SelfHealWorkoutOccurrenceKeysAsync(program.Workouts);
-
-            // Validate at least one workout has exercises
-            var workoutsWithExercises = program.Workouts
-                .Where(w => !string.IsNullOrEmpty(w.ExercisesJson) && w.ExercisesJson != "[]")
-                .ToList();
-
-            if (workoutsWithExercises.Count == 0)
-            {
-                return BadRequest(new { message = "Cannot activate a program with no exercises. Add exercises to at least one workout." });
-            }
-
-            // Update program status
-            program.Status = ProgramStatus.Active.ToApiString();
-            program.IsActive = true;
-
-            // Update start date if provided
-            if (request?.StartDate != null)
-            {
-                var startDate = request.StartDate.Value.Date;
-                // Programs always start on Monday
-                var daysUntilMonday = ((int)DayOfWeek.Monday - (int)startDate.DayOfWeek + 7) % 7;
-                program.StartDate = startDate.AddDays(daysUntilMonday);
-                program.EndDate = program.StartDate.AddDays(program.TotalWeeks * 7);
-
-                // Recalculate scheduled dates for workouts
-                if (program.Workouts != null)
+                // Idempotent: a duplicate tap or retried lost response converges on the program
+                // that was already activated, instead of erroring on a no-longer-Draft status.
+                return Ok(new
                 {
-                    foreach (var workout in program.Workouts)
+                    message = "Program already activated",
+                    program = new
                     {
-                        workout.ScheduledDate = program.StartDate
-                            .AddDays((workout.WeekNumber - 1) * 7 + (workout.DayNumber - 1))
-                            .Date;
+                        program.Id,
+                        program.Title,
+                        program.Status,
+                        program.StartDate,
+                        program.EndDate,
+                        workoutCount = program.Workouts?.Count ?? 0
                     }
+                });
+            }
+
+            if (program.Status == ProgramStatus.Draft.ToApiString())
+            {
+                var freshness = await ProgramActivationService.CheckDraftFreshnessAsync(
+                    _context, program, request?.DraftRevision);
+
+                if (freshness == ProgramActivationService.DraftFreshness.Stale)
+                {
+                    return Conflict(new
+                    {
+                        code = "DRAFT_STALE",
+                        message = "This plan has changed since it was generated. Please refresh before activating.",
+                        currentRevision = ProgramActivationService.ComputeContentRevision(program)
+                    });
                 }
             }
 
-            // Update title/description if provided
-            if (!string.IsNullOrEmpty(request?.Title))
+            var result = await ProgramActivationService.ActivateAsync(
+                _context, program, request?.StartDate, request?.Title, request?.Description, request?.GoalId,
+                request?.DraftRevision);
+
+            if (result.Outcome == ProgramActivationOutcome.Stale)
             {
-                program.Title = request.Title;
-            }
-            if (!string.IsNullOrEmpty(request?.Description))
-            {
-                program.Description = request.Description;
+                // The pre-check above passed against an in-memory snapshot, but a concurrent
+                // edit committed before ActivateAsync's own locked recheck ran - caught here,
+                // never silently activated.
+                return Conflict(new
+                {
+                    code = "DRAFT_STALE",
+                    message = result.Message,
+                    currentRevision = ProgramActivationService.ComputeContentRevision(
+                        await _context.Programs.Include(p => p.Workouts)
+                            .AsNoTracking().FirstAsync(p => p.Id == id))
+                });
             }
 
-            await _context.SaveChangesAsync();
+            if (result.Outcome is ProgramActivationOutcome.NotDraft
+                or ProgramActivationOutcome.NoWorkouts
+                or ProgramActivationOutcome.NoExercises)
+            {
+                return BadRequest(new { message = result.Message });
+            }
 
+            var activated = result.Program!;
             return Ok(new
             {
-                message = "Program activated successfully",
+                message = result.Outcome == ProgramActivationOutcome.Activated
+                    ? "Program activated successfully"
+                    : "Program already activated",
                 program = new
                 {
-                    program.Id,
-                    program.Title,
-                    program.Status,
-                    program.StartDate,
-                    program.EndDate,
-                    workoutCount = program.Workouts?.Count ?? 0
+                    activated.Id,
+                    activated.Title,
+                    activated.Status,
+                    activated.StartDate,
+                    activated.EndDate,
+                    workoutCount = activated.Workouts?.Count ?? 0
                 }
             });
         }
@@ -824,6 +830,18 @@ namespace GoHardAPI.Controllers
                 var scheduledDate1 = programStartDate.AddDays((workout1.WeekNumber - 1) * 7 + (day2 - 1)).Date;
                 var scheduledDate2 = programStartDate.AddDays((workout2.WeekNumber - 1) * 7 + (day1 - 1)).Date;
 
+                // Pre-lock both workout rows in a canonical (ascending Id) order before the raw
+                // UPDATEs below acquire them one at a time in caller-supplied Workout1Id/Workout2Id
+                // order. ProgramActivationService.IsRevisionStillFreshUnderLockAsync also takes a
+                // multi-row FOR UPDATE lock across a program's ProgramWorkouts rows (ordered by
+                // Id) when activation races a concurrent edit; without this, a swap request whose
+                // Workout1Id/Workout2Id happened to be supplied in descending-Id order could lock
+                // them in the opposite order from a concurrent activation's scan, producing a
+                // genuine circular wait (Postgres 40P01) between the two. Acquiring both locks
+                // here, sorted, before any UPDATE runs makes this transaction's lock order agree
+                // with activation's regardless of request payload order.
+                await LockWorkoutRowsInIdOrderAsync(_context, workout1.Id, workout2.Id);
+
                 // Use raw SQL to avoid EF circular dependency with unique constraint
                 // Strategy: Use temporary value (-999) to break the circular dependency
 
@@ -857,6 +875,47 @@ namespace GoHardAPI.Controllers
                 // Rollback on error
                 await transaction.RollbackAsync();
                 return StatusCode(500, new { message = "Failed to swap workouts. Please try again." });
+            }
+        }
+
+        /// <summary>
+        /// Locks both given <c>ProgramWorkouts</c> rows under the current ambient transaction, one
+        /// at a time via separate <c>SELECT ... FOR UPDATE</c> statements issued in ascending-Id
+        /// order - never a single multi-row/IN-list query. Postgres's row-locking (<c>LockRows</c>)
+        /// plan node acquires locks in whatever order the underlying scan visits rows, which is NOT
+        /// guaranteed to follow an <c>ORDER BY</c> on the same query and is otherwise an unspecified
+        /// planner choice; only issuing one statement per row, in program order, pins the actual
+        /// acquisition order. Must be called before any UPDATE against either row within the same
+        /// transaction. This matches
+        /// <c>ProgramActivationService.IsRevisionStillFreshUnderLockAsync</c>'s own
+        /// ascending-Id, one-row-at-a-time lock over a program's workout rows - without this,
+        /// <see cref="SwapWorkouts"/>'s caller-supplied <c>Workout1Id</c>/<c>Workout2Id</c> order
+        /// could lock the same two rows in the opposite order from a concurrently-racing
+        /// activation attempt, producing a genuine circular wait (Postgres 40P01).
+        /// </summary>
+        private static async Task LockWorkoutRowsInIdOrderAsync(TrainingContext context, int workoutId1, int workoutId2)
+        {
+            var dbTransaction = context.Database.CurrentTransaction?.GetDbTransaction()
+                ?? throw new InvalidOperationException(
+                    $"{nameof(LockWorkoutRowsInIdOrderAsync)} requires an active ambient transaction.");
+            var connection = context.Database.GetDbConnection();
+
+            var orderedIds = workoutId1 <= workoutId2
+                ? new[] { workoutId1, workoutId2 }
+                : new[] { workoutId2, workoutId1 };
+
+            foreach (var workoutId in orderedIds)
+            {
+                await using var command = connection.CreateCommand();
+                command.Transaction = dbTransaction;
+                command.CommandText = "SELECT 1 FROM \"ProgramWorkouts\" WHERE \"Id\" = @id FOR UPDATE";
+
+                var parameter = command.CreateParameter();
+                parameter.ParameterName = "id";
+                parameter.Value = workoutId;
+                command.Parameters.Add(parameter);
+
+                await command.ExecuteScalarAsync();
             }
         }
 
@@ -958,5 +1017,18 @@ namespace GoHardAPI.Controllers
         /// Optional description override
         /// </summary>
         public string? Description { get; set; }
+
+        /// <summary>
+        /// Optional goal to link the activated program to
+        /// </summary>
+        public int? GoalId { get; set; }
+
+        /// <summary>
+        /// Content fingerprint the caller's preview was rendered from — see
+        /// <see cref="GoHardAPI.Services.ProgramActivationService.ComputeContentRevision"/>.
+        /// Optional for backward compatibility; omitting it falls back to the weaker legacy
+        /// staleness heuristic.
+        /// </summary>
+        public string? DraftRevision { get; set; }
     }
 }

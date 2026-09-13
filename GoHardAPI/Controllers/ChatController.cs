@@ -112,12 +112,27 @@ namespace GoHardAPI.Controllers
                     .ToList()
             };
 
-            // Check for draft program linked to this conversation
+            // Check for draft program linked to this conversation. Same defensive shape as
+            // CreateProgramFromPlan's lookup (latest first, excludes soft-deleted) so the two
+            // stay consistent if the "exactly one draft per conversation" invariant ever
+            // changes. Includes Workouts and recomputes the revision fresh so a client that
+            // reopens this conversation (e.g. after being offline, or to refresh a preview whose
+            // local cache didn't retain these fields) always gets the CURRENT authoritative
+            // content, not whatever was true at generation time — if the draft was edited since,
+            // this reflects that edit.
             var draftProgram = await _context.Programs
-                .FirstOrDefaultAsync(p => p.SourceConversationId == id && p.Status == ProgramStatus.Draft.ToApiString());
+                .Include(p => p.Workouts)
+                .Where(p => p.SourceConversationId == id && p.UserId == userId
+                    && p.Status == ProgramStatus.Draft.ToApiString())
+                .OrderByDescending(p => p.CreatedAt)
+                .FirstOrDefaultAsync();
             if (draftProgram != null)
             {
                 response.DraftProgramId = draftProgram.Id;
+                response.DraftTotalWeeks = draftProgram.TotalWeeks;
+                response.DraftProposedStartDate = draftProgram.StartDate;
+                response.DraftWorkoutCount = draftProgram.Workouts.Count(w => !w.IsRestDay);
+                response.DraftRevision = ProgramActivationService.ComputeContentRevision(draftProgram);
             }
 
             return Ok(response);
@@ -458,6 +473,10 @@ IMPORTANT:
 
                 // Auto-create draft program if parsing succeeded
                 int? draftProgramId = null;
+                int? draftTotalWeeks = null;
+                DateTime? draftProposedStartDate = null;
+                int? draftWorkoutCount = null;
+                string? draftRevision = null;
                 if (workoutData?.Sessions != null && workoutData.Sessions.Count > 0)
                 {
                     try
@@ -470,6 +489,15 @@ IMPORTANT:
                             request.DaysPerWeek
                         );
                         draftProgramId = draftProgram?.Id;
+                        draftTotalWeeks = draftProgram?.TotalWeeks;
+                        draftProposedStartDate = draftProgram?.StartDate;
+                        // Non-rest-day count only, matching BuildCreateProgramResponse's
+                        // workoutCount after activation — the preview must show the same number
+                        // the user will see once the program is created.
+                        draftWorkoutCount = draftProgram?.Workouts?.Count(w => !w.IsRestDay);
+                        draftRevision = draftProgram != null
+                            ? ProgramActivationService.ComputeContentRevision(draftProgram)
+                            : null;
                     }
                     catch (Exception ex)
                     {
@@ -488,6 +516,10 @@ IMPORTANT:
                     LastMessageAt = conversation.LastMessageAt,
                     IsArchived = conversation.IsArchived,
                     DraftProgramId = draftProgramId,
+                    DraftTotalWeeks = draftTotalWeeks,
+                    DraftProposedStartDate = draftProposedStartDate,
+                    DraftWorkoutCount = draftWorkoutCount,
+                    DraftRevision = draftRevision,
                     Messages = new List<MessageResponse>
                     {
                         new MessageResponse
@@ -1046,6 +1078,14 @@ Please provide:
         }
 
         // POST: api/chat/conversations/5/create-program
+        //
+        // This is an ACTIVATION endpoint, not a second creation path: the Program was already
+        // fully materialized (all weeks, real occurrenceKeys) once, at generation time, by
+        // CreateDraftProgramFromWorkoutData. This endpoint never calls the AI and never rebuilds
+        // workouts — it looks up the draft already linked to this conversation and activates it
+        // through the exact same GoHardAPI.Services.ProgramActivationService.ActivateAsync that
+        // ProgramsController.ActivateDraftProgram uses, so there is one activation contract
+        // reachable from either route.
         [HttpPost("conversations/{id}/create-program")]
         public async Task<ActionResult<object>> CreateProgramFromPlan(int id, [FromBody] CreateProgramRequest request)
         {
@@ -1053,7 +1093,6 @@ Please provide:
             {
                 var userId = GetCurrentUserId();
 
-                // First check if conversation exists
                 var conversation = await _context.ChatConversations
                     .FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
 
@@ -1067,176 +1106,73 @@ Please provide:
                     return BadRequest(new { message = "This is not a workout plan conversation" });
                 }
 
-                var workoutData = await ExtractWorkoutPlanData(id, userId);
+                var program = await _context.Programs
+                    .Include(p => p.Workouts)
+                    .Where(p => p.SourceConversationId == id && p.UserId == userId
+                        && p.Status != ProgramStatus.Deleted.ToApiString())
+                    .OrderByDescending(p => p.CreatedAt)
+                    .FirstOrDefaultAsync();
 
-                if (workoutData == null)
+                if (program == null)
                 {
-                    return BadRequest(new { message = "Could not extract workout plan structure" });
-                }
-
-                if (workoutData.Sessions == null || workoutData.Sessions.Count == 0)
-                {
-                    return BadRequest(new { message = "No workout sessions found in the plan" });
-                }
-
-                // Calculate program duration
-                var startDate = request.StartDate?.Date ?? DateTime.UtcNow.Date;
-                var totalWeeks = request.TotalWeeks ?? CalculateWeeksFromSessions(workoutData.Sessions.Count);
-                var endDate = startDate.AddDays(totalWeeks * 7);
-
-                // Always start at Day 1 (session-based, not calendar)
-                var currentDay = 1;
-
-                // Create the program
-                var program = new Models.Program
-                {
-                    UserId = userId,
-                    Title = request.Title ?? conversation.Title ?? "My Workout Program",
-                    Description = request.Description ?? "Generated from AI workout plan",
-                    GoalId = request.GoalId,
-                    TotalWeeks = totalWeeks,
-                    CurrentWeek = 1,
-                    CurrentDay = currentDay,
-                    StartDate = startDate,
-                    EndDate = endDate,
-                    IsActive = true,
-                    IsCompleted = false,
-                    CreatedAt = DateTime.UtcNow
-                };
-
-                _context.Programs.Add(program);
-                await _context.SaveChangesAsync(); // Save to get program ID
-
-                // Create program workouts from sessions
-                var daysPerWeek = request.DaysPerWeek ?? Math.Min(workoutData.Sessions.Count, 5);
-                var createdWorkouts = new List<object>();
-
-                // Filter out rest days from AI sessions (sessions with no exercises or explicitly marked as rest)
-                var workoutSessions = workoutData.Sessions
-                    .Where(s => s.Exercises != null && s.Exercises.Count > 0)
-                    .ToList();
-
-                // Calculate total number of workout slots needed
-                var totalWorkoutSlots = totalWeeks * daysPerWeek;
-
-                // Cycle through AI sessions to fill all weeks
-                var sessionIndex = 0;
-                var currentDate = startDate;
-                var weekNumber = 1;
-
-                for (int weekDay = 1; weekDay <= totalWeeks * 7; weekDay++)
-                {
-                    var dayNumber = ((weekDay - 1) % 7) + 1; // 1=Monday, 7=Sunday
-
-                    // Calculate which week we're in
-                    weekNumber = ((weekDay - 1) / 7) + 1;
-
-                    // Determine if this should be a workout day or rest day
-                    // Distribute workout days evenly across the week
-                    var workoutDaysThisWeek = (weekDay - 1) % 7 < daysPerWeek;
-
-                    if (workoutDaysThisWeek && sessionIndex < workoutSessions.Count * totalWeeks)
+                    return NotFound(new
                     {
-                        // This is a workout day - use a session from AI (cycle through them)
-                        var sessionData = workoutSessions[sessionIndex % workoutSessions.Count];
-                        sessionIndex++;
+                        code = "NO_DRAFT",
+                        message = "No draft program was found for this conversation. Please generate the plan again."
+                    });
+                }
 
-                        // Convert exercises to JSON
-                        string exercisesJson;
-                        if (sessionData.Exercises != null && sessionData.Exercises.Count > 0)
-                        {
-                            var exercisesList = sessionData.Exercises.Select(e => new
-                            {
-                                name = e.Name,
-                                sets = e.Sets,
-                                reps = e.Reps,
-                                weight = e.Weight,
-                                rest = e.RestTime,
-                                notes = e.Notes,
-                                // Every AI-generated entry is a distinct occurrence, even when
-                                // it repeats the same exercise name/template elsewhere in the
-                                // workout — see GoHardAPI.Services.ProgramWorkoutExerciseOccurrences.
-                                occurrenceKey = Guid.NewGuid().ToString("N")
-                            }).ToList();
-                            exercisesJson = System.Text.Json.JsonSerializer.Serialize(exercisesList);
-                        }
-                        else
-                        {
-                            exercisesJson = "[]";
-                        }
+                if (program.Status == ProgramStatus.Active.ToApiString())
+                {
+                    // Idempotent: a duplicate tap or retried lost response converges on the
+                    // program that was already created, instead of creating a second one.
+                    return Ok(BuildCreateProgramResponse(program, activated: false));
+                }
 
-                        var programWorkout = new ProgramWorkout
-                        {
-                            ProgramId = program.Id,
-                            WeekNumber = weekNumber,
-                            DayNumber = dayNumber,
-                            DayName = GetDayName(dayNumber),
-                            WorkoutName = CleanWorkoutName(sessionData.Name),
-                            WorkoutType = sessionData.Type ?? "Strength",
-                            ExercisesJson = exercisesJson,
-                            WarmUp = null,
-                            CoolDown = null,
-                            EstimatedDuration = CalculateEstimatedDuration(sessionData.Exercises),
-                            IsCompleted = false,
-                            IsRestDay = false
-                        };
+                if (program.Status == ProgramStatus.Draft.ToApiString())
+                {
+                    var freshness = await ProgramActivationService.CheckDraftFreshnessAsync(
+                        _context, program, request.DraftRevision);
 
-                        _context.ProgramWorkouts.Add(programWorkout);
-
-                        createdWorkouts.Add(new
+                    if (freshness == ProgramActivationService.DraftFreshness.Stale)
+                    {
+                        return Conflict(new
                         {
-                            weekNumber = weekNumber,
-                            dayNumber = dayNumber,
-                            name = programWorkout.WorkoutName,
-                            exerciseCount = sessionData.Exercises?.Count ?? 0
+                            code = "DRAFT_STALE",
+                            message = "This plan has changed since it was generated. Please reopen it to see the latest version.",
+                            currentRevision = ProgramActivationService.ComputeContentRevision(program)
                         });
                     }
-                    else
-                    {
-                        // This is a rest day
-                        var restWorkout = new ProgramWorkout
-                        {
-                            ProgramId = program.Id,
-                            WeekNumber = weekNumber,
-                            DayNumber = dayNumber,
-                            DayName = GetDayName(dayNumber),
-                            WorkoutName = "Rest Day",
-                            WorkoutType = "Rest",
-                            ExercisesJson = "[]",
-                            WarmUp = null,
-                            CoolDown = null,
-                            EstimatedDuration = null,
-                            IsCompleted = false,
-                            IsRestDay = true
-                        };
-
-                        _context.ProgramWorkouts.Add(restWorkout);
-                    }
-
-                    currentDate = currentDate.AddDays(1);
                 }
 
-                await _context.SaveChangesAsync();
+                var result = await ProgramActivationService.ActivateAsync(
+                    _context, program, request.StartDate, request.Title, request.Description, request.GoalId,
+                    request.DraftRevision);
 
-                // Reload program with workouts
-                var createdProgram = await _context.Programs
-                    .Include(p => p.Workouts)
-                    .Include(p => p.Goal)
-                    .FirstOrDefaultAsync(p => p.Id == program.Id);
-
-                return Ok(new
+                if (result.Outcome == ProgramActivationOutcome.Stale)
                 {
-                    message = $"Successfully created program with {createdWorkouts.Count} workouts",
-                    program = new
+                    // The pre-check above passed against an in-memory snapshot, but a concurrent
+                    // edit committed before ActivateAsync's own locked recheck ran - caught here,
+                    // never silently activated.
+                    return Conflict(new
                     {
-                        id = createdProgram!.Id,
-                        title = createdProgram.Title,
-                        totalWeeks = createdProgram.TotalWeeks,
-                        startDate = createdProgram.StartDate,
-                        workoutCount = createdWorkouts.Count
-                    },
-                    workouts = createdWorkouts
-                });
+                        code = "DRAFT_STALE",
+                        message = result.Message,
+                        currentRevision = ProgramActivationService.ComputeContentRevision(
+                            await _context.Programs.Include(p => p.Workouts)
+                                .AsNoTracking().FirstAsync(p => p.Id == program.Id))
+                    });
+                }
+
+                if (result.Outcome is ProgramActivationOutcome.NotDraft
+                    or ProgramActivationOutcome.NoWorkouts
+                    or ProgramActivationOutcome.NoExercises)
+                {
+                    return BadRequest(new { message = result.Message });
+                }
+
+                return Ok(BuildCreateProgramResponse(
+                    result.Program!, activated: result.Outcome == ProgramActivationOutcome.Activated));
             }
             catch (Exception ex)
             {
@@ -1245,12 +1181,154 @@ Please provide:
             }
         }
 
-        // Helper method to calculate weeks needed based on number of sessions
-        private int CalculateWeeksFromSessions(int sessionCount)
+        /// <summary>
+        /// Builds the response shape the deployed mobile client already parses (top-level
+        /// <c>program.id/title/totalWeeks/startDate/workoutCount</c> and a flat <c>workouts</c>
+        /// summary array of the non-rest-day slots) from an activated <see cref="Models.Program"/>,
+        /// plus additive <c>status</c>/<c>activated</c> fields old clients simply ignore.
+        /// </summary>
+        private object BuildCreateProgramResponse(Models.Program program, bool activated)
         {
-            // Assume 4-5 workouts per week, calculate minimum weeks needed
-            var weeksNeeded = (int)Math.Ceiling(sessionCount / 4.0);
-            return Math.Max(weeksNeeded, 4); // Minimum 4 weeks
+            var workouts = (program.Workouts ?? new List<ProgramWorkout>())
+                .Where(w => !w.IsRestDay)
+                .OrderBy(w => w.WeekNumber).ThenBy(w => w.OrderIndex)
+                .Select(w => new
+                {
+                    weekNumber = w.WeekNumber,
+                    dayNumber = w.DayNumber,
+                    name = w.WorkoutName,
+                    exerciseCount = CountExercises(w.ExercisesJson)
+                })
+                .ToList();
+
+            return new
+            {
+                message = activated
+                    ? $"Successfully created program with {workouts.Count} workouts"
+                    : "Program already created",
+                status = program.Status,
+                activated,
+                program = new
+                {
+                    id = program.Id,
+                    title = program.Title,
+                    totalWeeks = program.TotalWeeks,
+                    startDate = program.StartDate,
+                    workoutCount = workouts.Count
+                },
+                workouts
+            };
+        }
+
+        private static int CountExercises(string exercisesJson)
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(exercisesJson);
+                return doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array
+                    ? doc.RootElement.GetArrayLength()
+                    : 0;
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// The one place that turns AI-extracted <see cref="SessionData"/> into a full
+        /// multi-week <see cref="ProgramWorkout"/> schedule (all <paramref name="totalWeeks"/>,
+        /// rest days included, occurrenceKeys assigned via
+        /// <see cref="ProgramWorkoutExerciseOccurrences.Normalize"/>). Called exactly once, from
+        /// <see cref="CreateDraftProgramFromWorkoutData"/> at draft-creation time — activation
+        /// (<see cref="GoHardAPI.Services.ProgramActivationService"/>) never rebuilds workouts,
+        /// so the schedule the user previews is byte-for-byte what gets activated.
+        /// </summary>
+        private List<ProgramWorkout> BuildProgramWorkouts(
+            int programId,
+            DateTime startDate,
+            int totalWeeks,
+            int daysPerWeek,
+            List<SessionData> sessions)
+        {
+            var effectiveDaysPerWeek = Math.Max(daysPerWeek, 1);
+            var workoutSessions = sessions
+                .Where(s => s.Exercises != null && s.Exercises.Count > 0)
+                .ToList();
+
+            var result = new List<ProgramWorkout>();
+            if (workoutSessions.Count == 0)
+            {
+                return result;
+            }
+
+            var sessionIndex = 0;
+
+            for (int weekDay = 1; weekDay <= totalWeeks * 7; weekDay++)
+            {
+                var dayNumber = ((weekDay - 1) % 7) + 1; // 1=Monday, 7=Sunday
+                var weekNumber = ((weekDay - 1) / 7) + 1;
+                var scheduledDate = startDate.AddDays((weekNumber - 1) * 7 + (dayNumber - 1)).Date;
+
+                // Distribute workout days evenly across the week; the rest are rest days.
+                var isWorkoutDay = (weekDay - 1) % 7 < effectiveDaysPerWeek;
+
+                if (isWorkoutDay && sessionIndex < workoutSessions.Count * totalWeeks)
+                {
+                    var sessionData = workoutSessions[sessionIndex % workoutSessions.Count];
+                    sessionIndex++;
+
+                    var exercisesList = sessionData.Exercises!.Select(e => new
+                    {
+                        name = e.Name,
+                        sets = e.Sets,
+                        reps = e.Reps,
+                        weight = e.Weight,
+                        rest = e.RestTime,
+                        notes = e.Notes,
+                    }).ToList();
+                    var rawJson = System.Text.Json.JsonSerializer.Serialize(exercisesList);
+                    // Every entry above is freshly generated with no occurrenceKey property, so
+                    // Normalize only ever fills keys in here — it cannot reject anything.
+                    var normalized = ProgramWorkoutExerciseOccurrences.Normalize(rawJson);
+
+                    result.Add(new ProgramWorkout
+                    {
+                        ProgramId = programId,
+                        WeekNumber = weekNumber,
+                        DayNumber = dayNumber,
+                        DayName = GetDayName(dayNumber),
+                        WorkoutName = CleanWorkoutName(sessionData.Name),
+                        WorkoutType = sessionData.Type ?? "Strength",
+                        Description = sessionData.Notes,
+                        OrderIndex = dayNumber,
+                        ExercisesJson = normalized.IsValid ? normalized.Json : rawJson,
+                        EstimatedDuration = CalculateEstimatedDuration(sessionData.Exercises),
+                        IsCompleted = false,
+                        IsRestDay = false,
+                        ScheduledDate = scheduledDate,
+                    });
+                }
+                else
+                {
+                    result.Add(new ProgramWorkout
+                    {
+                        ProgramId = programId,
+                        WeekNumber = weekNumber,
+                        DayNumber = dayNumber,
+                        DayName = GetDayName(dayNumber),
+                        WorkoutName = "Rest Day",
+                        WorkoutType = "Rest",
+                        OrderIndex = dayNumber,
+                        ExercisesJson = "[]",
+                        IsCompleted = false,
+                        IsRestDay = true,
+                        ScheduledDate = scheduledDate,
+                    });
+                }
+            }
+
+            return result;
         }
 
         // Helper method to estimate workout duration
@@ -1516,6 +1594,14 @@ IMPORTANT RULES:
 
             var programName = workoutData.ProgramName ?? $"Workout Plan - {goal}";
             var totalWeeks = workoutData.TotalWeeks ?? 12;
+            var effectiveDaysPerWeek = daysPerWeek > 0 ? daysPerWeek : Math.Min(workoutData.Sessions.Count, 5);
+
+            // Proposed start date shown in the preview (next Monday, or today if already
+            // Monday). Purely a proposal — activation can still override it, and always
+            // re-snaps to Monday regardless of what's stored here.
+            var today = DateTime.UtcNow.Date;
+            var daysUntilMonday = ((int)DayOfWeek.Monday - (int)today.DayOfWeek + 7) % 7;
+            var proposedStartDate = today.AddDays(daysUntilMonday);
 
             // Use transaction for atomic creation
             using var transaction = await _context.Database.BeginTransactionAsync();
@@ -1527,12 +1613,12 @@ IMPORTANT RULES:
                 {
                     UserId = userId,
                     Title = programName,
-                    Description = $"AI-generated {daysPerWeek}-day workout plan for {goal}",
+                    Description = $"AI-generated {effectiveDaysPerWeek}-day workout plan for {goal}",
                     TotalWeeks = totalWeeks,
                     CurrentWeek = 1,
                     CurrentDay = 1,
-                    StartDate = DateTime.UtcNow.Date,
-                    EndDate = DateTime.UtcNow.Date.AddDays(totalWeeks * 7),
+                    StartDate = proposedStartDate,
+                    EndDate = proposedStartDate.AddDays(totalWeeks * 7),
                     IsActive = false,
                     Status = ProgramStatus.Draft.ToApiString(),
                     SourceConversationId = conversationId,
@@ -1542,47 +1628,20 @@ IMPORTANT RULES:
                 _context.Programs.Add(program);
                 await _context.SaveChangesAsync();
 
-                // Create program workouts from sessions
-                var dayIndex = 0;
-                foreach (var session in workoutData.Sessions)
-                {
-                    dayIndex++;
-                    var workout = new ProgramWorkout
-                    {
-                        ProgramId = program.Id,
-                        WeekNumber = 1,
-                        DayNumber = dayIndex,
-                        DayName = GetDayName(dayIndex),
-                        WorkoutName = session.Name ?? $"Day {dayIndex}",
-                        WorkoutType = session.Type ?? "strength",
-                        Description = session.Notes,
-                        OrderIndex = dayIndex,
-                        ExercisesJson = session.Exercises != null
-                            ? System.Text.Json.JsonSerializer.Serialize(
-                                session.Exercises.Select(e => new
-                                {
-                                    name = e.Name,
-                                    sets = e.Sets,
-                                    reps = e.Reps,
-                                    weight = e.Weight,
-                                    rest = e.RestTime,
-                                    notes = e.Notes,
-                                    // Distinct occurrence per generated entry — see
-                                    // GoHardAPI.Services.ProgramWorkoutExerciseOccurrences.
-                                    occurrenceKey = Guid.NewGuid().ToString("N")
-                                }).ToList())
-                            : "[]"
-                    };
-
-                    _context.ProgramWorkouts.Add(workout);
-                }
+                // Materialize the FULL schedule now (all weeks, rest days, real occurrenceKeys) —
+                // this is the one and only materialization; activation later never rebuilds it.
+                var workouts = BuildProgramWorkouts(
+                    program.Id, proposedStartDate, totalWeeks, effectiveDaysPerWeek, workoutData.Sessions);
+                _context.ProgramWorkouts.AddRange(workouts);
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
+                program.Workouts = workouts;
+
                 _logger.LogInformation(
-                    "Created draft program {programId} with {workoutCount} workouts from conversation {conversationId}",
-                    program.Id, workoutData.Sessions.Count, conversationId
+                    "Created draft program {programId} with {workoutCount} workouts ({weeks} weeks) from conversation {conversationId}",
+                    program.Id, workouts.Count, totalWeeks, conversationId
                 );
 
                 return program;
@@ -3288,6 +3347,16 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
         public int? TotalWeeks { get; set; }
         public int? DaysPerWeek { get; set; }
         public DateTime? StartDate { get; set; }
+
+        /// <summary>
+        /// The content-fingerprint the client's preview was rendered from (see
+        /// <see cref="GoHardAPI.Services.ProgramActivationService.ComputeContentRevision"/>),
+        /// echoed back to prove activation is for the exact content reviewed. Optional only for
+        /// backward compatibility with a client build that predates this field — omitting it
+        /// falls back to the weaker legacy staleness heuristic; see
+        /// <see cref="GoHardAPI.Services.ProgramActivationService.CheckDraftFreshnessAsync"/>.
+        /// </summary>
+        public string? DraftRevision { get; set; }
     }
 
     // Helper classes for JSON parsing
