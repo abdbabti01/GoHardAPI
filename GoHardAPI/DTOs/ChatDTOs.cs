@@ -92,6 +92,33 @@ namespace GoHardAPI.DTOs
         /// If a draft program was auto-created (for workout_plan conversations), its ID
         /// </summary>
         public int? DraftProgramId { get; set; }
+
+        /// <summary>
+        /// The draft's total week count, so the client can show the real schedule length
+        /// before activation instead of guessing.
+        /// </summary>
+        public int? DraftTotalWeeks { get; set; }
+
+        /// <summary>
+        /// The draft's proposed (Monday-snapped) start date, shown in the preview before the
+        /// user confirms — activation can still override it.
+        /// </summary>
+        public DateTime? DraftProposedStartDate { get; set; }
+
+        /// <summary>
+        /// Total workout (non-rest-day) count already materialized on the draft.
+        /// </summary>
+        public int? DraftWorkoutCount { get; set; }
+
+        /// <summary>
+        /// Content fingerprint of the draft (see
+        /// <see cref="GoHardAPI.Services.ProgramActivationService.ComputeContentRevision"/>).
+        /// The client must echo this back in <c>CreateProgramRequest.DraftRevision</c> when
+        /// confirming, so activation can prove it's acting on exactly this reviewed content.
+        /// Recomputed fresh on every response that includes a draft, so re-fetching this
+        /// conversation always reflects the draft's CURRENT content.
+        /// </summary>
+        public string? DraftRevision { get; set; }
     }
 
     public class MessageResponse
