@@ -151,6 +151,8 @@ CREATE TABLE ""ProgramWorkouts"" (
     ""IsCompleted"" boolean NOT NULL DEFAULT FALSE,
     ""CompletedAt"" timestamp without time zone NULL,
     ""CompletionNotes"" character varying(1000) NULL,
+    ""IsSkipped"" boolean NOT NULL DEFAULT FALSE,
+    ""SkippedAt"" timestamp without time zone NULL,
     ""OrderIndex"" integer NOT NULL DEFAULT 0,
     ""IsRestDay"" boolean NOT NULL DEFAULT FALSE,
     ""ScheduledDate"" timestamp without time zone NULL,

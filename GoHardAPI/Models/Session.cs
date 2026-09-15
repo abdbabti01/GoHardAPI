@@ -17,8 +17,9 @@ namespace GoHardAPI.Models
         public const string InProgress = "in_progress";
         public const string Completed = "completed";
         public const string Planned = "planned";
+        public const string Skipped = "skipped";
 
-        public static readonly string[] ValidStatuses = { Draft, InProgress, Completed, Planned };
+        public static readonly string[] ValidStatuses = { Draft, InProgress, Completed, Planned, Skipped };
 
         public static bool IsValid(string status) =>
             ValidStatuses.Contains(status, StringComparer.OrdinalIgnoreCase);
@@ -36,19 +37,30 @@ namespace GoHardAPI.Models
 
             return (from, to) switch
             {
-                // Draft can start
+                // Draft can start or be skipped before it's ever started
                 (Draft, InProgress) => true,
+                (Draft, Skipped) => true,
 
-                // Planned can start or be rescheduled to draft
+                // Planned can start, be rescheduled to draft, or be skipped
+                // before it's ever started
                 (Planned, InProgress) => true,
                 (Planned, Draft) => true,
+                (Planned, Skipped) => true,
 
-                // In-progress can complete or go back to draft (cancel start)
+                // In-progress can complete or go back to draft (cancel start).
+                // An in-progress session must NOT be skippable directly - it
+                // has logged data and its own session; skip only applies to a
+                // scheduled occurrence that hasn't been started yet.
                 (InProgress, Completed) => true,
                 (InProgress, Draft) => true,  // Allow canceling a started workout
 
                 // Completed is final - no transitions allowed
                 (Completed, _) => false,
+
+                // Skip can be undone back to the scheduled state without
+                // losing history or duplicating sessions. Skipped cannot
+                // silently become completed - undo first, then start it.
+                (Skipped, Planned) => true,
 
                 // All other transitions are invalid
                 _ => false
@@ -68,6 +80,9 @@ namespace GoHardAPI.Models
                 (Completed, _) => "Cannot change status of a completed workout",
                 (Draft, Completed) => "Cannot complete a workout that hasn't started. Start it first.",
                 (Planned, Completed) => "Cannot complete a planned workout that hasn't started. Start it first.",
+                (InProgress, Skipped) => "Cannot skip a workout that's already in progress. Manage or cancel it instead.",
+                (Skipped, Completed) => "Cannot complete a skipped workout. Restore it first.",
+                (Skipped, InProgress) => "Cannot start a skipped workout. Restore it first.",
                 _ => $"Invalid status transition from '{from}' to '{to}'"
             };
         }

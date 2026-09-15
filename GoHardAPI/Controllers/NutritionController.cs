@@ -234,17 +234,6 @@ namespace GoHardAPI.Controllers
                     targetWeightChangePerWeek
                 );
 
-                // Deactivate existing nutrition goals
-                var existingGoals = await _context.NutritionGoals
-                    .Where(ng => ng.UserId == userId && ng.IsActive)
-                    .ToListAsync();
-
-                foreach (var existing in existingGoals)
-                {
-                    existing.IsActive = false;
-                    existing.UpdatedAt = DateTime.UtcNow;
-                }
-
                 // Create new nutrition goal
                 var goalName = request.GoalType?.ToLower() switch
                 {
@@ -253,9 +242,8 @@ namespace GoHardAPI.Controllers
                     _ => "Maintenance Plan"
                 };
 
-                var nutritionGoal = new Models.NutritionGoal
+                var goalFields = new Models.NutritionGoal
                 {
-                    UserId = userId,
                     Name = goalName,
                     DailyCalories = calculation.DailyCalories,
                     DailyProtein = calculation.DailyProtein,
@@ -263,8 +251,6 @@ namespace GoHardAPI.Controllers
                     DailyFat = calculation.DailyFat,
                     DailyFiber = calculation.DailyFiber,
                     DailyWater = calculation.DailyWater,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
                     // Store calculation details for user reference
                     Explanation = calculation.Explanation,
                     Bmr = calculation.Bmr,
@@ -272,8 +258,13 @@ namespace GoHardAPI.Controllers
                     CalorieAdjustment = calculation.CalorieAdjustment
                 };
 
-                _context.NutritionGoals.Add(nutritionGoal);
-                await _context.SaveChangesAsync();
+                // Single authoritative write path (see NutritionTargetService) -
+                // deactivates whatever was active and inserts this as a new dated
+                // row (effective today) inside one transaction, protected by the
+                // partial unique index. Never mutates an existing row's fields or
+                // hand-flips IsActive, unlike the manual deactivate-loop +
+                // raw insert this replaced.
+                var nutritionGoal = await NutritionTargetService.SetActiveGoalAsync(_context, userId, goalFields);
 
                 _logger.LogInformation(
                     "Calculated and saved nutrition goal {GoalId} for user {UserId}: {Calories} cal",

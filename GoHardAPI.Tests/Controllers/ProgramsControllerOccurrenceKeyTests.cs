@@ -231,6 +231,53 @@ namespace GoHardAPI.Tests.Controllers
         }
 
         [Fact]
+        public async Task UpdateWorkout_CannotAssignCompletionOrSkipFields()
+        {
+            // UpdateWorkout is a generic content-edit endpoint - IsCompleted/
+            // CompletedAt/CompletionNotes/IsSkipped/SkippedAt are exclusively
+            // owned by CompleteWorkout/SkipWorkout/UnskipWorkout, which take
+            // ProgramWorkoutOccurrenceLock and enforce "never both completed
+            // and skipped". A client sending those fields through this
+            // endpoint (as any generic edit payload built from a fetched
+            // ProgramWorkout naturally would) must never move them.
+            var programId = await SeedUserAndProgram(1);
+            var addResult = await Controller(_context, 1).AddWorkout(programId, new ProgramWorkout
+            {
+                WeekNumber = 1,
+                DayNumber = 1,
+                WorkoutName = "Day 1",
+                ExercisesJson = "[]",
+            });
+            var workoutId = Assert.IsType<ProgramWorkout>(
+                Assert.IsType<CreatedAtActionResult>(addResult.Result).Value).Id;
+
+            var maliciousEdit = new ProgramWorkout
+            {
+                Id = workoutId,
+                WeekNumber = 1,
+                DayNumber = 1,
+                WorkoutName = "Day 1 renamed",
+                ExercisesJson = "[]",
+                IsCompleted = true,
+                CompletedAt = DateTime.UtcNow,
+                CompletionNotes = "sneaked in via edit",
+                IsSkipped = true,
+                SkippedAt = DateTime.UtcNow,
+            };
+
+            var updateResult = await Controller(_context, 1).UpdateWorkout(workoutId, maliciousEdit);
+
+            Assert.IsType<NoContentResult>(updateResult);
+            var stored = await _context.ProgramWorkouts.AsNoTracking().FirstAsync(w => w.Id == workoutId);
+            Assert.Equal("Day 1 renamed", stored.WorkoutName); // ordinary content DID update
+            Assert.False(stored.IsCompleted);
+            Assert.Null(stored.CompletedAt);
+            Assert.Null(stored.CompletionNotes);
+            Assert.False(stored.IsSkipped);
+            Assert.Null(stored.SkippedAt);
+        }
+
+        [Fact]
         public async Task UpdateWorkout_DuplicateSuppliedKeys_Returns400_AndLeavesExistingDataUnchanged()
         {
             var programId = await SeedUserAndProgram(1);

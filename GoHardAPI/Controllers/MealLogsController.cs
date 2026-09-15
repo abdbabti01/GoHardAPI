@@ -114,15 +114,29 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Get today's meal log (creates if not exists)
+        /// Get today's meal log (creates if not exists). "Today" is the caller's
+        /// LOCAL calendar date when supplied via <paramref name="date"/> - the
+        /// product-wide Today contract (see TodaysDateContractPostgresTests /
+        /// the corresponding mobile tests) is that a device's local calendar date
+        /// is what "today" means, never the server's UTC date, which can be a
+        /// different day for any user not on UTC. <paramref name="date"/> is
+        /// treated exactly like every other date-only field in this API (e.g.
+        /// <see cref="MealLog.Date"/> itself, or NutritionTargetService's
+        /// EffectiveDate) - a calendar-date LABEL, stamped as UTC-midnight for
+        /// storage/comparison, never a real instant subject to timezone math.
+        /// Falls back to the server's own UTC date only when no date is supplied,
+        /// for backward compatibility with any caller that predates this
+        /// parameter - never used when a client explicitly states its day.
         /// </summary>
         [HttpGet("today")]
-        public async Task<ActionResult<MealLog>> GetTodaysMealLog()
+        public async Task<ActionResult<MealLog>> GetTodaysMealLog([FromQuery] DateTime? date = null)
         {
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
+            var today = date.HasValue
+                ? DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc)
+                : DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
             var mealLog = await _context.MealLogs
                 .Include(ml => ml.MealEntries)

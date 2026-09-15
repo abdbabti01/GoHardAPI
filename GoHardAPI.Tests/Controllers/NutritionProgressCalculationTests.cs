@@ -155,6 +155,10 @@ namespace GoHardAPI.Tests.Controllers
                 DailyCarbohydrates = 200,
                 DailyFat = 65,
                 IsActive = true,
+                // Well before every fictional test date in this file (all March 2026) so
+                // date-aware resolution (NutritionTargetService.ResolveForDateAsync) always
+                // finds it, regardless of the real wall-clock date the suite runs on.
+                EffectiveDate = DateTime.SpecifyKind(new DateTime(2020, 1, 1), DateTimeKind.Utc),
                 CreatedAt = DateTime.UtcNow
             };
             context.NutritionGoals.Add(goal);

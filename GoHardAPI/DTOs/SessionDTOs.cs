@@ -146,6 +146,15 @@ namespace GoHardAPI.DTOs
         /// completed and not canceled). Fail closed — no second Session is created. HTTP 409.
         /// </summary>
         public const string OperationIncomplete = "operation_incomplete";
+
+        /// <summary>
+        /// The referenced <c>ProgramWorkout</c> is currently marked skipped
+        /// (<c>ProgramWorkout.IsSkipped</c>). Nothing is created - a skipped occurrence is a
+        /// resolved, locked state until explicitly restored via
+        /// <c>PUT /programs/workouts/{id}/unskip</c>, so starting a session for it must not
+        /// silently un-resolve the skip. HTTP 409.
+        /// </summary>
+        public const string ProgramWorkoutSkipped = "program_workout_skipped";
     }
 
     /// <summary>

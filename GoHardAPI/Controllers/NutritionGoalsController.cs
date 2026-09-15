@@ -56,8 +56,7 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var goal = await _context.NutritionGoals
-                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+            var goal = await NutritionTargetService.ResolveForDateAsync(_context, userId, DateTime.UtcNow);
 
             if (goal == null)
             {
@@ -99,7 +98,13 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Create a new nutrition goal
+        /// Create a new nutrition goal. When marked active (the normal case),
+        /// this goes through <see cref="NutritionTargetService.SetActiveGoalAsync"/>
+        /// so it becomes a new dated row rather than mutating any existing one -
+        /// past dates keep whatever target applied to them. A goal explicitly
+        /// created with <c>isActive: false</c> (e.g. a saved, not-yet-applied
+        /// preset) is inserted as-is without touching the active row or its
+        /// history.
         /// </summary>
         [HttpPost]
         public async Task<ActionResult<NutritionGoal>> CreateNutritionGoal([FromBody] NutritionGoal goal)
@@ -107,16 +112,15 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            goal.UserId = userId;
-            goal.CreatedAt = DateTime.UtcNow;
-
-            // If this is the first goal or is marked as active, deactivate other goals
             if (goal.IsActive)
             {
-                await DeactivateOtherGoals(userId);
+                var effectiveDate = goal.EffectiveDate == default ? (DateTime?)null : goal.EffectiveDate;
+                var created = await NutritionTargetService.SetActiveGoalAsync(_context, userId, goal, effectiveDate);
+                return CreatedAtAction(nameof(GetNutritionGoal), new { id = created.Id }, created);
             }
 
-            // Calculate macros from percentages if provided
+            goal.UserId = userId;
+            goal.CreatedAt = DateTime.UtcNow;
             if (goal.ProteinPercentage.HasValue || goal.CarbohydratesPercentage.HasValue || goal.FatPercentage.HasValue)
             {
                 goal.CalculateMacrosFromPercentages();
@@ -129,7 +133,13 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Update a nutrition goal
+        /// Change the active nutrition target. This never mutates <paramref name="id"/>'s
+        /// stored row in place - it inserts a new dated row (effective today, or
+        /// the date carried on the request body) via
+        /// <see cref="NutritionTargetService.SetActiveGoalAsync"/>, so whatever
+        /// applied to past dates through the existing row(s) is preserved
+        /// exactly as it was. <paramref name="id"/> is only used to confirm the
+        /// caller owns an existing goal to change.
         /// </summary>
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateNutritionGoal(int id, [FromBody] NutritionGoal goal)
@@ -143,33 +153,18 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
-            existing.Name = goal.Name;
-            existing.DailyCalories = goal.DailyCalories;
-            existing.DailyProtein = goal.DailyProtein;
-            existing.DailyCarbohydrates = goal.DailyCarbohydrates;
-            existing.DailyFat = goal.DailyFat;
-            existing.DailyFiber = goal.DailyFiber;
-            existing.DailySodium = goal.DailySodium;
-            existing.DailySugar = goal.DailySugar;
-            existing.DailyWater = goal.DailyWater;
-            existing.ProteinPercentage = goal.ProteinPercentage;
-            existing.CarbohydratesPercentage = goal.CarbohydratesPercentage;
-            existing.FatPercentage = goal.FatPercentage;
-            existing.UpdatedAt = DateTime.UtcNow;
-
-            // Calculate macros from percentages if provided
-            if (goal.ProteinPercentage.HasValue || goal.CarbohydratesPercentage.HasValue || goal.FatPercentage.HasValue)
-            {
-                existing.CalculateMacrosFromPercentages();
-            }
-
-            await _context.SaveChangesAsync();
+            var effectiveDate = goal.EffectiveDate == default ? (DateTime?)null : goal.EffectiveDate;
+            await NutritionTargetService.SetActiveGoalAsync(_context, userId, goal, effectiveDate);
 
             return NoContent();
         }
 
         /// <summary>
-        /// Set a goal as active
+        /// Start using a previously-saved goal's values again, effective today.
+        /// This inserts a new dated row copied from <paramref name="id"/>'s
+        /// values rather than flipping that historical row's own IsActive flag
+        /// in place - the original row (and whatever date range it used to
+        /// apply to) is left completely untouched.
         /// </summary>
         [HttpPut("{id}/activate")]
         public async Task<IActionResult> ActivateGoal(int id)
@@ -177,18 +172,13 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var goal = await _context.NutritionGoals.FindAsync(id);
+            var goal = await _context.NutritionGoals.AsNoTracking().FirstOrDefaultAsync(g => g.Id == id);
             if (goal == null || goal.UserId != userId)
             {
                 return NotFound();
             }
 
-            await DeactivateOtherGoals(userId);
-
-            goal.IsActive = true;
-            goal.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
+            await NutritionTargetService.SetActiveGoalAsync(_context, userId, goal);
 
             return NoContent();
         }
@@ -206,9 +196,9 @@ namespace GoHardAPI.Controllers
                 ? DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc)
                 : DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
-            // Get active goal
-            var goal = await _context.NutritionGoals
-                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+            // The target that applied to THIS date - never today's current
+            // target applied retroactively to a past/future date.
+            var goal = await NutritionTargetService.ResolveForDateAsync(_context, userId, targetDate);
 
             // Get meal log for the date
             var mealLog = await _context.MealLogs
@@ -269,9 +259,7 @@ namespace GoHardAPI.Controllers
 
             var today = DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
-            var activeGoal = await _context.NutritionGoals
-                .AsNoTracking()
-                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+            var activeGoal = await NutritionTargetService.ResolveForDateAsync(_context, userId, today);
 
             var progress = await NutritionProgressCalculator.CalculateAsync(_context, userId, today, activeGoal?.Id);
 
@@ -280,7 +268,8 @@ namespace GoHardAPI.Controllers
 
         /// <summary>
         /// Get nutrition progress for a specific date, derived live from that date's
-        /// MealLog entries.
+        /// MealLog entries, paired with the target that actually applied on
+        /// that date - not today's current target.
         /// </summary>
         [HttpGet("progress/date/{date}")]
         public async Task<ActionResult<NutritionProgressDto>> GetProgressByDate(DateTime date)
@@ -288,18 +277,18 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var activeGoal = await _context.NutritionGoals
-                .AsNoTracking()
-                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+            var goalForDate = await NutritionTargetService.ResolveForDateAsync(_context, userId, date);
 
-            var progress = await NutritionProgressCalculator.CalculateAsync(_context, userId, date, activeGoal?.Id);
+            var progress = await NutritionProgressCalculator.CalculateAsync(_context, userId, date, goalForDate?.Id);
 
             return Ok(progress);
         }
 
         /// <summary>
         /// Get nutrition progress with goal combined (single API call for dashboard).
-        /// Progress is derived live from MealLog entries for the requested date.
+        /// Both the progress AND the goal are resolved for the SAME requested
+        /// date - a dashboard for a past date shows that date's actual target,
+        /// never today's.
         /// </summary>
         [HttpGet("dashboard")]
         public async Task<ActionResult<NutritionDashboardResponse>> GetDashboard([FromQuery] DateTime? date = null)
@@ -311,10 +300,7 @@ namespace GoHardAPI.Controllers
                 ? DateTime.SpecifyKind(date.Value.Date, DateTimeKind.Utc)
                 : DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
 
-            // Get active goal
-            var goal = await _context.NutritionGoals
-                .AsNoTracking()
-                .FirstOrDefaultAsync(ng => ng.UserId == userId && ng.IsActive);
+            var goal = await NutritionTargetService.ResolveForDateAsync(_context, userId, targetDate);
 
             var progress = await NutritionProgressCalculator.CalculateAsync(_context, userId, targetDate, goal?.Id);
 
@@ -327,7 +313,12 @@ namespace GoHardAPI.Controllers
         }
 
         /// <summary>
-        /// Delete a nutrition goal
+        /// Remove a nutrition goal. This is a soft delete
+        /// (<see cref="NutritionTargetService.SoftDeleteAsync"/>) - the row is
+        /// kept so it still answers historical queries for dates before now;
+        /// only dates from today onward stop seeing it, reverting cleanly to
+        /// whatever target applied immediately before it (or "no target" if
+        /// none did).
         /// </summary>
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteNutritionGoal(int id)
@@ -335,30 +326,77 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
-            var goal = await _context.NutritionGoals.FindAsync(id);
-            if (goal == null || goal.UserId != userId)
+            var deleted = await NutritionTargetService.SoftDeleteAsync(_context, userId, id);
+            if (!deleted)
             {
                 return NotFound();
             }
 
-            _context.NutritionGoals.Remove(goal);
-            await _context.SaveChangesAsync();
-
             return NoContent();
         }
 
-        private async Task DeactivateOtherGoals(int userId)
+        /// <summary>
+        /// The nutrition target in effect for one calendar date - the
+        /// authoritative, date-aware read every caller (Today and historical
+        /// nutrition views alike) should use instead of guessing from
+        /// <see cref="GetActiveGoal"/>'s synthesized sentinel. Returns
+        /// <c>hasTarget: false</c>, never a guessed/backfilled value, for any
+        /// date before the user's earliest recorded target.
+        /// </summary>
+        [HttpGet("for-date")]
+        public async Task<ActionResult<NutritionTargetForDateResponse>> GetGoalForDate([FromQuery] DateTime date)
         {
-            var activeGoals = await _context.NutritionGoals
-                .Where(ng => ng.UserId == userId && ng.IsActive)
-                .ToListAsync();
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
 
-            foreach (var g in activeGoals)
+            var goal = await NutritionTargetService.ResolveForDateAsync(_context, userId, date);
+
+            return Ok(new NutritionTargetForDateResponse
             {
-                g.IsActive = false;
-                g.UpdatedAt = DateTime.UtcNow;
-            }
+                Date = NutritionTargetService.NormalizeDate(date),
+                HasTarget = goal != null,
+                Goal = goal,
+            });
         }
+
+        /// <summary>
+        /// Batch form of <see cref="GetGoalForDate"/> for a history view
+        /// rendering many days at once - one round trip instead of one per day.
+        /// </summary>
+        [HttpGet("for-dates")]
+        public async Task<ActionResult<List<NutritionTargetForDateResponse>>> GetGoalsForDateRange(
+            [FromQuery] DateTime start, [FromQuery] DateTime end)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            if (end < start)
+            {
+                return BadRequest(new { message = "end must not be before start" });
+            }
+
+            var resolved = await NutritionTargetService.ResolveForDateRangeAsync(_context, userId, start, end);
+
+            var response = resolved
+                .OrderBy(kv => kv.Key)
+                .Select(kv => new NutritionTargetForDateResponse
+                {
+                    Date = kv.Key,
+                    HasTarget = kv.Value != null,
+                    Goal = kv.Value,
+                })
+                .ToList();
+
+            return Ok(response);
+        }
+    }
+
+    public class NutritionTargetForDateResponse
+    {
+        [System.Text.Json.Serialization.JsonConverter(typeof(Converters.DateOnlyJsonConverter))]
+        public DateTime Date { get; set; }
+        public bool HasTarget { get; set; }
+        public NutritionGoal? Goal { get; set; }
     }
 
     public class NutritionProgressResponse
