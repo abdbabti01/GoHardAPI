@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
+using GoHardAPI.Converters;
 
 namespace GoHardAPI.Models
 {
@@ -35,9 +37,32 @@ namespace GoHardAPI.Models
         public decimal? FatPercentage { get; set; }
 
         /// <summary>
-        /// Whether this is the currently active goal
+        /// Whether this is the currently active goal (i.e. the most recent,
+        /// non-deleted row for this user) - a convenience flag kept in sync by
+        /// <see cref="Services.NutritionTargetService"/> for callers that only
+        /// care about "today's" target. Historical resolution for a specific
+        /// date never reads this flag - see <see cref="EffectiveDate"/>.
         /// </summary>
         public bool IsActive { get; set; } = true;
+
+        /// <summary>
+        /// The calendar date (UTC midnight, matching <see cref="MealLog.Date"/>'s
+        /// convention) from which this target applies. A date's target is
+        /// resolved as the row with the greatest <see cref="EffectiveDate"/>
+        /// that is `&lt;=` the queried date and not yet deleted as of that date
+        /// (see <see cref="Services.NutritionTargetService.ResolveForDateAsync"/>) -
+        /// never the single "active" row applied retroactively.
+        /// </summary>
+        [JsonConverter(typeof(DateOnlyJsonConverter))]
+        public DateTime EffectiveDate { get; set; } = DateTime.UtcNow.Date;
+
+        /// <summary>
+        /// Soft-delete marker. A deleted row is excluded from resolution for
+        /// any date on/after this timestamp's date, but is NOT removed - it
+        /// still answers historical queries for dates before it, so deleting
+        /// today's target can never erase what applied on past dates.
+        /// </summary>
+        public DateTime? DeletedAt { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }

@@ -714,7 +714,16 @@ namespace GoHardAPI.Controllers
                 return BadRequest(new { message = normalized.Error });
             }
 
-            // Update fields
+            // Update fields. Deliberately NOT included: IsCompleted / CompletedAt /
+            // CompletionNotes / IsSkipped / SkippedAt. Those are exclusively owned
+            // by CompleteWorkout / SkipWorkout / UnskipWorkout, which take
+            // ProgramWorkoutOccurrenceLock before reading or writing them and
+            // enforce the "never both completed and skipped" invariant - letting
+            // this generic content-edit endpoint copy client-supplied values for
+            // them (as it used to) bypassed that lock and guard entirely, so a
+            // client could flip IsCompleted straight through this endpoint while a
+            // Skip/session-create was concurrently deciding the same occurrence,
+            // or set IsCompleted=true on a workout that IsSkipped already covers.
             existingWorkout.WorkoutName = workout.WorkoutName;
             existingWorkout.WorkoutType = workout.WorkoutType;
             existingWorkout.Description = workout.Description;
@@ -722,9 +731,6 @@ namespace GoHardAPI.Controllers
             existingWorkout.ExercisesJson = normalized.Json;
             existingWorkout.WarmUp = workout.WarmUp;
             existingWorkout.CoolDown = workout.CoolDown;
-            existingWorkout.IsCompleted = workout.IsCompleted;
-            existingWorkout.CompletedAt = workout.CompletedAt;
-            existingWorkout.CompletionNotes = workout.CompletionNotes;
             existingWorkout.WeekNumber = workout.WeekNumber;
             existingWorkout.DayNumber = workout.DayNumber;
             existingWorkout.OrderIndex = workout.OrderIndex;
@@ -758,6 +764,14 @@ namespace GoHardAPI.Controllers
             var userId = GetCurrentUserId();
             if (userId == 0) return Unauthorized();
 
+            // Locks BEFORE any read of this occurrence's state, inside a real transaction -
+            // the same lock SkipWorkout/UnskipWorkout/session-creation-from-this-workout all
+            // take, so a concurrent skip (or a session starting) can never interleave with
+            // this read-decide-write into an inconsistent committed result. See
+            // ProgramWorkoutOccurrenceLock's doc comment for the full rationale.
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            await ProgramWorkoutOccurrenceLock.AcquireAsync(_context, workoutId, HttpContext.RequestAborted);
+
             var workout = await _context.ProgramWorkouts
                 .Include(w => w.Program)
                 .FirstOrDefaultAsync(w => w.Id == workoutId);
@@ -768,11 +782,145 @@ namespace GoHardAPI.Controllers
                 return NotFound();
             }
 
+            // Mirrors the reverse guard in SkipWorkout (which refuses to skip an
+            // already-completed workout) - IsCompleted and IsSkipped are documented
+            // as mutually exclusive, so completing a skipped occurrence must be
+            // refused rather than silently clearing the skip out from under it.
+            if (workout.IsSkipped)
+            {
+                return Conflict(new { message = "Cannot complete a skipped workout. Restore it first." });
+            }
+
             workout.IsCompleted = true;
             workout.CompletedAt = DateTime.UtcNow;
             workout.CompletionNotes = notes;
 
             await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Mark a scheduled workout occurrence as skipped. This never creates a
+        /// fake completed Session and never deletes anything. If the occurrence
+        /// already has an in-progress or completed Session, the skip is refused
+        /// so the caller can direct the user to resume/manage that session
+        /// instead of silently abandoning logged data. A planned/draft Session
+        /// for the same occurrence (never started) is skipped along with it so
+        /// the two views of the occurrence stay consistent.
+        /// </summary>
+        [HttpPut("workouts/{workoutId}/skip")]
+        public async Task<IActionResult> SkipWorkout(int workoutId)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            // Same lock, same "acquire before any read" discipline as CompleteWorkout -
+            // see ProgramWorkoutOccurrenceLock's doc comment. This is what closes the race
+            // where a session-create-from-this-workout lands between the "no in-progress/
+            // completed session" check below and this method's own write: whichever of the
+            // two acquires the lock first now runs to completion (commit or rollback)
+            // before the other reads anything.
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            await ProgramWorkoutOccurrenceLock.AcquireAsync(_context, workoutId, HttpContext.RequestAborted);
+
+            var workout = await _context.ProgramWorkouts
+                .Include(w => w.Program)
+                .FirstOrDefaultAsync(w => w.Id == workoutId);
+
+            if (workout == null || workout.Program?.UserId != userId
+                || workout.Program?.Status == ProgramStatus.Deleted.ToApiString())
+            {
+                return NotFound();
+            }
+
+            if (workout.IsCompleted)
+            {
+                return Conflict(new { message = "Cannot skip a workout that has already been completed." });
+            }
+
+            // Already skipped: converge without error so repeated taps/retries
+            // are idempotent.
+            if (workout.IsSkipped)
+            {
+                return NoContent();
+            }
+
+            var linkedSession = await _context.Sessions
+                .FirstOrDefaultAsync(s => s.ProgramWorkoutId == workoutId && s.UserId == userId);
+
+            if (linkedSession != null &&
+                (linkedSession.Status.Equals(SessionStatus.InProgress, StringComparison.OrdinalIgnoreCase) ||
+                 linkedSession.Status.Equals(SessionStatus.Completed, StringComparison.OrdinalIgnoreCase)))
+            {
+                return Conflict(new
+                {
+                    message = "This workout already has an in-progress or completed session. Resume or manage it instead of skipping.",
+                    sessionId = linkedSession.Id,
+                    sessionStatus = linkedSession.Status
+                });
+            }
+
+            workout.IsSkipped = true;
+            workout.SkippedAt = DateTime.UtcNow;
+
+            if (linkedSession != null &&
+                SessionStatus.IsValidTransition(linkedSession.Status, SessionStatus.Skipped))
+            {
+                linkedSession.Status = SessionStatus.Skipped;
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            return NoContent();
+        }
+
+        /// <summary>
+        /// Undo a skip, restoring the scheduled occurrence (and any linked,
+        /// not-yet-started Session) to its normal scheduled state. Never
+        /// resurrects or duplicates a Session.
+        /// </summary>
+        [HttpPut("workouts/{workoutId}/unskip")]
+        public async Task<IActionResult> UnskipWorkout(int workoutId)
+        {
+            var userId = GetCurrentUserId();
+            if (userId == 0) return Unauthorized();
+
+            // Same lock as SkipWorkout/CompleteWorkout/session-creation-from-this-workout.
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            await ProgramWorkoutOccurrenceLock.AcquireAsync(_context, workoutId, HttpContext.RequestAborted);
+
+            var workout = await _context.ProgramWorkouts
+                .Include(w => w.Program)
+                .FirstOrDefaultAsync(w => w.Id == workoutId);
+
+            if (workout == null || workout.Program?.UserId != userId
+                || workout.Program?.Status == ProgramStatus.Deleted.ToApiString())
+            {
+                return NotFound();
+            }
+
+            if (!workout.IsSkipped)
+            {
+                return NoContent();
+            }
+
+            workout.IsSkipped = false;
+            workout.SkippedAt = null;
+
+            var linkedSession = await _context.Sessions
+                .FirstOrDefaultAsync(s => s.ProgramWorkoutId == workoutId && s.UserId == userId);
+
+            if (linkedSession != null &&
+                linkedSession.Status.Equals(SessionStatus.Skipped, StringComparison.OrdinalIgnoreCase))
+            {
+                linkedSession.Status = SessionStatus.Planned;
+            }
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
             return NoContent();
         }

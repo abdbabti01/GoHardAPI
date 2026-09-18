@@ -298,6 +298,20 @@ namespace GoHardAPI.Models
         public string? CompletionNotes { get; set; }
 
         /// <summary>
+        /// Whether this scheduled occurrence was explicitly skipped rather than
+        /// completed. Mutually exclusive with <see cref="IsCompleted"/> — the
+        /// skip endpoint refuses to set this when the workout is already
+        /// completed. Skipping never creates or mutates a Session by itself;
+        /// it only marks the scheduled occurrence.
+        /// </summary>
+        public bool IsSkipped { get; set; }
+
+        /// <summary>
+        /// When the workout was skipped. Null unless <see cref="IsSkipped"/> is true.
+        /// </summary>
+        public DateTime? SkippedAt { get; set; }
+
+        /// <summary>
         /// Order/sequence number for sorting within a week
         /// </summary>
         public int OrderIndex { get; set; }

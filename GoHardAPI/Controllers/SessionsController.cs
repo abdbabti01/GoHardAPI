@@ -142,6 +142,9 @@ namespace GoHardAPI.Controllers
                 case SessionCreateResult.Incomplete:
                     return Conflict(new { code = outcome.ErrorCode });
 
+                case SessionCreateResult.ProgramWorkoutSkipped:
+                    return Conflict(new { code = outcome.ErrorCode });
+
                 default:
                     return StatusCode(StatusCodes.Status500InternalServerError);
             }
@@ -357,6 +360,9 @@ namespace GoHardAPI.Controllers
                 case SessionCreateResult.Incomplete:
                     return Conflict(new { code = outcome.ErrorCode });
 
+                case SessionCreateResult.ProgramWorkoutSkipped:
+                    return Conflict(new { code = outcome.ErrorCode });
+
                 default:
                     return StatusCode(StatusCodes.Status500InternalServerError);
             }
@@ -507,7 +513,50 @@ namespace GoHardAPI.Controllers
                 return BadRequest(new { message = $"Invalid status. Must be one of: {string.Join(", ", SessionStatus.ValidStatuses)}" });
             }
 
-            // Validate status transition (Issue #3 - prevent invalid state changes)
+            // Skip/unskip is the ONLY pair of transitions that touches a linked
+            // ProgramWorkout (Planned is reachable, per SessionStatus.IsValidTransition,
+            // ONLY from Skipped - so targeting Planned here always means "undo a skip").
+            // Every other transition (start, pause/resume, complete, cancel-to-draft, ...)
+            // takes the existing no-lock, no-transaction path completely unchanged - zero
+            // added overhead for the overwhelmingly common case.
+            //
+            // When it DOES touch the cascade, ProgramWorkoutId is immutable after Session
+            // creation, so reading it off the not-yet-locked `session` above is safe - but
+            // its `Status` is not: another request (this same endpoint, or
+            // ProgramsController.SkipWorkout/CompleteWorkout/UnskipWorkout) could commit
+            // between that read and now. So the lock is acquired FIRST, the session is
+            // re-fetched fresh, and the transition is re-validated against that fresh
+            // status - never against the possibly-stale value read before the lock.
+            // Non-relational (InMemory, unit tests only - production is always relational,
+            // matching SessionCreateService's identical convention) has no real transaction
+            // or advisory lock; degrade to the existing unlocked cascade there.
+            var mayTouchSkipCascade = _context.Database.IsRelational() &&
+                session.ProgramWorkoutId.HasValue &&
+                (request.Status.Equals(SessionStatus.Skipped, StringComparison.OrdinalIgnoreCase) ||
+                 request.Status.Equals(SessionStatus.Planned, StringComparison.OrdinalIgnoreCase));
+
+            // `await using` (not a plain local) so EVERY exit path below - the BadRequest
+            // for an invalid transition, the NotFound after re-fetch, or the success path -
+            // disposes it, rolling back unless CommitAsync was explicitly called first.
+            await using var transaction = mayTouchSkipCascade
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
+
+            if (mayTouchSkipCascade)
+            {
+                var workoutIdToLock = session.ProgramWorkoutId!.Value;
+                _context.ChangeTracker.Clear();
+                await ProgramWorkoutOccurrenceLock.AcquireAsync(_context, workoutIdToLock, HttpContext.RequestAborted);
+
+                session = await _context.Sessions.FindAsync(id);
+                if (session == null || session.UserId != userId)
+                {
+                    return NotFound();
+                }
+            }
+
+            // Validate status transition (Issue #3 - prevent invalid state changes) -
+            // against the possibly freshly-re-fetched `session.Status` above.
             if (!SessionStatus.IsValidTransition(session.Status, request.Status))
             {
                 return BadRequest(new
@@ -518,7 +567,54 @@ namespace GoHardAPI.Controllers
                 });
             }
 
+            var previousStatus = session.Status;
             session.Status = request.Status.ToLower();
+
+            // Keep the linked scheduled occurrence (if any) consistent with this
+            // session's skip state. Skipping a session never deletes it and never
+            // fabricates a completion - it only mirrors onto the ProgramWorkout so
+            // program-history views (which read IsSkipped, not Session.Status)
+            // agree with what the session list shows.
+            if (session.ProgramWorkoutId.HasValue &&
+                session.Status.Equals(SessionStatus.Skipped, StringComparison.OrdinalIgnoreCase))
+            {
+                var linkedWorkout = await _context.ProgramWorkouts.FindAsync(session.ProgramWorkoutId.Value);
+                if (linkedWorkout != null && linkedWorkout.IsCompleted)
+                {
+                    // Reject rather than silently proceed - session.Status is
+                    // assigned above but nothing is persisted until
+                    // SaveChangesAsync below, which this return never reaches,
+                    // so the session is left exactly as it was. Silently
+                    // continuing here (as a prior version of this method did)
+                    // would set session.Status="skipped" while leaving the
+                    // already-completed ProgramWorkout's IsCompleted=true /
+                    // IsSkipped=false untouched - Today (which reads session
+                    // status) and program history (which reads IsCompleted/
+                    // IsSkipped) would permanently disagree about this exact
+                    // occurrence, with no error ever surfaced to the caller.
+                    return Conflict(new
+                    {
+                        message = "This workout is already completed and cannot be skipped.",
+                        code = "already_completed",
+                    });
+                }
+                if (linkedWorkout != null)
+                {
+                    linkedWorkout.IsSkipped = true;
+                    linkedWorkout.SkippedAt = DateTime.UtcNow;
+                }
+            }
+            else if (session.ProgramWorkoutId.HasValue &&
+                previousStatus.Equals(SessionStatus.Skipped, StringComparison.OrdinalIgnoreCase) &&
+                session.Status.Equals(SessionStatus.Planned, StringComparison.OrdinalIgnoreCase))
+            {
+                var linkedWorkout = await _context.ProgramWorkouts.FindAsync(session.ProgramWorkoutId.Value);
+                if (linkedWorkout != null)
+                {
+                    linkedWorkout.IsSkipped = false;
+                    linkedWorkout.SkippedAt = null;
+                }
+            }
 
             // Update timestamps - always accept client's timestamps for timer accuracy
             // This is critical for pause/resume sync (Issue #1 - startedAt must be updatable)
@@ -569,6 +665,12 @@ namespace GoHardAPI.Controllers
             }
 
             await _context.SaveChangesAsync();
+            if (transaction != null)
+            {
+                await transaction.CommitAsync();
+            }
+            // `await using` above rolls back automatically on scope exit if CommitAsync
+            // was never reached (BadRequest/NotFound) or wasn't called (transaction null).
 
             return NoContent();
         }

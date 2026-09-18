@@ -56,6 +56,14 @@ namespace GoHardAPI.Services
         /// here).
         /// </summary>
         InvalidOperationKey,
+
+        /// <summary>
+        /// The referenced ProgramWorkout is currently <c>IsSkipped</c>. Nothing created.
+        /// HTTP 409 <c>program_workout_skipped</c>. Checked under
+        /// <see cref="ProgramWorkoutOccurrenceLock"/> so this can never race a concurrent
+        /// skip landing between the check and the insert.
+        /// </summary>
+        ProgramWorkoutSkipped,
     }
 
     /// <summary>Outcome of <see cref="SessionCreateService.CreateAsync"/>.</summary>
@@ -75,6 +83,8 @@ namespace GoHardAPI.Services
             new(SessionCreateResult.ProgramWorkoutDataInvalid, null, SessionCreateErrorCodes.ProgramWorkoutDataInvalid);
         public static readonly SessionCreateOutcome InvalidOperationKey =
             new(SessionCreateResult.InvalidOperationKey, null, SessionCancelErrorCodes.InvalidOperationKey);
+        public static readonly SessionCreateOutcome ProgramWorkoutSkipped =
+            new(SessionCreateResult.ProgramWorkoutSkipped, null, SessionCreateErrorCodes.ProgramWorkoutSkipped);
     }
 
     /// <summary>
@@ -150,14 +160,21 @@ namespace GoHardAPI.Services
             if (request.ClientOperationId is not { } key)
             {
                 return await CreateUnkeyedAsync(
-                    userId, ct => GenericFirstWriteAsync(userId, request, ct), cancellationToken);
+                    userId, ct => GenericFirstWriteAsync(userId, request, ct),
+                    request.ProgramWorkoutId, cancellationToken);
             }
 
             return await RunKeyedWithRetryAsync(
-                userId, key, ct => GenericFirstWriteAsync(userId, request, ct), cancellationToken);
+                userId, key, ct => GenericFirstWriteAsync(userId, request, ct),
+                request.ProgramWorkoutId, cancellationToken);
         }
 
-        /// <summary>First-write step for the generic <c>POST /api/v1/sessions</c>.</summary>
+        /// <summary>
+        /// First-write step for the generic <c>POST /api/v1/sessions</c>. Runs under
+        /// <see cref="ProgramWorkoutOccurrenceLock"/> (acquired by the caller) when
+        /// <c>request.ProgramWorkoutId</c> is set, so the skip check below can never race a
+        /// concurrent <c>SkipWorkout</c> landing between this read and the insert.
+        /// </summary>
         private async Task<KeyedFirstWrite> GenericFirstWriteAsync(
             int userId, SessionCreateRequestDto request, CancellationToken cancellationToken)
         {
@@ -167,15 +184,52 @@ namespace GoHardAPI.Services
                 return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramNotFound);
             }
 
+            if (request.ProgramWorkoutId is { } linkedWorkoutId &&
+                await _context.ProgramWorkouts.AsNoTracking()
+                    .AnyAsync(w => w.Id == linkedWorkoutId && w.IsSkipped, cancellationToken))
+            {
+                return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramWorkoutSkipped);
+            }
+
             return KeyedFirstWrite.Ok(request.ToNewSession(userId));
         }
 
         /// <summary>
-        /// Unkeyed create: run the first-write factory, one save, HTTP 201. No transaction,
-        /// no lock, no operation row — the historical behavior. A raced program delete
-        /// (TOCTOU FK violation) is converted to <c>program_not_found</c>, never a raw 500.
+        /// Unkeyed create: run the first-write factory, one save, HTTP 201. No operation
+        /// row — the historical behavior. A raced program delete (TOCTOU FK violation) is
+        /// converted to <c>program_not_found</c>, never a raw 500.
+        ///
+        /// <para>When <paramref name="programWorkoutIdToLock"/> is set, this now opens a
+        /// real transaction and acquires <see cref="ProgramWorkoutOccurrenceLock"/> BEFORE
+        /// running <paramref name="firstWrite"/> - previously this path had no transaction
+        /// or lock at all, so a concurrent Skip/Complete on the same occurrence could land
+        /// between the first-write factory's read and this method's insert. A freeform
+        /// create with no program-workout linkage (the common case) is completely
+        /// unaffected - no transaction, no lock, identical to before.</para>
         /// </summary>
         private async Task<SessionCreateOutcome> CreateUnkeyedAsync(
+            int userId, FirstWriteFactory firstWrite, int? programWorkoutIdToLock,
+            CancellationToken cancellationToken)
+        {
+            if (programWorkoutIdToLock is null || !_context.Database.IsRelational())
+            {
+                return await CreateUnkeyedCoreAsync(userId, firstWrite, cancellationToken);
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            await ProgramWorkoutOccurrenceLock.AcquireAsync(_context, programWorkoutIdToLock, cancellationToken);
+            var outcome = await CreateUnkeyedCoreAsync(userId, firstWrite, cancellationToken);
+            if (outcome.Result == SessionCreateResult.Created)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
+            // Any other outcome already made no persisted change (CreateUnkeyedCoreAsync's
+            // only write path is the successful insert) - letting `using` roll back on
+            // dispose is correct and matches the controller-level pattern used elsewhere.
+            return outcome;
+        }
+
+        private async Task<SessionCreateOutcome> CreateUnkeyedCoreAsync(
             int userId, FirstWriteFactory firstWrite, CancellationToken cancellationToken)
         {
             var first = await firstWrite(cancellationToken);
@@ -226,7 +280,8 @@ namespace GoHardAPI.Services
             if (request.ClientOperationId is not { } key)
             {
                 return await CreateUnkeyedAsync(
-                    userId, ct => ProgramWorkoutFirstWriteAsync(userId, request, ct), cancellationToken);
+                    userId, ct => ProgramWorkoutFirstWriteAsync(userId, request, ct),
+                    request.ProgramWorkoutId, cancellationToken);
             }
 
             if (key == Guid.Empty)
@@ -238,16 +293,19 @@ namespace GoHardAPI.Services
             }
 
             return await RunKeyedWithRetryAsync(
-                userId, key, ct => ProgramWorkoutFirstWriteAsync(userId, request, ct), cancellationToken);
+                userId, key, ct => ProgramWorkoutFirstWriteAsync(userId, request, ct),
+                request.ProgramWorkoutId, cancellationToken);
         }
 
         /// <summary>
         /// First-write step for a from-program-workout CREATE: validates that BOTH the
         /// request's <c>ProgramId</c> and the referenced <c>ProgramWorkout</c>'s parent
         /// program belong to <paramref name="userId"/> (missing OR foreign collapse to the
-        /// same non-disclosing <see cref="SessionCreateOutcome.ProgramNotFound"/>), then
-        /// materializes the Session + Exercises. Read-only apart from the returned,
-        /// not-yet-added entity graph.
+        /// same non-disclosing <see cref="SessionCreateOutcome.ProgramNotFound"/>), refuses
+        /// a currently-skipped occurrence, then materializes the Session + Exercises.
+        /// Runs under <see cref="ProgramWorkoutOccurrenceLock"/> (acquired by the caller),
+        /// so the skip check can never race a concurrent <c>SkipWorkout</c>. Read-only apart
+        /// from the returned, not-yet-added entity graph.
         /// </summary>
         private async Task<KeyedFirstWrite> ProgramWorkoutFirstWriteAsync(
             int userId, CreateSessionFromProgramWorkoutDto request, CancellationToken cancellationToken)
@@ -262,6 +320,11 @@ namespace GoHardAPI.Services
             if (workout?.Program is null || workout.Program.UserId != userId)
             {
                 return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramNotFound);
+            }
+
+            if (workout.IsSkipped)
+            {
+                return KeyedFirstWrite.Fail(SessionCreateOutcome.ProgramWorkoutSkipped);
             }
 
             // request.ProgramId is stamped onto the Session verbatim (the legacy contract
@@ -301,7 +364,8 @@ namespace GoHardAPI.Services
         /// <paramref name="firstWrite"/>.
         /// </summary>
         private async Task<SessionCreateOutcome> RunKeyedWithRetryAsync(
-            int userId, Guid key, FirstWriteFactory firstWrite, CancellationToken cancellationToken)
+            int userId, Guid key, FirstWriteFactory firstWrite, int? programWorkoutIdToLock,
+            CancellationToken cancellationToken)
         {
             // A non-relational provider (InMemory, only in unit tests) cannot run a real
             // transaction or advisory lock. Degrade to a plain keyed insert so the unit
@@ -315,7 +379,7 @@ namespace GoHardAPI.Services
             {
                 try
                 {
-                    return await RunKeyedAttemptAsync(userId, key, firstWrite, cancellationToken);
+                    return await RunKeyedAttemptAsync(userId, key, firstWrite, programWorkoutIdToLock, cancellationToken);
                 }
                 catch (Exception ex) when (attempt < MaxAttempts && IsRetryable(ex))
                 {
@@ -328,7 +392,8 @@ namespace GoHardAPI.Services
         }
 
         private async Task<SessionCreateOutcome> RunKeyedAttemptAsync(
-            int userId, Guid key, FirstWriteFactory firstWrite, CancellationToken cancellationToken)
+            int userId, Guid key, FirstWriteFactory firstWrite, int? programWorkoutIdToLock,
+            CancellationToken cancellationToken)
         {
             // Each attempt starts from a clean slate. A prior attempt that failed on a
             // retryable error (e.g. the unique-index race) leaves its Added Session +
@@ -341,6 +406,13 @@ namespace GoHardAPI.Services
 
             // (2) One transaction-scoped operation lock BEFORE reading or writing anything.
             await AcquireOperationLockAsync(userId, key, cancellationToken);
+
+            // (2b) When this create targets a ProgramWorkout, ALSO take the occurrence lock
+            // that SkipWorkout/CompleteWorkout/UnskipWorkout take - a different lock key
+            // (keyed by workoutId, not by this operation's UserId+ClientOperationId), so a
+            // concurrent skip on the SAME occurrence is serialized against this create too,
+            // not just against a replay of this same operation.
+            await ProgramWorkoutOccurrenceLock.AcquireAsync(_context, programWorkoutIdToLock, cancellationToken);
 
             // (3) Look up the operation record by BOTH the authenticated UserId and the key.
             // A key belonging to user A must never be visible under user B's JWT.

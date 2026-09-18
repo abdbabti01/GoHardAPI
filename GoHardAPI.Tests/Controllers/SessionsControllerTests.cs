@@ -998,6 +998,198 @@ namespace GoHardAPI.Tests.Controllers
         }
 
         [Fact]
+        public async Task UpdateSessionStatus_ToSkipped_CascadesToLinkedProgramWorkout()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            context.Programs.Add(new GoHardAPI.Models.Program
+            {
+                Id = 1,
+                UserId = 1,
+                Title = "P",
+                StartDate = DateTime.UtcNow,
+            });
+            var workout = new ProgramWorkout
+            {
+                ProgramId = 1,
+                WeekNumber = 1,
+                DayNumber = 1,
+                WorkoutName = "Day 1",
+                ExercisesJson = "[]",
+            };
+            context.ProgramWorkouts.Add(workout);
+            await context.SaveChangesAsync();
+
+            var session = new Session
+            {
+                UserId = 1,
+                Name = "Test",
+                Status = "planned",
+                Date = DateTime.UtcNow,
+                ProgramWorkoutId = workout.Id,
+            };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new UpdateStatusRequest { Status = "skipped" };
+
+            // Act
+            var result = await controller.UpdateSessionStatus(session.Id, request);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+            var updatedWorkout = await context.ProgramWorkouts.FindAsync(workout.Id);
+            Assert.True(updatedWorkout!.IsSkipped);
+            Assert.NotNull(updatedWorkout.SkippedAt);
+        }
+
+        [Fact]
+        public async Task UpdateSessionStatus_ToSkipped_LinkedWorkoutAlreadyCompleted_RejectsRatherThanDiverging()
+        {
+            // The linked ProgramWorkout was completed through a DIFFERENT, entirely
+            // sequential path (ProgramsController.CompleteWorkout) - not a race. This
+            // session's own Status is still "planned" (that endpoint never touches
+            // the linked session). Attempting to skip the session now must be
+            // rejected, not silently succeed while leaving IsCompleted=true /
+            // IsSkipped=false untouched - otherwise Today (session.Status=
+            // "skipped") and program history (IsCompleted=true) would permanently
+            // disagree about this exact occurrence.
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            context.Programs.Add(new GoHardAPI.Models.Program
+            {
+                Id = 1,
+                UserId = 1,
+                Title = "P",
+                StartDate = DateTime.UtcNow,
+            });
+            var workout = new ProgramWorkout
+            {
+                ProgramId = 1,
+                WeekNumber = 1,
+                DayNumber = 1,
+                WorkoutName = "Day 1",
+                ExercisesJson = "[]",
+                IsCompleted = true,
+                CompletedAt = DateTime.UtcNow,
+            };
+            context.ProgramWorkouts.Add(workout);
+            await context.SaveChangesAsync();
+
+            var session = new Session
+            {
+                UserId = 1,
+                Name = "Test",
+                Status = "planned",
+                Date = DateTime.UtcNow,
+                ProgramWorkoutId = workout.Id,
+            };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new UpdateStatusRequest { Status = "skipped" };
+
+            var result = await controller.UpdateSessionStatus(session.Id, request);
+
+            Assert.IsType<ConflictObjectResult>(result);
+            // Clear the change tracker before reading back - the controller
+            // mutates session.Status on the tracked entity before rejecting,
+            // but never calls SaveChangesAsync; reading via the same tracked
+            // instance would see that in-memory mutation regardless of
+            // whether it was ever persisted, masking exactly the divergence
+            // this test exists to catch. Clearing forces a fresh read from
+            // the InMemory provider's actual backing store.
+            context.ChangeTracker.Clear();
+            var updatedSession = await context.Sessions.FindAsync(session.Id);
+            Assert.Equal("planned", updatedSession!.Status);
+            var updatedWorkout = await context.ProgramWorkouts.FindAsync(workout.Id);
+            Assert.True(updatedWorkout!.IsCompleted);
+            Assert.False(updatedWorkout.IsSkipped);
+        }
+
+        [Fact]
+        public async Task UpdateSessionStatus_CompletedCannotBecomeSkipped()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            var session = new Session
+            {
+                UserId = 1,
+                Name = "Test",
+                Status = "completed",
+                Date = DateTime.UtcNow,
+                CompletedAt = DateTime.UtcNow,
+            };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new UpdateStatusRequest { Status = "skipped" };
+
+            // Act
+            var result = await controller.UpdateSessionStatus(session.Id, request);
+
+            // Assert
+            Assert.IsType<BadRequestObjectResult>(result);
+            var unchanged = await context.Sessions.FindAsync(session.Id);
+            Assert.Equal("completed", unchanged!.Status);
+        }
+
+        [Fact]
+        public async Task UpdateSessionStatus_SkippedBackToPlanned_CascadesUnskipToLinkedProgramWorkout()
+        {
+            // Arrange
+            var context = GetInMemoryContext();
+            await CreateTestUser(context);
+            context.Programs.Add(new GoHardAPI.Models.Program
+            {
+                Id = 1,
+                UserId = 1,
+                Title = "P",
+                StartDate = DateTime.UtcNow,
+            });
+            var workout = new ProgramWorkout
+            {
+                ProgramId = 1,
+                WeekNumber = 1,
+                DayNumber = 1,
+                WorkoutName = "Day 1",
+                ExercisesJson = "[]",
+                IsSkipped = true,
+                SkippedAt = DateTime.UtcNow,
+            };
+            context.ProgramWorkouts.Add(workout);
+            await context.SaveChangesAsync();
+
+            var session = new Session
+            {
+                UserId = 1,
+                Name = "Test",
+                Status = "skipped",
+                Date = DateTime.UtcNow,
+                ProgramWorkoutId = workout.Id,
+            };
+            context.Sessions.Add(session);
+            await context.SaveChangesAsync();
+
+            var controller = CreateControllerWithUser(context, 1);
+            var request = new UpdateStatusRequest { Status = "planned" };
+
+            // Act
+            var result = await controller.UpdateSessionStatus(session.Id, request);
+
+            // Assert
+            Assert.IsType<NoContentResult>(result);
+            var updatedWorkout = await context.ProgramWorkouts.FindAsync(workout.Id);
+            Assert.False(updatedWorkout!.IsSkipped);
+            Assert.Null(updatedWorkout.SkippedAt);
+        }
+
+        [Fact]
         public async Task GetSessions_IncludesExercisesAndSets()
         {
             // Arrange

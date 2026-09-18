@@ -2728,45 +2728,35 @@ Please regenerate with enough food to reach {targetCalories:F0} kcal per day.
                     decimal totalFatAdded = 0;
 
                     // 1. UPDATE OR CREATE NUTRITION GOALS TO MATCH MEAL PLAN DAY
-                    // Re-read fresh within this attempt - the outer `nutritionGoal` read
-                    // (used above only to compute targetCalories for AI-output scaling) may
-                    // be a detached, stale instance from an earlier attempt by the time a
-                    // retry runs here.
-                    var goalToUpdate = await _context.NutritionGoals
-                        .Where(ng => ng.UserId == userId && ng.IsActive)
-                        .FirstOrDefaultAsync(ct);
-
-                    if (goalToUpdate == null)
-                    {
-                        // Create new nutrition goal from meal plan
-                        goalToUpdate = new Models.NutritionGoal
+                    // Goes through NutritionTargetService.ApplyActiveGoalChangeAsync (the
+                    // no-own-transaction variant, since this callback already runs inside
+                    // ExecuteAtomicallyAsync's retryable attempt) so this always inserts a
+                    // new row dated to targetDate (the day this meal plan actually applies
+                    // to, honoring this endpoint's own optional `date` query parameter)
+                    // rather than mutating whichever row was previously active in place, or
+                    // silently defaulting to today when backfilling a past date - a
+                    // meal-plan-driven target change must not rewrite what applied on other
+                    // past dates through the old row, same as a manual edit via
+                    // NutritionGoalsController. ApplyActiveGoalChangeAsync's own
+                    // RecomputeActiveFlagAsync then decides whether this new row is actually
+                    // "active" for today - a backfilled past date never steals that flag from
+                    // whatever genuinely applies today.
+                    await NutritionTargetService.ApplyActiveGoalChangeAsync(
+                        _context,
+                        userId,
+                        new Models.NutritionGoal
                         {
-                            UserId = userId,
                             Name = "Meal Plan Goals",
                             DailyCalories = totalCalories,
                             DailyProtein = totalProtein,
                             DailyCarbohydrates = totalCarbs,
                             DailyFat = totalFat,
                             DailyWater = 2000, // Default water goal
-                            IsActive = true,
-                            CreatedAt = DateTime.UtcNow
-                        };
-                        _context.NutritionGoals.Add(goalToUpdate);
-                        _logger.LogInformation("Created new nutrition goal from meal plan for user {userId}: {cal} kcal", userId, totalCalories);
-                    }
-                    else
-                    {
-                        // UPDATE existing nutrition goal to match the meal plan day
-                        goalToUpdate.DailyCalories = totalCalories;
-                        goalToUpdate.DailyProtein = totalProtein;
-                        goalToUpdate.DailyCarbohydrates = totalCarbs;
-                        goalToUpdate.DailyFat = totalFat;
-                        goalToUpdate.Name = "Meal Plan Goals";
-                        goalToUpdate.UpdatedAt = DateTime.UtcNow;
-                        _logger.LogInformation("Updated nutrition goal for user {userId}: {cal} kcal, {prot}g protein, {carb}g carbs, {fat}g fat",
-                            userId, totalCalories, totalProtein, totalCarbs, totalFat);
-                    }
-                    await _context.SaveChangesAsync(ct);
+                        },
+                        targetDate,
+                        ct);
+                    _logger.LogInformation("Set nutrition goal from meal plan for user {userId}: {cal} kcal, {prot}g protein, {carb}g carbs, {fat}g fat",
+                        userId, totalCalories, totalProtein, totalCarbs, totalFat);
 
                     // 2. GET OR CREATE THE TARGET DATE'S MEAL LOG
                     var mealLog = await _context.MealLogs
