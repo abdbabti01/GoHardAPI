@@ -231,7 +231,19 @@ namespace GoHardAPI.Tests.Controllers
             }
 
             var results = await Task.WhenAll(Upload(), Remove());
+            var uploadResult = results[0];
+            var removeResult = results[1];
             Assert.DoesNotContain(results, r => r is ObjectResult o && o.StatusCode >= 500);
+
+            // DeletePhoto always observes an existing photo here (the seed, or
+            // upload's own replacement, per whichever read happened first) and
+            // its CAS either removes it or is a deliberate no-op when a
+            // concurrent upload already moved the reference (see DeletePhoto's
+            // `affected == 1` comment) - either way it reports 204, never a
+            // failure, for this scenario.
+            Assert.IsType<NoContentResult>(removeResult);
+            Assert.True(uploadResult is OkObjectResult or ConflictObjectResult,
+                $"Unexpected upload outcome: {uploadResult}");
 
             await using var verify = _pg.NewContext();
             var finalUrl = (await verify.Users.AsNoTracking().FirstAsync(u => u.Id == userId)).ProfilePhotoUrl;
@@ -241,14 +253,25 @@ namespace GoHardAPI.Tests.Controllers
 
             if (finalUrl is null)
             {
-                // Remove won: the upload got 409 and cleaned its own new file.
-                Assert.Contains(results, r => r is ConflictObjectResult);
+                // Two valid orderings both collapse to a null reference:
+                //  * genuine overlap  -> remove wins the CAS race first; upload's
+                //    concurrent write then loses (409) and cleans up its own new
+                //    file;
+                //  * no real overlap  -> upload fully commits (200) first, and
+                //    remove's own read then observes THAT photo and legitimately
+                //    removes it (204) - a correct, fully serialized replace-then-
+                //    delete, not a lost update.
+                // Either way the only invariant that must hold is no orphan file
+                // left referencing nothing; which result is which is not
+                // significant beyond what was already asserted above.
                 Assert.Empty(Directory.GetFiles(_storage.Directory, $"user_{userId}_*.jpg"));
             }
             else
             {
-                // Upload won: the reference points at a file that actually exists.
-                Assert.Contains(results, r => r is OkObjectResult);
+                // Upload won and remove's CAS found the reference already moved
+                // on (affected == 0, a deliberate no-op): the reference points
+                // at a file that actually exists.
+                Assert.IsType<OkObjectResult>(uploadResult);
                 var path = _storage.Service.ResolveOwnedPath(finalUrl);
                 Assert.NotNull(path);
                 Assert.True(File.Exists(path));
