@@ -26,7 +26,7 @@ namespace GoHardAPI.Services.AI
         /// <param name="providerName">Optional provider name override (null uses default from config)</param>
         /// <returns>AI provider instance</returns>
         /// <exception cref="ArgumentException">Unknown provider name</exception>
-        public IAIProvider GetProvider(string? providerName = null)
+        public virtual IAIProvider GetProvider(string? providerName = null)
         {
             var provider = providerName ?? _configuration["AISettings:DefaultProvider"] ?? "Anthropic";
 

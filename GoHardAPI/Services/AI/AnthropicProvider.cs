@@ -13,6 +13,9 @@ namespace GoHardAPI.Services.AI
         private readonly IConfiguration _configuration;
         private readonly ILogger<AnthropicProvider> _logger;
 
+        /// <summary>Model used when AISettings:Anthropic:Model is not configured (mirrors appsettings.json).</summary>
+        public const string DefaultModel = "claude-haiku-4-5";
+
         public string ProviderName => "Anthropic";
 
         public AnthropicProvider(IConfiguration configuration, ILogger<AnthropicProvider> logger)
@@ -20,9 +23,16 @@ namespace GoHardAPI.Services.AI
             _configuration = configuration;
             _logger = logger;
 
-            var apiKey = configuration["AISettings:Anthropic:ApiKey"]
-                ?? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
-                ?? throw new InvalidOperationException("Anthropic API key not configured");
+            // appsettings.json ships an empty ApiKey, which would otherwise shadow the
+            // ANTHROPIC_API_KEY environment variable: treat empty/whitespace as "not configured".
+            var configuredKey = configuration["AISettings:Anthropic:ApiKey"];
+            var apiKey = !string.IsNullOrWhiteSpace(configuredKey)
+                ? configuredKey
+                : Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY");
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException("Anthropic API key not configured");
+            }
 
             _client = new AnthropicClient(apiKey);
         }
@@ -35,7 +45,7 @@ namespace GoHardAPI.Services.AI
             try
             {
                 var messages = BuildMessages(conversationHistory, userMessage);
-                var model = _configuration["AISettings:Anthropic:Model"] ?? "claude-3-5-sonnet-20241022";
+                var model = _configuration["AISettings:Anthropic:Model"] ?? DefaultModel;
                 var maxTokens = int.Parse(_configuration["AISettings:MaxTokens"] ?? "4096");
 
                 var parameters = new MessageParameters
@@ -55,9 +65,17 @@ namespace GoHardAPI.Services.AI
                 var response = await _client.Messages.GetClaudeMessageAsync(parameters);
 
                 var textContent = response.Content.FirstOrDefault() as TextContent;
+
+                // A reply cut off at max_tokens, or with no text, is a failure so AIService
+                // can fall back instead of saving a truncated/empty answer.
+                if (response.StopReason == "max_tokens" || string.IsNullOrWhiteSpace(textContent?.Text))
+                {
+                    throw new Exception($"Anthropic API returned an incomplete response (stop_reason: {response.StopReason ?? "none"})");
+                }
+
                 return new AIResponse
                 {
-                    Content = textContent?.Text ?? "",
+                    Content = textContent.Text,
                     Model = response.Model,
                     InputTokens = response.Usage.InputTokens,
                     OutputTokens = response.Usage.OutputTokens,
@@ -77,7 +95,7 @@ namespace GoHardAPI.Services.AI
             string systemPrompt)
         {
             var messages = BuildMessages(conversationHistory, userMessage);
-            var model = _configuration["AISettings:Anthropic:Model"] ?? "claude-3-5-sonnet-20241022";
+            var model = _configuration["AISettings:Anthropic:Model"] ?? DefaultModel;
             var maxTokens = int.Parse(_configuration["AISettings:MaxTokens"] ?? "4096");
 
             var parameters = new MessageParameters
