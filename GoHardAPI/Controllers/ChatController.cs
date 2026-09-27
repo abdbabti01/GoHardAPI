@@ -722,6 +722,13 @@ IMPORTANT:
             }
         }
 
+        internal const string ProgressAnalysisLoadUnitNote =
+            "Note on load values: they are shown exactly as recorded. Their unit (kg or lb) " +
+            "cannot be reliably determined for historical entries, so do not convert them, do not " +
+            "assume they are kg or lb, and do not state weights or weight recommendations in kg or lb. " +
+            "You may still discuss relative trends within the same exercise (cautiously), reps, " +
+            "set counts, training frequency and consistency; express any load change as a percentage.";
+
         // POST: api/chat/analyze-progress
         [HttpPost("analyze-progress")]
         public async Task<ActionResult<ConversationDetailResponse>> AnalyzeProgress(AnalyzeProgressRequest request)
@@ -771,10 +778,14 @@ IMPORTANT:
                 .Take(10)
                 .ToList();
 
+            // Stored set weights have no reliably known unit (history may mix lb and kg
+            // entries), so the AI is given them unitless and told not to assume one.
+            progressSummary.AppendLine(ProgressAnalysisLoadUnitNote);
+            progressSummary.AppendLine();
             progressSummary.AppendLine("Top 10 Exercises by Volume:");
             foreach (var stat in exerciseStats)
             {
-                progressSummary.AppendLine($"- {stat.Name}: {stat.TotalSets} sets, Max: {stat.MaxWeight}kg, Avg: {stat.AvgWeight:F1}kg");
+                progressSummary.AppendLine($"- {stat.Name}: {stat.TotalSets} sets, Max load: {stat.MaxWeight}, Avg load: {stat.AvgWeight:F1}");
             }
 
             // Create conversation
