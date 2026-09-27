@@ -17,6 +17,9 @@ namespace GoHardAPI.Services.AI
         private readonly ILogger<GroqProvider> _logger;
         private const string GROQ_API_BASE = "https://api.groq.com";
 
+        /// <summary>Model used when AISettings:Groq:Model is not configured (mirrors appsettings.json).</summary>
+        public const string DefaultModel = "openai/gpt-oss-120b";
+
         public string ProviderName => "Groq";
 
         public GroqProvider(
@@ -28,9 +31,16 @@ namespace GoHardAPI.Services.AI
             _configuration = configuration;
             _logger = logger;
 
-            var apiKey = configuration["AISettings:Groq:ApiKey"]
-                ?? Environment.GetEnvironmentVariable("GROQ_API_KEY")
-                ?? throw new InvalidOperationException("Groq API key not configured");
+            // appsettings.json ships an empty ApiKey, which would otherwise shadow the
+            // GROQ_API_KEY environment variable: treat empty/whitespace as "not configured".
+            var configuredKey = configuration["AISettings:Groq:ApiKey"];
+            var apiKey = !string.IsNullOrWhiteSpace(configuredKey)
+                ? configuredKey
+                : Environment.GetEnvironmentVariable("GROQ_API_KEY");
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException("Groq API key not configured");
+            }
 
             _httpClient.DefaultRequestHeaders.Authorization =
                 new AuthenticationHeaderValue("Bearer", apiKey);
@@ -45,7 +55,7 @@ namespace GoHardAPI.Services.AI
             try
             {
                 var messages = BuildMessages(conversationHistory, userMessage, systemPrompt);
-                var model = _configuration["AISettings:Groq:Model"] ?? "llama-3.3-70b-versatile";
+                var model = _configuration["AISettings:Groq:Model"] ?? DefaultModel;
                 var maxTokens = int.Parse(_configuration["AISettings:MaxTokens"] ?? "4096");
 
                 var requestBody = new
@@ -76,9 +86,18 @@ namespace GoHardAPI.Services.AI
                     throw new Exception("Groq API returned no response");
                 }
 
+                // Reasoning models (e.g. openai/gpt-oss) spend max_tokens on reasoning before
+                // the answer: a reply cut off at the limit, or with no final content, is a
+                // failure so AIService can fall back instead of saving a truncated/empty answer.
+                var choice = result.Choices[0];
+                if (choice.FinishReason == "length" || string.IsNullOrWhiteSpace(choice.Message?.Content))
+                {
+                    throw new Exception($"Groq API returned an incomplete response (finish_reason: {choice.FinishReason ?? "none"})");
+                }
+
                 return new AIResponse
                 {
-                    Content = result.Choices[0].Message.Content,
+                    Content = choice.Message.Content,
                     Model = result.Model ?? model,
                     InputTokens = result.Usage?.PromptTokens ?? 0,
                     OutputTokens = result.Usage?.CompletionTokens ?? 0,
@@ -98,7 +117,7 @@ namespace GoHardAPI.Services.AI
             string systemPrompt)
         {
             var messages = BuildMessages(conversationHistory, userMessage, systemPrompt);
-            var model = _configuration["AISettings:Groq:Model"] ?? "llama-3.3-70b-versatile";
+            var model = _configuration["AISettings:Groq:Model"] ?? DefaultModel;
             var maxTokens = int.Parse(_configuration["AISettings:MaxTokens"] ?? "4096");
 
             var requestBody = new

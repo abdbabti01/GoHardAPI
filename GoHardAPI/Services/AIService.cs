@@ -6,7 +6,7 @@ namespace GoHardAPI.Services
     /// <summary>
     /// High-level AI service that uses provider factory
     /// Controllers use this service to interact with AI providers
-    /// Includes automatic fallback when a provider hits rate limits
+    /// Falls back to the next configured provider when one fails
     /// </summary>
     public class AIService
     {
@@ -25,7 +25,7 @@ namespace GoHardAPI.Services
         }
 
         /// <summary>
-        /// Send a message to AI and get response with automatic fallback on rate limits
+        /// Send a message to AI and get a response, falling back to the next provider on any provider failure
         /// </summary>
         /// <param name="userMessage">User's message</param>
         /// <param name="conversationHistory">Previous conversation messages</param>
@@ -52,27 +52,25 @@ namespace GoHardAPI.Services
 
                     return await provider.SendMessageAsync(userMessage, conversationHistory, systemPrompt);
                 }
-                catch (HttpRequestException ex) when (ex.Message.Contains("429") || ex.Message.Contains("Too Many Requests"))
-                {
-                    _logger.LogWarning("Provider {Provider} rate limited, trying next provider. Error: {Error}", currentProvider, ex.Message);
-                    lastException = ex;
-                    continue;
-                }
                 catch (NotImplementedException)
                 {
                     _logger.LogDebug("Provider {Provider} not implemented, skipping", currentProvider);
-                    continue;
                 }
-                catch (Exception ex) when (ex.Message.Contains("API key") || ex.Message.Contains("Unauthorized") || ex.Message.Contains("401"))
+                catch (Exception ex)
                 {
-                    _logger.LogWarning("Provider {Provider} authentication failed, trying next provider", currentProvider);
+                    // Any single provider's failure - missing key, auth, retired or unknown
+                    // model (404 model_not_found), rate limit, timeout, 5xx, empty reply -
+                    // moves on to the next provider. Each distinct provider is tried at most
+                    // once per request, so this can never loop. Only the provider name and
+                    // exception type/message are logged, never configuration values.
+                    _logger.LogWarning("AI provider {Provider} failed ({ErrorType}: {Error}); trying next provider",
+                        currentProvider, ex.GetType().Name, ex.Message);
                     lastException = ex;
-                    continue;
                 }
             }
 
             // All providers failed
-            _logger.LogError(lastException, "All AI providers failed or are rate limited");
+            _logger.LogError(lastException, "All AI providers failed");
             throw new InvalidOperationException("All AI providers are currently unavailable. Please try again later.", lastException);
         }
 
