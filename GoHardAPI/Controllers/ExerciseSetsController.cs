@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
+using GoHardAPI.Filters;
 using GoHardAPI.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -102,6 +103,7 @@ namespace GoHardAPI.Controllers
 
         // POST: api/ExerciseSets
         [HttpPost]
+        [RequireCanonicalLiftedWeightClient]
         public async Task<ActionResult<ExerciseSet>> CreateExerciseSet(ExerciseSet exerciseSet)
         {
             var userId = GetCurrentUserId();
@@ -129,6 +131,7 @@ namespace GoHardAPI.Controllers
 
         // PUT: api/ExerciseSets/5
         [HttpPut("{id}")]
+        [RequireCanonicalLiftedWeightClient]
         public async Task<IActionResult> UpdateExerciseSet(int id, [FromBody] ExerciseSetUpdateRequestDto request)
         {
             // The route segment is the identity of record. A body that disagrees
