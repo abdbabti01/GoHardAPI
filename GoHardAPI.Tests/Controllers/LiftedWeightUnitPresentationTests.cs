@@ -151,6 +151,38 @@ namespace GoHardAPI.Tests.Controllers
         }
 
         [Fact]
+        public async Task Analyze_progress_canonical_kg_prompt_says_no_load_recorded_when_all_weights_are_null()
+        {
+            var session = new Session
+            {
+                UserId = UserId,
+                Name = "Pull",
+                Status = SessionStatus.Completed,
+                Date = DateTime.UtcNow.AddDays(-2),
+            };
+            session.Exercises.Add(new Exercise
+            {
+                Name = "Pull Up",
+                ExerciseSets = new List<ExerciseSet>
+                {
+                    new() { SetNumber = 1, Reps = 8, Weight = null, IsCompleted = true },
+                },
+            });
+            _context.Sessions.Add(session);
+            await _context.SaveChangesAsync();
+
+            var provider = FakeProvider.Returning("Groq", "analysis");
+            var result = await Chat(provider, LiftedWeight(canonicalHistory: true)).AnalyzeProgress(new AnalyzeProgressRequest());
+
+            var body = Assert.IsType<ConversationDetailResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+            var prompt = body.Messages.First(m => m.Role == "user").Content;
+            var pullUpLine = Assert.Single(prompt.Split('\n'), l => l.StartsWith("- Pull Up:"));
+            Assert.Equal("- Pull Up: 1 sets, no load recorded", pullUpLine.TrimEnd('\r'));
+            var benchLine = Assert.Single(prompt.Split('\n'), l => l.StartsWith("- Bench Press:"));
+            Assert.Contains($"Max: {102.5:F1} kg, Avg: {101.25:F1} kg", benchLine);
+        }
+
+        [Fact]
         public async Task Analyze_progress_canonical_kg_defaults_to_metric_wording_when_user_row_is_missing()
         {
             // The authenticated caller's user id has no matching Users row (e.g. a stale/foreign

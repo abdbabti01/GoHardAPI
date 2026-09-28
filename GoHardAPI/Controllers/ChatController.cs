@@ -803,7 +803,9 @@ IMPORTANT:
             foreach (var stat in exerciseStats)
             {
                 progressSummary.AppendLine(canonical
-                    ? $"- {stat.Name}: {stat.TotalSets} sets, Max: {stat.MaxWeight:F1} kg, Avg: {stat.AvgWeight:F1} kg"
+                    ? stat.MaxWeight == null
+                        ? $"- {stat.Name}: {stat.TotalSets} sets, no load recorded"
+                        : $"- {stat.Name}: {stat.TotalSets} sets, Max: {stat.MaxWeight:F1} kg, Avg: {stat.AvgWeight:F1} kg"
                     : $"- {stat.Name}: {stat.TotalSets} sets, Max load: {stat.MaxWeight}, Avg load: {stat.AvgWeight:F1}");
             }
 
