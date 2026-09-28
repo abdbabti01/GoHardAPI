@@ -68,7 +68,7 @@ rows and uploads the canonical ones (spec §7).
 **Phase 2 — maintenance window (production reset).**
 Do not schedule this until the Phase 1 build is approved and held for manual
 release. Follow this runbook's Preconditions → Backup → Exact order → Rollback
-above unchanged — do not duplicate those steps here. Step 4 of "Exact order"
+sections below unchanged — do not duplicate those steps here. Exact order step 7
 (`LiftedWeight__CanonicalHistory=true`) and step 8 (release the app build) are
 this phase's tail; they are a separate, explicit operator action from the API
 deploy and the app build submission, never automatic.
@@ -87,16 +87,19 @@ publishing). Watch:
 ### Guarantees and why
 
 - **(A) No legacy client can write ambiguous values after reset:**
-  `RequireCanonicalClient=true` is set in Phase 2 step 4 (Preconditions #1),
-  *before* the backup/reset/verify sequence runs — the guard is live before any
-  data changes, so no window exists where old clients can write post-reset data.
+  `RequireCanonicalClient=true` is set as Preconditions #1, *before* the
+  Backup and every Exact order step (PREVIEW, RESET, VERIFY) — the guard is live
+  before any data changes, so no window exists where old clients can write
+  post-reset set data. (Unguarded legacy writes that carry no displayed unit —
+  empty sessions/exercises, program-workout completion, shared workouts/templates
+  — are accepted limitations; see spec §10.)
 - **(B) Compatible users are not unnecessarily locked out:** Phase 1 builds and
   ships the canonical app *ahead of* cutover, but it only snapshots and holds
   uploads — it never blocks local logging. Holding the store release manually
   (not gating Phase 1 on Phase 2) means app-review/propagation delay costs
   nothing; the app is simply ready whenever Phase 2 runs.
 - **AI never told history is canonical before verification:** `CanonicalHistory`
-  is set only at Phase 2 step 7, after VERIFY (step 6) has passed — never
+  is set only at Exact order step 7, after VERIFY (step 6) has passed — never
   earlier, never automatically.
 
 ### What if the app review is delayed
@@ -195,6 +198,12 @@ note its timestamp. Do not continue without both.
    row must equal the PREVIEW value. `must_be_zero:Sessions`/`Exercises` may only be
    non-zero if a legacy client created an (empty) session after COMMIT — the guard only
    covers set writes; `ExerciseSets` must be `0`. Investigate before continuing.
+   If the API stays online during the window, `preserved:` counts for non-workout tables
+   (users, goals, goal history, meals/food, chats, body metrics, runs, templates…) can
+   legitimately drift between PREVIEW and VERIFY from normal user activity; confirm any
+   difference is explainable that way. To get exact equality instead, put the API in
+   maintenance/offline between PREVIEW and VERIFY. `Programs`/`ProgramWorkouts` counts
+   drifting is still worth a look (the reset never inserts or deletes them).
 7. Set `LiftedWeight__CanonicalHistory=true` and redeploy/restart the API. Confirm
    `GET api/v1/liftedweightcontract` reports `canonicalHistory: true`.
 8. Release the canonical app build.
@@ -211,6 +220,15 @@ including with a savepoint around every statement as psql `ON_ERROR_ROLLBACK` do
   `pg_restore --clean --if-exists --no-owner --dbname="$PROD_URL" gohard-pre-phase2c-<ts>.dump`
   (or restore the Railway snapshot), start the API, re-run PREVIEW to confirm the old counts.
   Any data written between COMMIT and the restore is lost.
+- **Aborting before step 7:** also set `LiftedWeight__RequireCanonicalClient=false` again
+  (and redeploy/restart), otherwise legacy builds' set writes stay blocked with the
+  update-required error. Keep the canonical app build held.
+- **Restoring from backup AFTER step 7 is not a clean rollback:** once
+  `CanonicalHistory=true` is live, canonical devices complete their one-time local purge
+  (terminal state `lifted_weight_contract_v1: complete`) and would then download the restored
+  legacy lb-typed rows as kg. Purging them again needs a new versioned key (e.g.
+  `lifted_weight_contract_v2`) and a new app release. So never set step 7 until VERIFY has
+  passed, and treat a post-step-7 restore as a new incident, not a rollback.
 
 ## App and local-cache implications
 
@@ -221,7 +239,9 @@ including with a savepoint around every statement as psql `ON_ERROR_ROLLBACK` do
   longer exist server-side (reads return 404/empty). A retried keyed session create hits the
   `SessionCreateOperations` tombstone and gets 410 rather than recreating the session.
 - Programs keep their schedule and `StartDate` but restart at week 1 / day 1 with no
-  completed or skipped workouts; completed programs reappear as active.
+  completed or skipped workouts; completed programs reappear as active. A user can
+  therefore end up with several active programs (every completed one becomes active and
+  nothing enforces a single active program); the app must tolerate that.
 - Goals, goal progress history, body metrics, runs, nutrition and non-progress chats are
   untouched. Previous AI progress analyses are gone (they quoted the old unit-ambiguous
   weights).

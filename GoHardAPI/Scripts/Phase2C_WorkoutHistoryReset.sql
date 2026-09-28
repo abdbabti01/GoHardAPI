@@ -148,7 +148,7 @@ SELECT "check", "count" FROM (VALUES
   (2,  'must_be_zero:Exercises',                           (SELECT COUNT(*) FROM "Exercises")),
   (3,  'must_be_zero:ExerciseSets',                        (SELECT COUNT(*) FROM "ExerciseSets")),
   (4,  'must_be_zero:ChatConversations(progress_analysis)',(SELECT COUNT(*) FROM "ChatConversations" WHERE "Type" = 'progress_analysis')),
-  (5,  'must_be_zero:ChatMessages(orphaned)',              (SELECT COUNT(*) FROM "ChatMessages" m WHERE NOT EXISTS (SELECT 1 FROM "ChatConversations" c WHERE c."Id" = m."ConversationId"))),
+  (5,  'must_be_zero:ChatMessages(progress_analysis)',     (SELECT COUNT(*) FROM "ChatMessages" m JOIN "ChatConversations" c ON c."Id" = m."ConversationId" WHERE c."Type" = 'progress_analysis')),
   (6,  'must_be_zero:SharedWorkouts',                      (SELECT COUNT(*) FROM "SharedWorkouts")),
   (7,  'must_be_zero:SharedWorkoutLikes',                  (SELECT COUNT(*) FROM "SharedWorkoutLikes")),
   (8,  'must_be_zero:SharedWorkoutSaves',                  (SELECT COUNT(*) FROM "SharedWorkoutSaves")),

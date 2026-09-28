@@ -79,6 +79,12 @@ namespace GoHardAPI.Tests.Scripts
             Assert.Equal(8, preview["erase:ExerciseSets"]);
             Assert.Equal(2, preview["erase:ChatConversations(progress_analysis)"]);
             Assert.Equal(4, preview["erase:ChatMessages(progress_analysis)"]);
+            // VERIFY's message check must be meaningful: before RESET it sees the same rows
+            // PREVIEW counts (an orphan check would always be 0 under the CASCADE FK).
+            var verifyBeforeReset = await Rows(Section("VERIFY"));
+            Assert.Equal(
+                preview["erase:ChatMessages(progress_analysis)"],
+                verifyBeforeReset["must_be_zero:ChatMessages(progress_analysis)"]);
             Assert.Equal(2, preview["erase:SharedWorkouts"]);
             Assert.Equal(2, preview["erase:SharedWorkoutLikes"]);
             Assert.Equal(2, preview["erase:SharedWorkoutSaves"]);
