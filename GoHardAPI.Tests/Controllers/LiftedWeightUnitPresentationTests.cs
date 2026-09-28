@@ -151,6 +151,44 @@ namespace GoHardAPI.Tests.Controllers
         }
 
         [Fact]
+        public async Task Analyze_progress_canonical_kg_defaults_to_metric_wording_when_user_row_is_missing()
+        {
+            // The authenticated caller's user id has no matching Users row (e.g. a stale/foreign
+            // token). FindAsync tolerates that with null - AnalyzeProgress must still respond
+            // gracefully with the canonical-kg wording, defaulting the unknown preference to
+            // Metric, rather than throwing before its try/catch is even reached.
+            //
+            // ChatConversation.UserId is itself FK-constrained to Users, so the conversation this
+            // same call creates would otherwise be rejected by SQLite before ever reaching that
+            // behavior - unrelated to the fix under test. Disabling FK enforcement here isolates
+            // the one thing this test is about: FindAsync's null-tolerant lookup, not referential
+            // integrity elsewhere in the method.
+            await _context.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys = OFF;");
+
+            const int missingUserId = 999;
+            var provider = FakeProvider.Returning("Groq", "analysis");
+            var controller = Chat(provider, LiftedWeight(canonicalHistory: true));
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(
+                        new[] { new Claim(ClaimTypes.NameIdentifier, missingUserId.ToString()) }, "TestAuth")),
+                },
+            };
+
+            var result = await controller.AnalyzeProgress(new AnalyzeProgressRequest());
+
+            var body = Assert.IsType<ConversationDetailResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+            var prompt = body.Messages.First(m => m.Role == "user").Content;
+            Assert.DoesNotContain(ChatController.ProgressAnalysisLoadUnitNote, prompt);
+            Assert.Contains(
+                "Load values are in kilograms (kg). The user prefers kilograms (kg); " +
+                "express load recommendations in that unit.",
+                prompt);
+        }
+
+        [Fact]
         public async Task AI_created_planned_sets_are_stored_unitless_even_when_the_extracted_plan_has_a_weight()
         {
             var conversation = new ChatConversation

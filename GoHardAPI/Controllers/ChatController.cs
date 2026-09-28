@@ -789,8 +789,8 @@ IMPORTANT:
             var canonical = _liftedWeight?.CurrentValue.CanonicalHistory == true;
             if (canonical)
             {
-                var user = await _context.Users.AsNoTracking().FirstAsync(u => u.Id == userId);
-                var preferred = string.Equals(user.UnitPreference, "Imperial", StringComparison.OrdinalIgnoreCase)
+                var user = await _context.Users.FindAsync(userId);
+                var preferred = string.Equals(user?.UnitPreference, "Imperial", StringComparison.OrdinalIgnoreCase)
                     ? "pounds (lb)" : "kilograms (kg)";
                 progressSummary.AppendLine($"Load values are in kilograms (kg). The user prefers {preferred}; express load recommendations in that unit.");
             }
