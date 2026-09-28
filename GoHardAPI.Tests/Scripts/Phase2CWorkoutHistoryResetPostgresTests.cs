@@ -159,10 +159,14 @@ namespace GoHardAPI.Tests.Scripts
                 {
                     Assert.False(w.IsCompleted);
                     Assert.Null(w.CompletedAt);
-                    Assert.Null(w.CompletionNotes);
                     Assert.False(w.IsSkipped);
                     Assert.Null(w.SkippedAt);
                 });
+
+                // User-written completion notes are preserved (owner ruling).
+                Assert.Equal(
+                    new[] { "good", "good" },
+                    programs.SelectMany(p => p.Workouts).Where(w => w.CompletionNotes != null).Select(w => w.CompletionNotes!).ToArray());
 
                 // Meal-plan provenance on food items was not detached.
                 Assert.Equal(2, await ctx.FoodItems.CountAsync(f => f.SourcePlanConversationId != null));
@@ -224,6 +228,51 @@ namespace GoHardAPI.Tests.Scripts
             Assert.Contains("progress_analysis", ex.MessageText);
 
             Assert.Equal(before, await Snapshot());
+        }
+
+        /// <summary>
+        /// Simulates psql's ON_ERROR_ROLLBACK: the RESET section is run statement by statement
+        /// with a SAVEPOINT around each one, a failing statement is rolled back to its savepoint
+        /// and execution continues, then COMMIT. A failed guard must still leave the database
+        /// unchanged; with the guards satisfied the same mode must perform the full reset.
+        /// </summary>
+        [DockerRequiredFact]
+        public async Task failed_guards_change_nothing_even_when_each_statement_runs_in_a_savepoint()
+        {
+            Assert.True(_available, "PostgreSQL container must be available in CI");
+            await SeedTwoUsers();
+            var before = await Snapshot();
+
+            // 1. No confirmation.
+            var errors = await ExecWithSavepointPerStatement(null, Section("RESET"));
+            Assert.Contains(errors, e => e.Contains("gohard.confirm_reset"));
+            Assert.Equal(before, await Snapshot());
+
+            // 2. Confirmed, but a blocker is present.
+            int itemId, originalSource;
+            await using (var ctx = NewContext())
+            {
+                var conv = await ctx.ChatConversations.FirstAsync(c => c.Type == "progress_analysis");
+                var item = await ctx.FoodItems.FirstAsync();
+                (itemId, originalSource) = (item.Id, item.SourcePlanConversationId!.Value);
+                item.SourcePlanConversationId = conv.Id;
+                await ctx.SaveChangesAsync();
+            }
+            var blocked = await Snapshot();
+            errors = await ExecWithSavepointPerStatement(ConfirmSql, Section("RESET"));
+            Assert.Contains(errors, e => e.Contains("progress_analysis"));
+            Assert.Equal(blocked, await Snapshot());
+
+            // 3. Guards satisfied: the same execution mode performs the reset.
+            await Exec($"UPDATE \"FoodItems\" SET \"SourcePlanConversationId\" = {originalSource} WHERE \"Id\" = {itemId};");
+            errors = await ExecWithSavepointPerStatement(ConfirmSql, Section("RESET"));
+            Assert.Empty(errors);
+            var after = await Snapshot();
+            Assert.Equal(0, after["Sessions"]);
+            Assert.Equal(0, after["ChatConversations(progress)"]);
+            Assert.Equal(0, after["SharedWorkouts"]);
+            Assert.Equal(0, after["ProgramWorkoutsMarked"]);
+            Assert.Equal(before["Users"], after["Users"]);
         }
 
         // ---------------------------------------------------------------- seed
@@ -372,6 +421,72 @@ namespace GoHardAPI.Tests.Scripts
             await conn.OpenAsync();
             await using var cmd = new NpgsqlCommand(sql, conn);
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        /// <summary>
+        /// Runs <paramref name="section"/> the way psql does with ON_ERROR_ROLLBACK=on: each
+        /// top-level statement after BEGIN is wrapped in SAVEPOINT / RELEASE, a failure is
+        /// rolled back to the savepoint and execution continues; COMMIT runs at the end.
+        /// Returns the error messages.
+        /// </summary>
+        private async Task<List<string>> ExecWithSavepointPerStatement(string? sessionSetup, string section)
+        {
+            var errors = new List<string>();
+            await using var conn = new NpgsqlConnection(_cs);
+            await conn.OpenAsync();
+            if (sessionSetup != null) await Run(sessionSetup);
+            foreach (var stmt in SplitStatements(section))
+            {
+                var keyword = stmt.Trim().TrimEnd(';').Trim().ToUpperInvariant();
+                if (keyword is "BEGIN" or "COMMIT")
+                {
+                    await Run(stmt);
+                    continue;
+                }
+                await Run("SAVEPOINT on_error_rollback;");
+                try
+                {
+                    await Run(stmt);
+                    await Run("RELEASE SAVEPOINT on_error_rollback;");
+                }
+                catch (PostgresException ex)
+                {
+                    errors.Add(ex.MessageText);
+                    await Run("ROLLBACK TO SAVEPOINT on_error_rollback;");
+                }
+            }
+            return errors;
+
+            async Task Run(string sql)
+            {
+                await using var cmd = new NpgsqlCommand(sql, conn);
+                await cmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        /// <summary>Splits SQL into top-level statements (ends with ';' outside $$ bodies; drops comment-only lines).</summary>
+        private static List<string> SplitStatements(string sql)
+        {
+            var statements = new List<string>();
+            var current = new System.Text.StringBuilder();
+            var inDollar = false;
+            foreach (var raw in sql.Split('\n'))
+            {
+                var line = raw.TrimEnd('\r');
+                if (!inDollar && current.Length == 0 && (line.Trim().Length == 0 || line.TrimStart().StartsWith("--")))
+                {
+                    continue;
+                }
+                current.AppendLine(line);
+                if (Regex.Matches(line, @"\$\$").Count % 2 == 1) inDollar = !inDollar;
+                if (!inDollar && line.TrimEnd().EndsWith(";"))
+                {
+                    statements.Add(current.ToString());
+                    current.Clear();
+                }
+            }
+            Assert.True(current.ToString().Trim().Length == 0, "unterminated statement in section");
+            return statements;
         }
 
         /// <summary>Reads the first (check, count) result set of a section.</summary>

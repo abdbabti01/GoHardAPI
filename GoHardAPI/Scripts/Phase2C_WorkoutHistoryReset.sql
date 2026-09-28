@@ -31,7 +31,7 @@ SELECT "check", "count" FROM (VALUES
   (7,  'erase:SharedWorkoutLikes',                  (SELECT COUNT(*) FROM "SharedWorkoutLikes")),
   (8,  'erase:SharedWorkoutSaves',                  (SELECT COUNT(*) FROM "SharedWorkoutSaves")),
   (9,  'detach:SessionCreateOperations(SessionId)', (SELECT COUNT(*) FROM "SessionCreateOperations" WHERE "SessionId" IS NOT NULL)),
-  (10, 'reset:ProgramWorkouts(progress)',           (SELECT COUNT(*) FROM "ProgramWorkouts" WHERE "IsCompleted" OR "CompletedAt" IS NOT NULL OR "CompletionNotes" IS NOT NULL OR "IsSkipped" OR "SkippedAt" IS NOT NULL)),
+  (10, 'reset:ProgramWorkouts(progress)',           (SELECT COUNT(*) FROM "ProgramWorkouts" WHERE "IsCompleted" OR "CompletedAt" IS NOT NULL OR "IsSkipped" OR "SkippedAt" IS NOT NULL)),
   (11, 'reset:Programs(progress)',                  (SELECT COUNT(*) FROM "Programs" WHERE "CurrentWeek" <> 1 OR "CurrentDay" <> 1 OR "IsCompleted" OR "CompletedAt" IS NOT NULL)),
   (12, 'reset:Programs(completed->active)',         (SELECT COUNT(*) FROM "Programs" WHERE "Status" = 'completed' OR ("Status" = 'active' AND "IsCompleted"))),
   -- Blockers: must be 0 or RESET refuses (a progress_analysis delete would otherwise
@@ -82,63 +82,61 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '120s';
 
+-- Everything below is ONE statement on purpose: under psql ON_ERROR_ROLLBACK a failing
+-- guard in a separate statement would be rolled back to a savepoint while the deletes
+-- continued. Inside one DO block any error aborts the guards, deletes and updates together.
 DO $$
 BEGIN
   IF current_setting('gohard.confirm_reset', true) IS DISTINCT FROM 'ERASE-WORKOUT-HISTORY' THEN
     RAISE EXCEPTION 'Refusing to reset: run  SET gohard.confirm_reset = ''ERASE-WORKOUT-HISTORY'';  in this session first (see runbook)';
   END IF;
-END $$;
 
--- Block concurrent writers for the life of this transaction (reads still allowed).
-LOCK TABLE "Sessions", "Exercises", "ExerciseSets", "SessionCreateOperations",
-           "ChatConversations", "ChatMessages",
-           "SharedWorkouts", "SharedWorkoutLikes", "SharedWorkoutSaves",
-           "Programs", "ProgramWorkouts", "FoodItems"
-  IN EXCLUSIVE MODE;
+  -- Block concurrent writers for the life of this transaction (reads still allowed).
+  LOCK TABLE "Sessions", "Exercises", "ExerciseSets", "SessionCreateOperations",
+             "ChatConversations", "ChatMessages",
+             "SharedWorkouts", "SharedWorkoutLikes", "SharedWorkoutSaves",
+             "Programs", "ProgramWorkouts", "FoodItems"
+    IN EXCLUSIVE MODE;
 
-DO $$
-BEGIN
   IF EXISTS (SELECT 1 FROM "Programs" p JOIN "ChatConversations" c ON c."Id" = p."SourceConversationId"
              WHERE c."Type" = 'progress_analysis')
      OR EXISTS (SELECT 1 FROM "FoodItems" f JOIN "ChatConversations" c ON c."Id" = f."SourcePlanConversationId"
                 WHERE c."Type" = 'progress_analysis') THEN
     RAISE EXCEPTION 'Refusing to reset: a Program or FoodItem references a progress_analysis conversation (see PREVIEW blocker rows); escalate, do not work around';
   END IF;
+
+  -- Workout history: children before parents, explicitly (do not rely on cascades).
+  DELETE FROM "ExerciseSets";
+  DELETE FROM "Exercises";
+  UPDATE "SessionCreateOperations" SET "SessionId" = NULL WHERE "SessionId" IS NOT NULL;
+  DELETE FROM "Sessions";
+
+  -- AI progress analyses (only this conversation type).
+  DELETE FROM "ChatMessages"
+   WHERE "ConversationId" IN (SELECT "Id" FROM "ChatConversations" WHERE "Type" = 'progress_analysis');
+  DELETE FROM "ChatConversations" WHERE "Type" = 'progress_analysis';
+
+  -- Shared workouts and all their child rows.
+  DELETE FROM "SharedWorkoutLikes";
+  DELETE FROM "SharedWorkoutSaves";
+  DELETE FROM "SharedWorkouts";
+
+  -- Program progress (rows, schedule, ExercisesJson and CompletionNotes are kept).
+  UPDATE "ProgramWorkouts"
+     SET "IsCompleted" = FALSE, "CompletedAt" = NULL, "IsSkipped" = FALSE, "SkippedAt" = NULL
+   WHERE "IsCompleted" OR "CompletedAt" IS NOT NULL OR "IsSkipped" OR "SkippedAt" IS NOT NULL;
+
+  -- Completed -> active. Covers PUT /complete (Status 'completed') and the /advance
+  -- overflow (Status stays 'active' but IsCompleted/IsActive=false). Draft, archived and
+  -- deleted programs keep their Status and IsActive.
+  UPDATE "Programs"
+     SET "Status" = 'active', "IsActive" = TRUE
+   WHERE "Status" = 'completed' OR ("Status" = 'active' AND "IsCompleted");
+
+  UPDATE "Programs"
+     SET "CurrentWeek" = 1, "CurrentDay" = 1, "IsCompleted" = FALSE, "CompletedAt" = NULL
+   WHERE "CurrentWeek" <> 1 OR "CurrentDay" <> 1 OR "IsCompleted" OR "CompletedAt" IS NOT NULL;
 END $$;
-
--- Workout history: children before parents, explicitly (do not rely on cascades).
-DELETE FROM "ExerciseSets";
-DELETE FROM "Exercises";
-UPDATE "SessionCreateOperations" SET "SessionId" = NULL WHERE "SessionId" IS NOT NULL;
-DELETE FROM "Sessions";
-
--- AI progress analyses (only this conversation type).
-DELETE FROM "ChatMessages"
- WHERE "ConversationId" IN (SELECT "Id" FROM "ChatConversations" WHERE "Type" = 'progress_analysis');
-DELETE FROM "ChatConversations" WHERE "Type" = 'progress_analysis';
-
--- Shared workouts and all their child rows.
-DELETE FROM "SharedWorkoutLikes";
-DELETE FROM "SharedWorkoutSaves";
-DELETE FROM "SharedWorkouts";
-
--- Program progress (rows, schedule and ExercisesJson are kept).
-UPDATE "ProgramWorkouts"
-   SET "IsCompleted" = FALSE, "CompletedAt" = NULL, "CompletionNotes" = NULL,
-       "IsSkipped" = FALSE, "SkippedAt" = NULL
- WHERE "IsCompleted" OR "CompletedAt" IS NOT NULL OR "CompletionNotes" IS NOT NULL
-    OR "IsSkipped" OR "SkippedAt" IS NOT NULL;
-
--- Completed -> active. Covers PUT /complete (Status 'completed') and the /advance
--- overflow (Status stays 'active' but IsCompleted/IsActive=false). Draft, archived and
--- deleted programs keep their Status and IsActive.
-UPDATE "Programs"
-   SET "Status" = 'active', "IsActive" = TRUE
- WHERE "Status" = 'completed' OR ("Status" = 'active' AND "IsCompleted");
-
-UPDATE "Programs"
-   SET "CurrentWeek" = 1, "CurrentDay" = 1, "IsCompleted" = FALSE, "CompletedAt" = NULL
- WHERE "CurrentWeek" <> 1 OR "CurrentDay" <> 1 OR "IsCompleted" OR "CompletedAt" IS NOT NULL;
 
 COMMIT;
 
@@ -155,7 +153,7 @@ SELECT "check", "count" FROM (VALUES
   (7,  'must_be_zero:SharedWorkoutLikes',                  (SELECT COUNT(*) FROM "SharedWorkoutLikes")),
   (8,  'must_be_zero:SharedWorkoutSaves',                  (SELECT COUNT(*) FROM "SharedWorkoutSaves")),
   (9,  'must_be_zero:SessionCreateOperations(SessionId)',  (SELECT COUNT(*) FROM "SessionCreateOperations" WHERE "SessionId" IS NOT NULL)),
-  (10, 'must_be_zero:ProgramWorkouts(progress)',           (SELECT COUNT(*) FROM "ProgramWorkouts" WHERE "IsCompleted" OR "CompletedAt" IS NOT NULL OR "CompletionNotes" IS NOT NULL OR "IsSkipped" OR "SkippedAt" IS NOT NULL)),
+  (10, 'must_be_zero:ProgramWorkouts(progress)',           (SELECT COUNT(*) FROM "ProgramWorkouts" WHERE "IsCompleted" OR "CompletedAt" IS NOT NULL OR "IsSkipped" OR "SkippedAt" IS NOT NULL)),
   (11, 'must_be_zero:Programs(progress)',                  (SELECT COUNT(*) FROM "Programs" WHERE "CurrentWeek" <> 1 OR "CurrentDay" <> 1 OR "IsCompleted" OR "CompletedAt" IS NOT NULL)),
   (12, 'must_be_zero:Programs(completed)',                 (SELECT COUNT(*) FROM "Programs" WHERE "Status" = 'completed')),
   (20, 'preserved:Users',                           (SELECT COUNT(*) FROM "Users")),
