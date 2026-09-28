@@ -215,9 +215,10 @@ namespace GoHardAPI.Controllers
                     Value = e.ExerciseSets.Any()
                         ? e.ExerciseSets.Max(s => s.Weight ?? 0)
                         : 0,
+                    // Unitless: stored set weights have no reliably known unit.
                     Label = e.ExerciseSets.Any()
-                        ? $"{e.ExerciseSets.Max(s => s.Weight ?? 0):F1} kg"
-                        : "0 kg"
+                        ? $"{e.ExerciseSets.Max(s => s.Weight ?? 0):F1}"
+                        : "0"
                 })
                 .Where(dp => dp.Value > 0)
                 .ToList();
@@ -367,7 +368,8 @@ namespace GoHardAPI.Controllers
                     {
                         Date = s.Date,
                         Value = volume,
-                        Label = $"{volume:F0} kg"
+                        // Unitless: stored set weights have no reliably known unit.
+                        Label = $"{volume:F0}"
                     };
                 })
                 .ToList();

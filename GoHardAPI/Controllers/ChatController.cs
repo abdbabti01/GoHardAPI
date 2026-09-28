@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using GoHardAPI.Configuration;
 using GoHardAPI.Data;
 using GoHardAPI.DTOs;
 using GoHardAPI.Models;
@@ -6,6 +7,7 @@ using GoHardAPI.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using System.Text;
 
@@ -21,17 +23,20 @@ namespace GoHardAPI.Controllers
         private readonly AIService _aiService;
         private readonly CurrentMeasurementsService _currentMeasurements;
         private readonly ILogger<ChatController> _logger;
+        private readonly IOptionsMonitor<LiftedWeightOptions>? _liftedWeight;
 
         public ChatController(
             TrainingContext context,
             AIService aiService,
             CurrentMeasurementsService currentMeasurements,
-            ILogger<ChatController> logger)
+            ILogger<ChatController> logger,
+            IOptionsMonitor<LiftedWeightOptions>? liftedWeight = null)
         {
             _context = context;
             _aiService = aiService;
             _currentMeasurements = currentMeasurements;
             _logger = logger;
+            _liftedWeight = liftedWeight;
         }
 
         private int GetCurrentUserId()
@@ -722,6 +727,13 @@ IMPORTANT:
             }
         }
 
+        internal const string ProgressAnalysisLoadUnitNote =
+            "Note on load values: they are shown exactly as recorded. Their unit (kg or lb) " +
+            "cannot be reliably determined for historical entries, so do not convert them, do not " +
+            "assume they are kg or lb, and do not state weights or weight recommendations in kg or lb. " +
+            "You may still discuss relative trends within the same exercise (cautiously), reps, " +
+            "set counts, training frequency and consistency; express any load change as a percentage.";
+
         // POST: api/chat/analyze-progress
         [HttpPost("analyze-progress")]
         public async Task<ActionResult<ConversationDetailResponse>> AnalyzeProgress(AnalyzeProgressRequest request)
@@ -771,10 +783,30 @@ IMPORTANT:
                 .Take(10)
                 .ToList();
 
+            // Stored set weights have no reliably known unit until an operator has verified the
+            // production history reset (LiftedWeight:CanonicalHistory) - only then is the AI told
+            // loads are kg; otherwise it is given them unitless and told not to assume one.
+            var canonical = _liftedWeight?.CurrentValue.CanonicalHistory == true;
+            if (canonical)
+            {
+                var user = await _context.Users.FindAsync(userId);
+                var preferred = string.Equals(user?.UnitPreference, "Imperial", StringComparison.OrdinalIgnoreCase)
+                    ? "pounds (lb)" : "kilograms (kg)";
+                progressSummary.AppendLine($"Load values are in kilograms (kg). The user prefers {preferred}; express load recommendations in that unit.");
+            }
+            else
+            {
+                progressSummary.AppendLine(ProgressAnalysisLoadUnitNote);
+            }
+            progressSummary.AppendLine();
             progressSummary.AppendLine("Top 10 Exercises by Volume:");
             foreach (var stat in exerciseStats)
             {
-                progressSummary.AppendLine($"- {stat.Name}: {stat.TotalSets} sets, Max: {stat.MaxWeight}kg, Avg: {stat.AvgWeight:F1}kg");
+                progressSummary.AppendLine(canonical
+                    ? stat.MaxWeight == null
+                        ? $"- {stat.Name}: {stat.TotalSets} sets, no load recorded"
+                        : $"- {stat.Name}: {stat.TotalSets} sets, Max: {stat.MaxWeight:F1} kg, Avg: {stat.AvgWeight:F1} kg"
+                    : $"- {stat.Name}: {stat.TotalSets} sets, Max load: {stat.MaxWeight}, Avg load: {stat.AvgWeight:F1}");
             }
 
             // Create conversation
@@ -1040,7 +1072,7 @@ Please provide:
                                         ExerciseId = exercise.Id,
                                         SetNumber = setNum,
                                         Reps = reps,
-                                        Weight = exerciseData.Weight ?? 0,
+                                        Weight = 0, // LLM weights have no known unit; never persist them as kg
                                         IsCompleted = false,
                                         Duration = 0
                                     };
@@ -1283,7 +1315,7 @@ Please provide:
                         name = e.Name,
                         sets = e.Sets,
                         reps = e.Reps,
-                        weight = e.Weight,
+                        weight = (double?)null, // see above
                         rest = e.RestTime,
                         notes = e.Notes,
                     }).ToList();

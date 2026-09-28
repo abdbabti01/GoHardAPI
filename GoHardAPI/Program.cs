@@ -59,6 +59,10 @@ builder.Services.AddScoped<SessionCreateService>();
 // Register NutritionCalculatorService
 builder.Services.AddScoped<NutritionCalculatorService>();
 
+// Lifted-weight kg contract cutover (Phase 2C) - see GoHardAPI.Configuration.LiftedWeightOptions.
+builder.Services.Configure<GoHardAPI.Configuration.LiftedWeightOptions>(
+    builder.Configuration.GetSection(GoHardAPI.Configuration.LiftedWeightOptions.SectionName));
+
 // ---- Profile photo storage ----------------------------------------------------
 // Physical directory for profile-photo files. MUST live outside the publish
 // output so it can be backed by a persistent volume. Precedence:
