@@ -22,6 +22,92 @@ so that history cannot be converted reliably.
 | **Reset** | all `Programs`: `CurrentWeek = 1`, `CurrentDay = 1`, `IsCompleted = false`, `CompletedAt = NULL` |
 | **Preserve** | users, `Goals` (incl. `CurrentValue`), `GoalProgressHistory`, `Programs`/`ProgramWorkouts` rows (schedule, `StartDate`, `ExercisesJson`, `ProgramWorkouts.CompletionNotes` (user-written text), `SourceConversationId`), draft/archived/deleted programs' `Status` and `IsActive`, `ExerciseTemplates`, `WorkoutTemplates`, every nutrition table, `BodyMetrics`, `RunSessions`, every non-`progress_analysis` chat, friends/DMs |
 
+## End-to-end rollout
+
+Spec: `docs/superpowers/specs/2026-09-27-canonical-kg-lifted-weight-design.md` §9.
+Env vars: `LiftedWeight__RequireCanonicalClient`, `LiftedWeight__CanonicalHistory`
+(both default `false`; effective guard = either `true`). Contract endpoint:
+`GET api/v1/liftedweightcontract` → `{ canonicalHistory }`.
+
+**Phase 0 — API deploy, both flags false.**
+Deploy the API build carrying the guard and the `liftedweightcontract` endpoint
+with both env vars unset/`false`. Behaviour is unchanged for every existing
+client. Smoke check: `GET api/v1/liftedweightcontract` returns
+`{ "canonicalHistory": false }`; a `POST exercisesets` **without** the
+`X-Lifted-Weight-Unit` header is still accepted (200/201, not 400). This phase
+can ship independently and sit indefinitely — nothing downstream depends on a
+deadline here.
+
+**Phase 1 — build, test, submit the canonical app; hold for manual release.**
+Build and test the canonical app (the build that sends `X-Lifted-Weight-Unit: kg`,
+snapshots local ids on first launch, and withholds workout uploads — Sync­Service
+phases and the repositories' direct uploads — until the server reports
+`canonicalHistory: true`). Submit it for store review *ahead of* cutover; this is
+safe pre-reset because the app never assumes canonical history is live, it just
+waits.
+
+Distribution mechanism (`.github/workflows/build-flutter-mobile.yml`): the
+`build-android-aab`/`build-ios-signed` jobs produce a signed AAB/IPA for store
+submission (`build-ios-signed` needs a manual `workflow_dispatch` with
+`export_method: app-store`); `build-android-apk`/`build-ios` (unsigned) produce
+sideload/ad-hoc artifacts for pre-release testers. If distributed via App Store /
+Play:
+
+- **App Store:** submit for review, then set the release to **"Manually release
+  this version"** so approval does not auto-publish it. It sits approved-but-held
+  until Phase 2 completes.
+- **Play Store:** use **managed publishing** (or a staged rollout halted at 0%)
+  so a completed review does not go live automatically.
+
+Testers on TestFlight or a sideloaded unsigned build are safe to install before
+cutover: the upload gate means they cannot write ambiguous history. Their
+workouts logged before cutover accumulate locally in kg and stay device-only
+until their next online sync after cutover, when the app purges legacy local
+rows and uploads the canonical ones (spec §7).
+
+**Phase 2 — maintenance window (production reset).**
+Do not schedule this until the Phase 1 build is approved and held for manual
+release. Follow this runbook's Preconditions → Backup → Exact order → Rollback
+above unchanged — do not duplicate those steps here. Step 4 of "Exact order"
+(`LiftedWeight__CanonicalHistory=true`) and step 8 (release the app build) are
+this phase's tail; they are a separate, explicit operator action from the API
+deploy and the app build submission, never automatic.
+
+**Phase 3 — release and monitoring.**
+After the maintenance window's VERIFY step passes and `CanonicalHistory=true` is
+confirmed live, release the held app build (manual release / resume managed
+publishing). Watch:
+
+- Rate of `400 LIFTED_WEIGHT_UNIT_REQUIRED` responses (expected: legacy builds
+  still in the field; a spike means the guard flipped correctly).
+- `GET api/v1/liftedweightcontract` continuing to report `canonicalHistory: true`.
+- First canonical uploads arriving post-purge (sessions/exercises/sets created
+  with the `X-Lifted-Weight-Unit` header, timestamped after the release).
+
+### Guarantees and why
+
+- **(A) No legacy client can write ambiguous values after reset:**
+  `RequireCanonicalClient=true` is set in Phase 2 step 4 (Preconditions #1),
+  *before* the backup/reset/verify sequence runs — the guard is live before any
+  data changes, so no window exists where old clients can write post-reset data.
+- **(B) Compatible users are not unnecessarily locked out:** Phase 1 builds and
+  ships the canonical app *ahead of* cutover, but it only snapshots and holds
+  uploads — it never blocks local logging. Holding the store release manually
+  (not gating Phase 1 on Phase 2) means app-review/propagation delay costs
+  nothing; the app is simply ready whenever Phase 2 runs.
+- **AI never told history is canonical before verification:** `CanonicalHistory`
+  is set only at Phase 2 step 7, after VERIFY (step 6) has passed — never
+  earlier, never automatically.
+
+### What if the app review is delayed
+
+Keep Phase 2 unscheduled until the store release is approved and held. Nothing
+breaks in the meantime: both env vars stay `false` (Phase 0's steady state),
+legacy and canonical builds alike write and sync normally, and the canonical
+build's testers keep accumulating device-only history safely under the upload
+gate. There is no time pressure from the app-store side — the maintenance
+window is triggered by release approval, not the reverse.
+
 ### Progress columns (source: `Models/Program.cs`, `Controllers/ProgramsController.cs`)
 
 | Table | Column | Written by |
