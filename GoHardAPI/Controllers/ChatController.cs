@@ -417,6 +417,7 @@ Please create a detailed workout plan. Your response MUST include:
           ""name"": ""Bench Press"",
           ""sets"": 4,
           ""reps"": 8,
+          ""repsMax"": 10,
           ""restTime"": 90,
           ""notes"": ""Warm up first""
         }}
@@ -430,6 +431,7 @@ Please create a detailed workout plan. Your response MUST include:
 
 IMPORTANT:
 - sets, reps, and restTime MUST be integers (use null if variable)
+- For a rep range like 8-10, set reps to the lower bound (8) and repsMax to the upper bound (10); for an exact rep count omit repsMax
 - Include ALL {request.DaysPerWeek} workout days in the sessions array
 - Each session should have 4-8 exercises";
 
@@ -1281,7 +1283,8 @@ Please provide:
             DateTime startDate,
             int totalWeeks,
             int daysPerWeek,
-            List<SessionData> sessions)
+            List<SessionData> sessions,
+            List<ExerciseTemplate> systemTemplates)
         {
             var effectiveDaysPerWeek = Math.Max(daysPerWeek, 1);
             var workoutSessions = sessions
@@ -1310,14 +1313,25 @@ Please provide:
                     var sessionData = workoutSessions[sessionIndex % workoutSessions.Count];
                     sessionIndex++;
 
-                    var exercisesList = sessionData.Exercises!.Select(e => new
+                    var exercisesList = sessionData.Exercises!.Select(e =>
                     {
-                        name = e.Name,
-                        sets = e.Sets,
-                        reps = e.Reps,
-                        weight = (double?)null, // see above
-                        rest = e.RestTime,
-                        notes = e.Notes,
+                        var templateId = ExerciseTemplateResolver.Resolve(e.Name, systemTemplates);
+                        if (templateId is null)
+                        {
+                            _logger.LogInformation("AI plan exercise {ExerciseName} left unresolved (no exact system template)", e.Name);
+                        }
+
+                        return new
+                        {
+                            name = e.Name,
+                            exerciseTemplateId = templateId,
+                            sets = e.Sets,
+                            reps = e.Reps,
+                            repsMax = e.RepsMax is int max && e.Reps is int min && max > min ? max : (int?)null,
+                            weight = (double?)null, // see above
+                            rest = e.RestTime,
+                            notes = e.Notes,
+                        };
                     }).ToList();
                     var rawJson = System.Text.Json.JsonSerializer.Serialize(exercisesList);
                     // Every entry above is freshly generated with no occurrenceKey property, so
@@ -1419,6 +1433,7 @@ Return ONLY valid JSON (no markdown, no explanations) with this exact structure:
           ""name"": ""Bench Press"",
           ""sets"": 4,
           ""reps"": 8,
+          ""repsMax"": 10,
           ""restTime"": 90,
           ""notes"": ""Warm up first""
         }
@@ -1431,7 +1446,8 @@ IMPORTANT RULES:
 - sets and reps MUST be integers (numbers). Use null if not specified.
 - If reps says 'to failure' or similar, use null for reps
 - restTime must be an integer (seconds) or null
-- Do not use strings for numeric fields";
+- Do not use strings for numeric fields
+- For a rep range like 8-10, set reps to the lower bound (8) and repsMax to the upper bound (10); for an exact rep count omit repsMax";
 
             var messages = new List<ChatMessage>
             {
@@ -1660,10 +1676,16 @@ IMPORTANT RULES:
                 _context.Programs.Add(program);
                 await _context.SaveChangesAsync();
 
+                // Conservative identity (Phase 2D §4): system templates only, resolved once per draft.
+                var systemTemplates = await _context.ExerciseTemplates
+                    .AsNoTracking()
+                    .Where(t => !t.IsCustom)
+                    .ToListAsync();
+
                 // Materialize the FULL schedule now (all weeks, rest days, real occurrenceKeys) —
                 // this is the one and only materialization; activation later never rebuilds it.
                 var workouts = BuildProgramWorkouts(
-                    program.Id, proposedStartDate, totalWeeks, effectiveDaysPerWeek, workoutData.Sessions);
+                    program.Id, proposedStartDate, totalWeeks, effectiveDaysPerWeek, workoutData.Sessions, systemTemplates);
                 _context.ProgramWorkouts.AddRange(workouts);
 
                 await _context.SaveChangesAsync();
@@ -3403,6 +3425,7 @@ Respond ONLY with valid JSON (no markdown, no explanation) in this exact format:
         public string Name { get; set; } = "";
         public int? Sets { get; set; }
         public int? Reps { get; set; }
+        public int? RepsMax { get; set; }
         public double? Weight { get; set; }
         public int? RestTime { get; set; }
         public string? Notes { get; set; }

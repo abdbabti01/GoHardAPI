@@ -1,0 +1,19 @@
+{
+  "aiExerciseName": "Bench Press",
+  "systemTemplateId": 1,
+  "programWorkoutExercise": {
+    "name": "Bench Press",
+    "exerciseTemplateId": 1,
+    "sets": 3,
+    "reps": 8,
+    "repsMax": 10
+  },
+  "sessionExercise": {
+    "name": "Bench Press",
+    "sortOrder": 0,
+    "exerciseTemplateId": 1,
+    "targetSets": 3,
+    "targetRepsMin": 8,
+    "targetRepsMax": 10
+  }
+}
