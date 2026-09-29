@@ -27,21 +27,33 @@ namespace GoHardAPI.Tests.Controllers
         private readonly SqliteConnection _connection;
         private readonly TrainingContext _context;
         private readonly JsonElement _fixture;
+        private readonly string _planReply;
 
         public Phase2DPlanSessionContractTests()
         {
+            _fixture = JsonDocument.Parse(File.ReadAllText(
+                Path.Combine(AppContext.BaseDirectory, "Fixtures", "phase2d_plan_session_contract.json"))).RootElement;
+            var systemTemplateId = _fixture.GetProperty("systemTemplateId").GetInt32();
+            var aiExerciseName = _fixture.GetProperty("aiExerciseName").GetString()!;
+
             _connection = new SqliteConnection("DataSource=:memory:");
             _connection.Open();
             _context = new TrainingContext(new DbContextOptionsBuilder<TrainingContext>().UseSqlite(_connection).Options);
             _context.Database.EnsureCreated();
             _context.Users.Add(new User { Id = UserId, Name = "u", Username = "u", Email = "u@x.com", PasswordHash = "h" });
             _context.ExerciseTemplates.AddRange(
-                new ExerciseTemplate { Id = 1, Name = "Bench Press" },
-                new ExerciseTemplate { Id = 2, Name = "Bench Press", IsCustom = true, CreatedByUserId = UserId },
+                new ExerciseTemplate { Id = systemTemplateId, Name = aiExerciseName },
+                new ExerciseTemplate { Id = 2, Name = aiExerciseName, IsCustom = true, CreatedByUserId = UserId },
                 new ExerciseTemplate { Id = 3, Name = "Dumbbell Bench Press" });
             _context.SaveChanges();
-            _fixture = JsonDocument.Parse(File.ReadAllText(
-                Path.Combine(AppContext.BaseDirectory, "Fixtures", "phase2d_plan_session_contract.json"))).RootElement;
+
+            _planReply =
+                "Plan.\n\n```json\n" +
+                "{\"programName\":\"P\",\"totalWeeks\":1,\"sessions\":[{\"name\":\"Day 1\",\"type\":\"strength\"," +
+                "\"exercises\":[" +
+                $"{{\"name\":{JsonSerializer.Serialize(aiExerciseName)},\"sets\":3,\"reps\":8,\"repsMax\":10,\"restTime\":90}}," +
+                "{\"name\":\"DB Bench Press\",\"sets\":3,\"reps\":12,\"restTime\":60}" +
+                "]}]}\n```\n";
         }
 
         public void Dispose()
@@ -49,14 +61,6 @@ namespace GoHardAPI.Tests.Controllers
             _context.Dispose();
             _connection.Dispose();
         }
-
-        private const string PlanReply =
-            "Plan.\n\n```json\n" +
-            "{\"programName\":\"P\",\"totalWeeks\":1,\"sessions\":[{\"name\":\"Day 1\",\"type\":\"strength\"," +
-            "\"exercises\":[" +
-            "{\"name\":\"Bench Press\",\"sets\":3,\"reps\":8,\"repsMax\":10,\"restTime\":90}," +
-            "{\"name\":\"DB Bench Press\",\"sets\":3,\"reps\":12,\"restTime\":60}" +
-            "]}]}\n```\n";
 
         [Fact]
         public async Task AiName_Resolves_IntoPlanJson_AndSurvivesIntoMaterializedSession()
@@ -105,7 +109,7 @@ namespace GoHardAPI.Tests.Controllers
             var config = new ConfigurationBuilder()
                 .AddInMemoryCollection(new Dictionary<string, string?> { ["AISettings:DefaultProvider"] = "Groq" })
                 .Build();
-            var ai = new AIService(new FakeProviderFactory(config, new[] { FakeProvider.Returning("Groq", PlanReply) }), config, NullLogger<AIService>.Instance);
+            var ai = new AIService(new FakeProviderFactory(config, new[] { FakeProvider.Returning("Groq", _planReply) }), config, NullLogger<AIService>.Instance);
             var chat = new ChatController(_context, ai, new CurrentMeasurementsService(_context), NullLogger<ChatController>.Instance)
             {
                 ControllerContext = new ControllerContext { HttpContext = AuthedContext() },
