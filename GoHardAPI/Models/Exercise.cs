@@ -42,6 +42,15 @@ namespace GoHardAPI.Models
         [MaxLength(100)]
         public string? OccurrenceKey { get; set; }
 
+        /// <summary>
+        /// Prescription snapshotted from the source <c>ProgramWorkout.ExercisesJson</c> entry at
+        /// materialization (Phase 2D). Never re-read from the plan afterwards; null = none.
+        /// Exact reps: <see cref="TargetRepsMin"/> == <see cref="TargetRepsMax"/>.
+        /// </summary>
+        public int? TargetSets { get; set; }
+        public int? TargetRepsMin { get; set; }
+        public int? TargetRepsMax { get; set; }
+
         // Version tracking for conflict resolution (Issue #13)
         public int Version { get; set; } = 1;
 
