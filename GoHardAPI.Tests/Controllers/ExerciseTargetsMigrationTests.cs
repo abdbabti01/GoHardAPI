@@ -116,7 +116,8 @@ namespace GoHardAPI.Tests.Controllers
             Assert.Equal(3, Regex.Matches(ExerciseTargetsSql.SqlServerUp, "IF COL_LENGTH").Count);
             Assert.Equal(3, Regex.Matches(ExerciseTargetsSql.NpgsqlUp, "ADD COLUMN IF NOT EXISTS").Count);
             Assert.Equal(3, Regex.Matches(ExerciseTargetsSql.NpgsqlDown, "DROP COLUMN IF EXISTS").Count);
-            Assert.Equal(3, Regex.Matches(ExerciseTargetsSql.SqlServerDown, "IS NOT NULL").Count);
+            Assert.Equal(3, Regex.Matches(ExerciseTargetsSql.SqlServerDown, "IF OBJECT_ID").Count);
+            Assert.Equal(3, Regex.Matches(ExerciseTargetsSql.SqlServerDown, @"DROP COLUMN \[").Count);
         }
     }
 }
