@@ -77,7 +77,12 @@ namespace GoHardAPI.Tests.Controllers
                 ControllerContext = new ControllerContext { HttpContext = AuthedContext() },
             };
             var result = await sessions.CreateSessionFromProgramWorkout(
-                new CreateSessionFromProgramWorkoutDto { ProgramId = body.DraftProgramId!.Value, ProgramWorkoutId = workout.Id },
+                new CreateSessionFromProgramWorkoutDto
+                {
+                    ProgramId = body.DraftProgramId!.Value,
+                    ProgramWorkoutId = workout.Id,
+                    ClientOperationId = Guid.NewGuid(),
+                },
                 CancellationToken.None);
             var session = result.Result switch
             {

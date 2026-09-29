@@ -1297,6 +1297,24 @@ Please provide:
                 return result;
             }
 
+            // Resolve each distinct exercise name once, before the week loop: Resolve is a
+            // pure exact-match lookup over systemTemplates, so re-running it per occurrence
+            // across every scheduled week is wasted work and previously logged "left
+            // unresolved" once per week per name instead of once per name overall.
+            var templateIdsByName = workoutSessions
+                .SelectMany(s => s.Exercises!)
+                .Select(e => e.Name ?? "")
+                .Distinct(StringComparer.Ordinal)
+                .ToDictionary(n => n, n => ExerciseTemplateResolver.Resolve(n, systemTemplates), StringComparer.Ordinal);
+
+            foreach (var (unresolvedName, templateId) in templateIdsByName)
+            {
+                if (templateId is null)
+                {
+                    _logger.LogInformation("AI plan exercise {ExerciseName} left unresolved (no exact system template)", unresolvedName);
+                }
+            }
+
             var sessionIndex = 0;
 
             for (int weekDay = 1; weekDay <= totalWeeks * 7; weekDay++)
@@ -1315,11 +1333,7 @@ Please provide:
 
                     var exercisesList = sessionData.Exercises!.Select(e =>
                     {
-                        var templateId = ExerciseTemplateResolver.Resolve(e.Name, systemTemplates);
-                        if (templateId is null)
-                        {
-                            _logger.LogInformation("AI plan exercise {ExerciseName} left unresolved (no exact system template)", e.Name);
-                        }
+                        var templateId = templateIdsByName[e.Name ?? ""];
 
                         return new
                         {
