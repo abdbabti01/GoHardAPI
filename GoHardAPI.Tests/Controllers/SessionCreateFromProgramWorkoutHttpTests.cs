@@ -118,6 +118,49 @@ namespace GoHardAPI.Tests.Controllers
             _ => throw new Xunit.Sdk.XunitException($"not a session-bearing result: {result.Result?.GetType().Name}"),
         };
 
+        // ===== plan targets: sortOrder + prescription snapshot, both create paths ======
+
+        private const string TargetJson = """
+        [
+          { "name": "Bench Press", "exerciseTemplateId": null, "sets": 3, "reps": 8, "repsMax": 10, "occurrenceKey": "k-1" },
+          { "name": "Row", "sets": 4, "reps": 12, "occurrenceKey": "k-2" }
+        ]
+        """;
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task BothCreatePaths_SnapshotTargetsAndSortOrder(bool keyed)
+        {
+            var ctx = NewContext();
+            await SeedUser(ctx, 1);
+            var (p, w) = await SeedProgramWorkout(ctx, 1, TargetJson);
+
+            var result = await Controller(ctx).CreateSessionFromProgramWorkout(
+                Dto(p, w, keyed ? Guid.NewGuid() : null), CancellationToken.None);
+
+            var exercises = SessionOf(result).Exercises.OrderBy(e => e.SortOrder).ToList();
+            Assert.Equal(new[] { 0, 1 }, exercises.Select(e => e.SortOrder));
+            Assert.Equal<(int?, int?, int?)>((3, 8, 10), (exercises[0].TargetSets, exercises[0].TargetRepsMin, exercises[0].TargetRepsMax));
+            Assert.Equal<(int?, int?, int?)>((4, 12, 12), (exercises[1].TargetSets, exercises[1].TargetRepsMin, exercises[1].TargetRepsMax));
+        }
+
+        [Fact]
+        public async Task PlanEditedAfterCreate_ExistingSessionTargetsUnchanged()
+        {
+            var ctx = NewContext();
+            await SeedUser(ctx, 1);
+            var (p, w) = await SeedProgramWorkout(ctx, 1, TargetJson);
+            var created = SessionOf(await Controller(ctx).CreateSessionFromProgramWorkout(Dto(p, w, Guid.NewGuid()), CancellationToken.None));
+
+            var workout = await ctx.ProgramWorkouts.SingleAsync(x => x.Id == w);
+            workout.ExercisesJson = """[{"name":"Bench Press","sets":5,"reps":3,"occurrenceKey":"k-1"}]""";
+            await ctx.SaveChangesAsync();
+
+            var stored = await ctx.Exercises.Where(e => e.SessionId == created.Id).OrderBy(e => e.SortOrder).ToListAsync();
+            Assert.Equal<(int?, int?, int?)>((3, 8, 10), (stored[0].TargetSets, stored[0].TargetRepsMin, stored[0].TargetRepsMax));
+        }
+
         // ===== 1. first keyed creation =================================================
 
         [Fact]

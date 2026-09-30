@@ -88,20 +88,32 @@ namespace GoHardAPI.Services
 
             if (exercisesData != null)
             {
-                foreach (var exerciseData in exercisesData)
+                for (var index = 0; index < exercisesData.Count; index++)
                 {
+                    var exerciseData = exercisesData[index];
                     var exercise = new Exercise
                     {
                         Name = exerciseData.ContainsKey("name")
                             ? exerciseData["name"].GetString() ?? "Exercise"
                             : "Exercise",
+                        // Deterministic position (Phase 2D §2/§3): previous-performance ordinals
+                        // are counted in this order.
+                        SortOrder = index,
+                        // Only a JSON integer is an identity; anything else is unresolved (null),
+                        // never parsed or guessed.
+                        ExerciseTemplateId = IntOrNull(exerciseData, "exerciseTemplateId"),
                     };
 
-                    if (exerciseData.ContainsKey("exerciseTemplateId")
-                        && exerciseData["exerciseTemplateId"].ValueKind != JsonValueKind.Null)
-                    {
-                        exercise.ExerciseTemplateId = exerciseData["exerciseTemplateId"].GetInt32();
-                    }
+                    // Prescription snapshot (Phase 2D §2): JSON integers only, never parsed
+                    // from strings. Exact reps store min == max.
+                    var sets = IntOrNull(exerciseData, "sets");
+                    var repsMin = IntOrNull(exerciseData, "reps");
+                    var repsMax = IntOrNull(exerciseData, "repsMax");
+                    exercise.TargetSets = sets >= 1 ? sets : null;
+                    exercise.TargetRepsMin = repsMin >= 1 ? repsMin : null;
+                    exercise.TargetRepsMax = exercise.TargetRepsMin is null
+                        ? null
+                        : repsMax >= exercise.TargetRepsMin ? repsMax : exercise.TargetRepsMin;
 
                     if (exerciseData.ContainsKey("notes"))
                     {
@@ -133,5 +145,12 @@ namespace GoHardAPI.Services
 
             return session;
         }
+
+        private static int? IntOrNull(Dictionary<string, JsonElement> data, string key) =>
+            data.TryGetValue(key, out var value)
+                && value.ValueKind == JsonValueKind.Number
+                && value.TryGetInt32(out var i)
+                ? i
+                : null;
     }
 }
